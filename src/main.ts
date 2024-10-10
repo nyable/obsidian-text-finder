@@ -1,4 +1,5 @@
 import { App, Plugin, PluginSettingTab } from "obsidian";
+import { i18n } from "./i18n";
 
 interface PluginSettings {
 	scrollToCenter: boolean;
@@ -42,5 +43,8 @@ class SettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+		containerEl.createEl("h1", {
+			text: `${i18n.t("plugin.name")} ${this.plugin.manifest.version}`,
+		});
 	}
 }
