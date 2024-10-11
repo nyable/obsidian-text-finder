@@ -15,11 +15,13 @@
 
 	let searchKey: string = "";
 	let replaceKey: string = "";
+
 	let cache: SearchCache = {
 		index: 0,
 		matches: [],
 		text: "",
 	};
+
 	let iconSize = 18;
 	let visible = false;
 	let searchEl: HTMLElement;
@@ -30,6 +32,9 @@
 		visible = flag;
 		if (visible) {
 			searchEl.focus();
+			if (searchKey) {
+				editorSearch.setFindText(searchKey);
+			}
 		} else {
 			if (editorSearch.plugin.settings.clearAfterHidden) {
 				editorSearch.clearMatches(true);
@@ -237,7 +242,9 @@
 	.nya-finder {
 		position: absolute;
 		background-color: var(--background-primary);
-		transition: transform 0.4s ease-in-out;
+		transition:
+			transform 0.2s linear,
+			opacity 0.2s linear;
 		height: 72px;
 		min-width: 450px;
 		top: 96px;
@@ -257,7 +264,11 @@
 		}
 
 		&--hidden {
-			transform: translateY(-200vh);
+			// transform: translateY(-100vh);
+			transform: translateY(-100%);
+			opacity: 0;
+			user-select: none;
+			pointer-events: none;
 		}
 
 		&--active {
