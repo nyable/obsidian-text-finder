@@ -18,11 +18,34 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## How to use
 
+### Source Code
+
 -   Clone this repo.
--   Make sure your NodeJS is at least v16 (`node --version`).
--   `npm i` or `yarn` to install dependencies.
--   `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
+-   `npm i` or `yarn` to install dependencies
+-   `npm run build` to build file in `./dist`.
 -   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-text-finder/`.
+-   Enable plugin in Obsidian setting.
+
+### Releases
+
+-   Download `main.js`, `styles.css`, `manifest.json` in the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest)
+-   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-text-finder/`.
+-   Enable plugin in Obsidian setting.
+
+## Customize Style
+
+Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.  
+Such as:
+
+```css
+.nya-text-finder-match {
+	border: 1px solid #5fb4b4;
+	background-color: inherit;
+	color: inherit;
+}
+
+.nya-text-finder-match-current {
+	background-color: #fac761;
+	color: black;
+}
+```
