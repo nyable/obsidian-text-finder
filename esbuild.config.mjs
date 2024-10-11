@@ -50,7 +50,9 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
-	outdir: "dist",
+	outdir: prod
+		? "dist"
+		: `${process.envUSERPROFILE}/Documents/Obsidian Vault/.obsidian/plugins/obsidian-text-finder`,
 	minify: prod,
 });
 

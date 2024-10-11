@@ -1,5 +1,19 @@
 {
   "plugin": {
     "name": "Text Finder"
+  },
+  "search": {
+    "tip": {
+      "NoResults": "No results",
+      "HasResults": "{{current}} of {{total}}",
+      "ToggleReplace": "Toggle Replace",
+      "MatchCase": "Match Case",
+      "UseRegularExpression": "Use Regular Expression",
+      "PreviousMatch": "Previous Match",
+      "NextMatch": "Next Match",
+      "Close": "Close (Escape)",
+      "Replace": "Replace",
+      "ReplaceAll": "Replace All"
+    }
   }
 }

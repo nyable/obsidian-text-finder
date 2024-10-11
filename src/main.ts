@@ -1,5 +1,6 @@
 import { App, Plugin, PluginSettingTab } from "obsidian";
 import { i18n } from "./i18n";
+import { editorExtensionProvider } from "./editor-extension";
 
 interface PluginSettings {
 	scrollToCenter: boolean;
@@ -15,6 +16,8 @@ export default class TextFinderPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		this.addSettingTab(new SettingTab(this.app, this));
+
+		this.registerEditorExtension(editorExtensionProvider(this));
 	}
 
 	onunload() {}
