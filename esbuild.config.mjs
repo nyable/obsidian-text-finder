@@ -52,7 +52,7 @@ const context = await esbuild.context({
 	treeShaking: true,
 	outdir: prod
 		? "dist"
-		: `${process.envUSERPROFILE}/Documents/Obsidian Vault/.obsidian/plugins/obsidian-text-finder`,
+		: `${process.env.USERPROFILE}/Documents/Obsidian Vault/.obsidian/plugins/obsidian-text-finder`,
 	minify: prod,
 });
 
