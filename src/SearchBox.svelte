@@ -29,14 +29,20 @@
 
 	export let editorSearch: EditorSearch;
 	export function setVisible(flag: boolean) {
+		const searchInput = searchEl as HTMLInputElement;
 		visible = flag;
+		const settings = editorSearch.plugin.settings;
 		if (visible) {
-			searchEl.focus();
+			if (settings.selectWhenDisplay) {
+				searchInput.select();
+			} else {
+				searchEl.focus();
+			}
 			if (searchKey) {
 				editorSearch.setFindText(searchKey);
 			}
 		} else {
-			if (editorSearch.plugin.settings.clearAfterHidden) {
+			if (settings.clearAfterHidden) {
 				editorSearch.clearMatches(true);
 				clearInput();
 				clearReplace();

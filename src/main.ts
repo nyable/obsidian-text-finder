@@ -7,10 +7,15 @@ interface PluginSettings {
 	 * 隐藏窗口时清空输入项
 	 */
 	clearAfterHidden: boolean;
+	/**
+	 * 展示窗口时选中搜索框的文本
+	 */
+	selectWhenDisplay: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
 	clearAfterHidden: false,
+	selectWhenDisplay: true,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -61,6 +66,17 @@ class SettingTab extends PluginSettingTab {
 				cb.setValue(pluginSetting.clearAfterHidden).onChange(
 					async (value: boolean) => {
 						pluginSetting.clearAfterHidden = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+		new Setting(containerEl)
+			.setName("Select When Display")
+			.setDesc("Select when display.")
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.selectWhenDisplay).onChange(
+					async (value: boolean) => {
+						pluginSetting.selectWhenDisplay = value;
 						await this.plugin.saveSettings();
 					}
 				);
