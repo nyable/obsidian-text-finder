@@ -6,7 +6,13 @@ import {
 	type Extension,
 } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
-import { debounce, MarkdownView } from "obsidian";
+import {
+	debounce,
+	Editor,
+	MarkdownView,
+	WorkspaceLeaf,
+	type MarkdownFileInfo,
+} from "obsidian";
 import SearchBox from "./SearchBox.svelte";
 
 const CLS = {
@@ -23,7 +29,6 @@ export class EditorSearch {
 		enableCaseSensitive: false,
 	};
 	component: SearchBox;
-
 	constructor(plugin: TextFinderPlugin, mountEl: HTMLElement) {
 		this.plugin = plugin;
 
@@ -34,27 +39,58 @@ export class EditorSearch {
 				editorSearch: this,
 			},
 		});
-		this.plugin.app.workspace.on(
-			"active-leaf-change",
-			debounce(
-				(leaf) => {
-					this.setFindText(this.cache.text);
-					this.component.updateMatchedCache(this.cache);
-				},
-				350,
-				true
-			)
-		);
 
-		this.plugin.app.workspace.on("editor-change", (edt, info) => {
+		this.registerEvent();
+		this.registerCommand();
+	}
+	private registerEvent() {
+		const ACTIVE_LEAF_CHANGE = "active-leaf-change";
+		const EDITOR_CHANGE = "editor-change";
+
+		const workspace = this.plugin.app.workspace;
+		const onActiveLeafChange = debounce(
+			(leaf: WorkspaceLeaf | null) => {
+				this.setFindText(this.cache.text);
+				this.component.updateMatchedCache(this.cache);
+			},
+			350,
+			true
+		);
+		workspace.on(ACTIVE_LEAF_CHANGE, onActiveLeafChange);
+
+		const onEditorChange = (
+			edt: Editor,
+			info: MarkdownView | MarkdownFileInfo
+		) => {
 			const searchStr = this.cache.text;
 			if (searchStr !== "") {
 				const cursorPos = edt.getCursor("to");
 				this.setFindText(this.cache.text);
 				edt.setCursor(cursorPos);
 			}
-		});
+		};
+		workspace.on(EDITOR_CHANGE, onEditorChange);
 
+		this.plugin.onunload = () => {
+			workspace.off(
+				EDITOR_CHANGE,
+				onEditorChange as (...data: unknown[]) => unknown
+			);
+			workspace.off(
+				ACTIVE_LEAF_CHANGE,
+				onActiveLeafChange as (...data: unknown[]) => unknown
+			);
+		};
+
+		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
+			// press esc
+			if (e.key == "Escape") {
+				this.component.setVisible(false);
+			}
+		});
+	}
+
+	private registerCommand() {
 		this.plugin.addCommand({
 			id: "text-finder-show",
 			name: "Show Text Finder",
@@ -76,13 +112,6 @@ export class EditorSearch {
 			editorCallback: (editor, ctx) => {
 				this.component.toggleVisible();
 			},
-		});
-
-		this.plugin.registerDomEvent(mountEl, "keydown", (e) => {
-			// press esc
-			if (e.key == "Escape") {
-				this.component.setVisible(false);
-			}
 		});
 	}
 
