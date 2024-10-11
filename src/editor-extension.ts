@@ -48,12 +48,17 @@ export class EditorSearch {
 		const EDITOR_CHANGE = "editor-change";
 
 		const workspace = this.plugin.app.workspace;
+
 		const onActiveLeafChange = debounce(
 			(leaf: WorkspaceLeaf | null) => {
-				this.setFindText(this.cache.text);
-				this.component.updateMatchedCache(this.cache);
+				if (leaf?.view instanceof MarkdownView) {
+					if (this.isVisible() && this.cache.text != "") {
+						this.setFindText(this.cache.text);
+						this.component.updateMatchedCache(this.cache);
+					}
+				}
 			},
-			350,
+			200,
 			true
 		);
 		workspace.on(ACTIVE_LEAF_CHANGE, onActiveLeafChange);
@@ -353,25 +358,26 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 			): DecorationSet {
 				const { cache } = editorSearch;
 				const builder = new RangeSetBuilder<Decoration>();
-
-				const length = transaction.state.doc.length;
-				cache.matches.forEach((item, index) => {
-					const from = item.from;
-					const to = item.to;
-					if (to <= length) {
-						const classStr = `
-							${CLS.MATCH} 
-							${cache.index == index ? CLS.MATCH_CURRENT : ""} 
-							`;
-						builder.add(
-							from,
-							to,
-							Decoration.mark({
-								class: classStr,
-							})
-						);
-					}
-				});
+				if (editorSearch.isVisible()) {
+					const length = transaction.state.doc.length;
+					cache.matches.forEach((item, index) => {
+						const from = item.from;
+						const to = item.to;
+						if (to <= length) {
+							const classStr = `
+								${CLS.MATCH} 
+								${cache.index == index ? CLS.MATCH_CURRENT : ""} 
+								`;
+							builder.add(
+								from,
+								to,
+								Decoration.mark({
+									class: classStr,
+								})
+							);
+						}
+					});
+				}
 
 				return builder.finish();
 			},

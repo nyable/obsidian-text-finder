@@ -1,13 +1,16 @@
-import { App, Plugin, PluginSettingTab } from "obsidian";
+import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { i18n } from "./i18n";
 import { editorExtensionProvider } from "./editor-extension";
 
 interface PluginSettings {
-	scrollToCenter: boolean;
+	/**
+	 * 隐藏窗口时清空输入项
+	 */
+	clearAfterHidden: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
-	scrollToCenter: false,
+	clearAfterHidden: false,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -49,5 +52,18 @@ class SettingTab extends PluginSettingTab {
 		containerEl.createEl("h1", {
 			text: `${i18n.t("plugin.name")} ${this.plugin.manifest.version}`,
 		});
+
+		const pluginSetting = this.plugin.settings;
+		new Setting(containerEl)
+			.setName("Clear Input")
+			.setDesc("Clear input when hidden.")
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.clearAfterHidden).onChange(
+					async (value: boolean) => {
+						pluginSetting.clearAfterHidden = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
 	}
 }

@@ -13,8 +13,13 @@
 	import type { EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
 
+	let searchKey: string = "";
 	let replaceKey: string = "";
-	let cache: SearchCache = { index: 0, matches: [], text: "" };
+	let cache: SearchCache = {
+		index: 0,
+		matches: [],
+		text: "",
+	};
 	let iconSize = 18;
 	let visible = false;
 	let searchEl: HTMLElement;
@@ -25,13 +30,25 @@
 		visible = flag;
 		if (visible) {
 			searchEl.focus();
+		} else {
+			if (editorSearch.plugin.settings.clearAfterHidden) {
+				editorSearch.clearMatches(true);
+				clearInput();
+				clearReplace();
+			}
 		}
 	}
+
+	export function clearInput() {
+		searchKey = "";
+	}
+	export function clearReplace() {
+		replaceKey = "";
+	}
+
 	export function toggleVisible() {
 		visible = !visible;
-		if (visible) {
-			searchEl.focus();
-		}
+		setVisible(visible);
 	}
 
 	export function getVisible() {
@@ -84,6 +101,7 @@
 	};
 </script>
 
+<!-- svelte-ignore a11y-click-events-have-key-events -->
 <div
 	class={`nya-finder ${visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapse ? "nya-finder--collapsed" : ""}`}
 >
@@ -93,7 +111,6 @@
 		role="button"
 		tabindex="0"
 		title={i18n.t("search.tip.ToggleReplace")}
-		on:keyup={(e) => {}}
 	>
 		{#if collapse}
 			<ChevronRight size={iconSize} />
@@ -112,6 +129,7 @@
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
+				bind:value={searchKey}
 			/>
 			<div
 				style="display: flex;justify-content: center;align-items: center;height: 28px;flex:1;padding-left:4px"
@@ -137,7 +155,6 @@
 					on:click={toggleRegexMode}
 					role="button"
 					tabindex="0"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.UseRegularExpression")}
 				>
 					<Regex size={iconSize} />
@@ -147,7 +164,6 @@
 					on:click={toggleMatchCaseMode}
 					role="button"
 					tabindex="0"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.MatchCase")}
 				>
 					<CaseSensitive size={iconSize} />
@@ -157,7 +173,6 @@
 					on:click={clickPreviousMatch}
 					role="button"
 					tabindex="0"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.PreviousMatch")}
 				>
 					<ArrowUp size={iconSize} />
@@ -167,7 +182,6 @@
 					on:click={clickNextMatch}
 					role="button"
 					tabindex="0"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.NextMatch")}
 				>
 					<ArrowDown size={iconSize} />
@@ -177,7 +191,6 @@
 					on:click={clickClose}
 					role="button"
 					tabindex="0"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.Close")}
 				>
 					<X size={iconSize} />
@@ -202,7 +215,6 @@
 					on:click={clickReplace}
 					tabindex="0"
 					role="button"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.Replace")}
 				>
 					<Replace size={iconSize} />
@@ -212,7 +224,6 @@
 					on:click={clickReplaceAll}
 					tabindex="0"
 					role="button"
-					on:keyup={(e) => {}}
 					title={i18n.t("search.tip.ReplaceAll")}
 				>
 					<ReplaceAll xlink:title="Replace All" size={iconSize} />
