@@ -16,8 +16,8 @@ import {
 import SearchBox from "./SearchBox.svelte";
 
 const CLS = {
-	MATCH: "text-finder-match",
-	MATCH_CURRENT: "text-finder-match-current",
+	MATCH: "nya-text-finder-match",
+	MATCH_CURRENT: "nya-text-finder-match-current",
 };
 
 export class EditorSearch {
