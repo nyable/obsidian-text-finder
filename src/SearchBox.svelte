@@ -63,6 +63,7 @@
 	const clickReplace = () => {
 		const plugin = editorSearch.replaceMatchedText(replaceKey);
 		cache = plugin.cache;
+		editorSearch.toNextMatch();
 	};
 
 	const clickClose = () => {

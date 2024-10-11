@@ -116,7 +116,10 @@ export class EditorSearch {
 			const { cache, options } = this;
 			const { enableRegexMode, enableCaseSensitive } = options;
 			cache.text = text;
-			cache.index = 0;
+
+			if (cache.index > cache.matches.length - 1) {
+				cache.index = 0;
+			}
 
 			if (text) {
 				const content = editor.getValue();
