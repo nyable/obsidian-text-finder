@@ -9,6 +9,10 @@ interface EditorOffset {
 	 * 起始位置
 	 */
 	to: number;
+	/**
+	 * 放入数组时的index
+	 */
+	index: number;
 }
 
 interface SearchOptions {

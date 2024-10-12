@@ -407,6 +407,7 @@ export function queryPositionList(
 ): EditorOffset[] {
 	const matches: EditorOffset[] = [];
 	if (source != "" && target != "") {
+		let index = 0;
 		if (enableRegexMode) {
 			try {
 				const flags = "g" + (enableCaseSensitive ? "" : "i");
@@ -420,6 +421,7 @@ export function queryPositionList(
 				// }
 				let match;
 				// 可能有一些正则表达式会导致无限循环,考虑弄个黑名单直接返回[]
+
 				while ((match = regex.exec(source)) !== null) {
 					if (match[0] == "") {
 						regex.lastIndex++;
@@ -427,6 +429,7 @@ export function queryPositionList(
 						matches.push({
 							from: match.index,
 							to: match.index + match[0].length,
+							index: index++,
 						});
 					}
 				}
@@ -450,6 +453,7 @@ export function queryPositionList(
 				matches.push({
 					from: startIndex,
 					to: endIndex,
+					index: index++,
 				});
 				startIndex += targetStr.length;
 			}
