@@ -38,6 +38,8 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Settings
 
+-   Assign hotkeys in settings.
+
 ## Customize Style
 
 Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.  

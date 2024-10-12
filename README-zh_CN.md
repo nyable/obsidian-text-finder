@@ -36,6 +36,8 @@
 
 ## 设置
 
+-   在设置页面为对应的命令设置快捷键。
+
 ## 自定义样式
 
 使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来重写类，自定义匹配高亮和当前项的样式。  
