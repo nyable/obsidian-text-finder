@@ -28,7 +28,7 @@
 	let collapse = true;
 
 	export let editorSearch: EditorSearch;
-	export function setVisible(flag: boolean) {
+	export function setVisible(flag: boolean, searchText?: string) {
 		const searchInput = searchEl as HTMLInputElement;
 		visible = flag;
 		const settings = editorSearch.plugin.settings;
@@ -38,9 +38,10 @@
 			} else {
 				searchEl.focus();
 			}
-			if (searchKey) {
-				editorSearch.setFindText(searchKey);
+			if (searchText) {
+				searchKey = searchText;
 			}
+			editorSearch.setFindText(searchKey);
 		} else {
 			if (settings.clearAfterHidden) {
 				editorSearch.clearMatches(true);
@@ -328,6 +329,7 @@
 		width: 160px;
 		resize: none;
 		height: 28px;
+		scrollbar-width: none;
 		&:focus {
 			border-color: #2488db;
 		}

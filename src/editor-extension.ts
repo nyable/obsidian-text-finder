@@ -100,7 +100,7 @@ export class EditorSearch {
 			id: "text-finder-show",
 			name: "Show Text Finder",
 			editorCallback: (editor, ctx) => {
-				this.component.setVisible(true);
+				this.component.setVisible(true, editor.getSelection());
 			},
 		});
 		this.plugin.addCommand({
