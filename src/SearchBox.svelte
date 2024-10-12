@@ -141,25 +141,28 @@
 			const { editor } = activeEditor;
 			const { enableRegexMode, enableCaseSensitive } = options;
 			cache.search = text;
-
-			const content = editor.getValue();
-			cache.matches = queryPositionList(
-				content,
-				text,
-				enableRegexMode,
-				enableCaseSensitive,
-			);
-			if (cache.index > cache.matches.length - 1) {
-				cache.index = 0;
-			}
-			if (cache.matches.length > 0) {
-				if (scroll) {
-					scrollToMatch();
+			if (text) {
+				const content = editor.getValue();
+				cache.matches = queryPositionList(
+					content,
+					text,
+					enableRegexMode,
+					enableCaseSensitive,
+				);
+				if (cache.index > cache.matches.length - 1) {
+					cache.index = 0;
+				}
+				if (cache.matches.length > 0) {
+					if (scroll) {
+						scrollToMatch();
+					} else {
+						editor.setCursor(editor.getCursor());
+					}
 				} else {
-					editor.setCursor(editor.getCursor());
+					clearMatches();
 				}
 			} else {
-				clearMatches();
+				clearMatches(true);
 			}
 		}
 	};
@@ -491,7 +494,7 @@
 		height: 72px;
 		min-width: 464px;
 		top: 88px;
-		right: 336px;
+		right: 352px;
 		// box-shadow: 0 0 1px #ababab;
 		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
 		border: 1px solid var(--modal-border-color);
