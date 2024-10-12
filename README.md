@@ -16,7 +16,9 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## ScreenShot
 
-## How to use
+# How to use
+
+## Install
 
 ### Source Code
 
@@ -31,6 +33,8 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 -   Download `main.js`, `styles.css`, `manifest.json` in the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest)
 -   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-text-finder/`.
 -   Enable plugin in Obsidian setting.
+
+## Settings
 
 ## Customize Style
 
