@@ -481,7 +481,7 @@
 	</div>
 </div>
 
-<style lang="scss" global>
+<style lang="scss">
 	.nya-finder {
 		position: absolute;
 		background-color: var(--background-primary);
@@ -490,10 +490,10 @@
 			opacity 0.2s linear;
 		height: 72px;
 		min-width: 464px;
-		top: 96px;
-		right: 360px;
+		top: 88px;
+		right: 336px;
 		// box-shadow: 0 0 1px #ababab;
-		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36) !important;
+		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
 		border: 1px solid var(--modal-border-color);
 
 		display: flex;
