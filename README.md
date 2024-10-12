@@ -42,12 +42,13 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Customize Style
 
-Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.  
+Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.
 Such as:
 
 ```css
 .nya-text-finder-match {
-	border: 1px solid #5fb4b4;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px #5fb4b4;
 	background-color: inherit;
 	color: inherit;
 }

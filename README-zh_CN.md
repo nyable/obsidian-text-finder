@@ -45,7 +45,8 @@
 
 ```css
 .nya-text-finder-match {
-	border: 1px solid #5fb4b4;
+	border-radius: 2px;
+	box-shadow: 0 0 0 1px #5fb4b4;
 	background-color: inherit;
 	color: inherit;
 }
