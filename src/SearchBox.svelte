@@ -376,17 +376,21 @@
 				style="display: flex;justify-content: center;align-items: center;height: 28px;flex:1;padding-left:4px"
 			>
 				<div
-					style="font-size: 12px;text-align: left;flex:1;padding:0 4px"
+					style="font-size: 12px;text-align: left;flex:1;padding:0 4px;"
 				>
 					{#if cache.matches.length > 0}
-						<div>
+						<div style="font-family: auto">
 							{i18n.t("search.tip.HasResults", {
 								current: cache.index + 1,
 								total: cache.matches.length,
 							})}
 						</div>
 					{:else}
-						<div style:color={cache.search ? "red" : ""}>
+						<div
+							style="color:{cache.search
+								? 'red'
+								: ''};font-family: auto"
+						>
 							{i18n.t("search.tip.NoResults")}
 						</div>
 					{/if}
