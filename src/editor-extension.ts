@@ -118,10 +118,44 @@ export class EditorSearch {
 				this.component.toggleVisible();
 			},
 		});
+
+		this.plugin.addCommand({
+			id: "text-finder-previous-match",
+			name: "Previous Match",
+			editorCallback: (editor, ctx) => {
+				this.toPreviousMatch();
+			},
+		});
+
+		this.plugin.addCommand({
+			id: "text-finder-next-match",
+			name: "Next Match",
+			editorCallback: (editor, ctx) => {
+				this.toNextMatch();
+			},
+		});
+		this.plugin.addCommand({
+			id: "text-finder-replace",
+			name: "Replace",
+			editorCallback: (editor, ctx) => {
+				this.replaceMatchedText(this.component.getReplaceKey());
+			},
+		});
+		this.plugin.addCommand({
+			id: "text-finder-replace-all",
+			name: "Replace All",
+			editorCallback: (editor, ctx) => {
+				this.replaceAllMatchedText(this.component.getReplaceKey());
+			},
+		});
 	}
 
 	isVisible() {
 		return this.component.getVisible();
+	}
+
+	syncCache() {
+		this.component.updateMatchedCache(this.cache);
 	}
 
 	setOptions(options: SearchOptions) {
@@ -185,6 +219,7 @@ export class EditorSearch {
 		} else {
 			cache.index = (cache.index + 1) % matchSize;
 		}
+		this.syncCache();
 		this.scrollToMatch();
 		return this;
 	}
@@ -196,6 +231,7 @@ export class EditorSearch {
 		} else {
 			cache.index = (cache.index - 1 + matchSize) % matchSize;
 		}
+		this.syncCache();
 		this.scrollToMatch();
 		return this;
 	}

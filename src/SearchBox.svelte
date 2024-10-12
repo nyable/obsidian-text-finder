@@ -13,6 +13,8 @@
 	import type { EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
 
+	// 想用store来管理变量但是感觉哪里怪怪的,先凑合实现功能再说
+	// ts文件和svelte组件互相调用的太多太乱了,考虑把实现全都放到svelte中,ts中只调用组件里的方法.
 	let searchKey: string = "";
 	let replaceKey: string = "";
 
@@ -68,6 +70,10 @@
 		return visible;
 	}
 
+	export function getReplaceKey() {
+		return replaceKey;
+	}
+
 	export function updateMatchedCache(searchCache: SearchCache) {
 		cache = searchCache;
 	}
@@ -78,22 +84,17 @@
 	};
 
 	const clickNextMatch = () => {
-		const plugin = editorSearch.toNextMatch();
-		cache = plugin.cache;
+		editorSearch.toNextMatch();
 	};
 	const clickPreviousMatch = () => {
-		const plugin = editorSearch.toPreviousMatch();
-		cache = plugin.cache;
+		editorSearch.toPreviousMatch();
 	};
 
 	const clickReplaceAll = () => {
-		const plugin = editorSearch.replaceAllMatchedText(replaceKey);
-		cache = plugin.cache;
+		editorSearch.replaceAllMatchedText(replaceKey);
 	};
 	const clickReplace = () => {
-		const plugin = editorSearch.replaceMatchedText(replaceKey);
-		cache = plugin.cache;
-		editorSearch.toNextMatch();
+		editorSearch.replaceMatchedText(replaceKey).toNextMatch();
 	};
 
 	const clickClose = () => {
