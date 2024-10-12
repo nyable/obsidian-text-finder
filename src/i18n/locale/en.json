@@ -13,7 +13,9 @@
       "NextMatch": "Next Match",
       "Close": "Close (Escape)",
       "Replace": "Replace",
-      "ReplaceAll": "Replace All"
+      "ReplaceAll": "Replace All",
+      "FindPlaceholder": "Find",
+      "ReplacePlaceholder": "Replace"
     }
   }
 }

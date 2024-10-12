@@ -33,14 +33,15 @@
 		visible = flag;
 		const settings = editorSearch.plugin.settings;
 		if (visible) {
+			if (searchText) {
+				searchKey = searchText;
+			}
 			if (settings.selectWhenDisplay) {
 				searchInput.select();
 			} else {
 				searchEl.focus();
 			}
-			if (searchText) {
-				searchKey = searchText;
-			}
+
 			editorSearch.setFindText(searchKey);
 		} else {
 			if (settings.clearAfterHidden) {
@@ -142,12 +143,13 @@
 				class="nya-input"
 				bind:this={searchEl}
 				bind:value={searchKey}
+				placeholder={i18n.t("search.tip.FindPlaceholder")}
 			/>
 			<div
 				style="display: flex;justify-content: center;align-items: center;height: 28px;flex:1;padding-left:4px"
 			>
 				<div
-					style="font-size: 13px;text-align: left;flex:1;padding-left:4px"
+					style="font-size: 12px;text-align: left;flex:1;padding-left:4px"
 				>
 					{#if cache.matches.length > 0}
 						<div>
@@ -218,6 +220,7 @@
 				rows="1"
 				class="nya-input"
 				bind:value={replaceKey}
+				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 			/>
 			<div
 				style="display: flex;justify-content: start;align-items: center;height: 28px;flex:1;padding-left:4px"
@@ -326,7 +329,7 @@
 	}
 	.nya-input {
 		box-shadow: none;
-		width: 160px;
+		width: 192px;
 		resize: none;
 		height: 28px;
 		scrollbar-width: none;

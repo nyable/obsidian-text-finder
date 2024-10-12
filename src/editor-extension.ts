@@ -58,7 +58,7 @@ export class EditorSearch {
 					}
 				}
 			},
-			200,
+			250,
 			true
 		);
 		workspace.on(ACTIVE_LEAF_CHANGE, onActiveLeafChange);

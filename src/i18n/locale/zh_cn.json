@@ -13,7 +13,9 @@
       "NextMatch": "下一个匹配项",
       "Close": "关闭 (Escape)",
       "Replace": "替换",
-      "ReplaceAll": "全部替换"
+      "ReplaceAll": "全部替换",
+      "FindPlaceholder": "查找",
+      "ReplacePlaceholder": "替换"
     }
   }
 }
