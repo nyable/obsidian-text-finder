@@ -1,5 +1,7 @@
 # Obsidian Text Finder
 
+[简体中文说明](README-zh_CN.md)
+
 This plugin for Obsidian(https://obsidian.md).  
 Provides a search/replace window similar to VSCode in editing mode.
 
