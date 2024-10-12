@@ -48,8 +48,9 @@ export class EditorSearch {
 			(leaf: WorkspaceLeaf | null) => {
 				if (leaf?.view instanceof MarkdownView) {
 					const cache = this.component.getSearchCache();
-					if (this.component.isVisible() && cache.search != "") {
-						this.component.setFindText(cache.search);
+					const searchKey = cache.search;
+					if (this.component.isVisible() && searchKey != "") {
+						this.component.setFindText(searchKey);
 					}
 				}
 			},
@@ -62,9 +63,10 @@ export class EditorSearch {
 			edt: Editor,
 			info: MarkdownView | MarkdownFileInfo
 		) => {
-			const searchStr = this.component.getSearchCache().search;
-			if (this.component.isVisible()) {
-				this.component.setFindText(searchStr, false);
+			const cache = this.component.getSearchCache();
+			const searchKey = cache.search;
+			if (this.component.isVisible() && searchKey != "") {
+				this.component.setFindText(searchKey, false);
 			}
 		};
 		workspace.on(EDITOR_CHANGE, onEditorChange);
@@ -183,23 +185,25 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				const builder = new RangeSetBuilder<Decoration>();
 				if (editorSearch.component.isVisible()) {
 					const length = transaction.state.doc.length;
-					cache.matches.forEach((item, index) => {
-						const from = item.from;
-						const to = item.to;
-						if (to <= length) {
-							const classStr = `
+					cache.matches.forEach(
+						(item: EditorOffset, index: number) => {
+							const from = item.from;
+							const to = item.to;
+							if (to <= length) {
+								const classStr = `
 								${CLS.MATCH} 
 								${cache.index == index ? CLS.MATCH_CURRENT : ""} 
 								`;
-							builder.add(
-								from,
-								to,
-								Decoration.mark({
-									class: classStr,
-								})
-							);
+								builder.add(
+									from,
+									to,
+									Decoration.mark({
+										class: classStr,
+									})
+								);
+							}
 						}
-					});
+					);
 				}
 
 				return builder.finish();
