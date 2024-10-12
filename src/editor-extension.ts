@@ -63,10 +63,8 @@ export class EditorSearch {
 			info: MarkdownView | MarkdownFileInfo
 		) => {
 			const searchStr = this.component.getSearchCache().search;
-			if (searchStr !== "") {
-				const cursorPos = edt.getCursor("to");
-				this.component.setFindText(searchStr);
-				edt.setCursor(cursorPos);
+			if (this.component.isVisible()) {
+				this.component.setFindText(searchStr, false);
 			}
 		};
 		workspace.on(EDITOR_CHANGE, onEditorChange);

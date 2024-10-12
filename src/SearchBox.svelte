@@ -135,7 +135,7 @@
 		return null;
 	};
 
-	export const setFindText = (text: string) => {
+	export const setFindText = (text: string, scroll: boolean = true) => {
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editor } = activeEditor;
@@ -153,7 +153,11 @@
 				cache.index = 0;
 			}
 			if (cache.matches.length > 0) {
-				scrollToMatch();
+				if (scroll) {
+					scrollToMatch();
+				} else {
+					editor.setCursor(editor.getCursor());
+				}
 			} else {
 				clearMatches();
 			}
