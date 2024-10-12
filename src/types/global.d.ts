@@ -27,7 +27,8 @@ interface SearchOptions {
 }
 
 interface SearchCache {
-	text: string = "";
+	search: string = "";
+	replace: string = "";
 	index: number = 0;
 	matches: EditorOffset[] = [];
 }

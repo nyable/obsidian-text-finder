@@ -23,11 +23,6 @@ const CLS = {
 export class EditorSearch {
 	plugin: TextFinderPlugin;
 	mountEl: HTMLElement;
-	cache: SearchCache = { index: 0, matches: [], text: "" };
-	options: SearchOptions = {
-		enableRegexMode: false,
-		enableCaseSensitive: false,
-	};
 	component: SearchBox;
 	constructor(plugin: TextFinderPlugin, mountEl: HTMLElement) {
 		this.plugin = plugin;
@@ -52,9 +47,9 @@ export class EditorSearch {
 		const onActiveLeafChange = debounce(
 			(leaf: WorkspaceLeaf | null) => {
 				if (leaf?.view instanceof MarkdownView) {
-					if (this.isVisible() && this.cache.text != "") {
-						this.setFindText(this.cache.text);
-						this.component.updateMatchedCache(this.cache);
+					const cache = this.component.getSearchCache();
+					if (this.component.isVisible() && cache.search != "") {
+						this.component.setFindText(cache.search);
 					}
 				}
 			},
@@ -67,10 +62,10 @@ export class EditorSearch {
 			edt: Editor,
 			info: MarkdownView | MarkdownFileInfo
 		) => {
-			const searchStr = this.cache.text;
+			const searchStr = this.component.getSearchCache().search;
 			if (searchStr !== "") {
 				const cursorPos = edt.getCursor("to");
-				this.setFindText(this.cache.text);
+				this.component.setFindText(searchStr);
 				edt.setCursor(cursorPos);
 			}
 		};
@@ -96,285 +91,79 @@ export class EditorSearch {
 	}
 
 	private registerCommand() {
-		this.plugin.addCommand({
-			id: "text-finder-show",
-			name: "Show Text Finder",
+		const { plugin, component } = this;
+		plugin.addCommand({
+			id: "text-finder-show-find",
+			name: "Search in current file",
 			editorCallback: (editor, ctx) => {
-				this.component.setVisible(true, editor.getSelection());
+				component.setVisible(true, editor.getSelection());
 			},
 		});
-		this.plugin.addCommand({
-			id: "text-finder-hide",
-			name: "Hide Text Finder",
+		plugin.addCommand({
+			id: "text-finder-show-find-and-replace",
+			name: "Search & replace in current file",
 			editorCallback: (editor, ctx) => {
-				this.component.setVisible(false);
+				component.setCollapse(false);
+				component.setVisible(true, editor.getSelection());
+			},
+		});
+		plugin.addCommand({
+			id: "text-finder-hide-find",
+			name: "Hide finder",
+			editorCallback: (editor, ctx) => {
+				component.setVisible(false);
 			},
 		});
 
-		this.plugin.addCommand({
-			id: "text-finder-toggle",
-			name: "Toggle Text Finder",
+		plugin.addCommand({
+			id: "text-finder-toggle-replace",
+			name: "Toggle replacer",
 			editorCallback: (editor, ctx) => {
-				this.component.toggleVisible();
+				component.toggleCollapse();
 			},
 		});
 
-		this.plugin.addCommand({
+		plugin.addCommand({
+			id: "text-finder-toggle-find",
+			name: "Toggle finder",
+			editorCallback: (editor, ctx) => {
+				component.toggleVisible();
+			},
+		});
+
+		plugin.addCommand({
 			id: "text-finder-previous-match",
-			name: "Previous Match",
+			name: "Previous match",
 			editorCallback: (editor, ctx) => {
-				this.toPreviousMatch();
+				component.toPreviousMatch();
 			},
 		});
 
-		this.plugin.addCommand({
+		plugin.addCommand({
 			id: "text-finder-next-match",
-			name: "Next Match",
+			name: "Next match",
 			editorCallback: (editor, ctx) => {
-				this.toNextMatch();
+				component.toNextMatch();
 			},
 		});
-		this.plugin.addCommand({
+		plugin.addCommand({
 			id: "text-finder-replace",
-			name: "Replace",
+			name: "Replace in current file",
 			editorCallback: (editor, ctx) => {
-				this.replaceMatchedText(this.component.getReplaceKey());
+				component.replaceMatchedText(
+					component.getSearchCache().replace
+				);
 			},
 		});
-		this.plugin.addCommand({
+		plugin.addCommand({
 			id: "text-finder-replace-all",
-			name: "Replace All",
+			name: "Replace all in current file",
 			editorCallback: (editor, ctx) => {
-				this.replaceAllMatchedText(this.component.getReplaceKey());
+				component.replaceAllMatchedText(
+					component.getSearchCache().replace
+				);
 			},
 		});
-	}
-
-	isVisible() {
-		return this.component.getVisible();
-	}
-
-	syncCache() {
-		this.component.updateMatchedCache(this.cache);
-	}
-
-	setOptions(options: SearchOptions) {
-		this.options = options;
-	}
-
-	getActiveEditor() {
-		const view =
-			this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-		if (view) {
-			const editor = view.editor;
-			return {
-				view: view,
-				editor: editor,
-				// eslint-disable-next-line
-				editorView: (editor as any).cm as EditorView,
-			};
-		}
-		return null;
-	}
-
-	setFindText(text: string) {
-		const activeEditor = this.getActiveEditor();
-		if (activeEditor) {
-			const { editor } = activeEditor;
-			const { cache, options } = this;
-			const { enableRegexMode, enableCaseSensitive } = options;
-			cache.text = text;
-
-			if (cache.index > cache.matches.length - 1) {
-				cache.index = 0;
-			}
-
-			if (text) {
-				const content = editor.getValue();
-				cache.matches = queryPositionList(
-					content,
-					text,
-					enableRegexMode,
-					enableCaseSensitive
-				);
-
-				if (cache.matches.length > 0) {
-					this.scrollToMatch();
-				} else {
-					this.clearMatches();
-				}
-			} else {
-				this.clearMatches();
-			}
-			this.component.updateMatchedCache(this.cache);
-		}
-		return this;
-	}
-
-	toNextMatch() {
-		const { cache } = this;
-		const matchSize = cache.matches.length;
-		if (matchSize == 0) {
-			cache.index = 0;
-		} else {
-			cache.index = (cache.index + 1) % matchSize;
-		}
-		this.syncCache();
-		this.scrollToMatch();
-		return this;
-	}
-	toPreviousMatch() {
-		const { cache } = this;
-		const matchSize = cache.matches.length;
-		if (matchSize == 0) {
-			cache.index = 0;
-		} else {
-			cache.index = (cache.index - 1 + matchSize) % matchSize;
-		}
-		this.syncCache();
-		this.scrollToMatch();
-		return this;
-	}
-
-	scrollToMatch() {
-		const activeEditor = this.getActiveEditor();
-		if (activeEditor) {
-			const { editorView, editor } = activeEditor;
-
-			const {
-				cache: { matches, index },
-			} = this;
-			if (matches.length > 0) {
-				const matched = matches[index];
-				const { from, to } = matched;
-
-				editorView.dispatch({
-					selection: { anchor: from, head: to },
-					// scrollIntoView: true,
-				});
-				editor.scrollIntoView(
-					{
-						from: editor.offsetToPos(from),
-						to: editor.offsetToPos(to),
-					},
-					true
-				);
-			}
-		}
-	}
-
-	clearMatches(clearText = false) {
-		const { cache } = this;
-		cache.matches = [];
-		cache.index = 0;
-		if (clearText) {
-			cache.text = "";
-		}
-		const activeEditor = this.getActiveEditor();
-		if (activeEditor) {
-			const { editorView } = activeEditor;
-			editorView.dispatch({
-				selection: { anchor: 0, head: 0 },
-			});
-		}
-	}
-
-	replaceMatchedText(replaceText: string) {
-		const {
-			cache: { matches, text, index },
-			options: {
-				enableRegexMode: useRegex,
-				enableCaseSensitive: ignoreCase,
-			},
-		} = this;
-		if (matches.length > 0) {
-			const activeEditor = this.getActiveEditor();
-			if (activeEditor) {
-				const { editor, editorView } = activeEditor;
-				const current = matches[index];
-				if (useRegex) {
-					const regex = new RegExp(text, "g" + ignoreCase ? "i" : "");
-					let replaceStr = replaceText;
-					if (useRegex) {
-						const rangeText = editor.getRange(
-							editor.offsetToPos(current.from),
-							editor.offsetToPos(current.to)
-						);
-						replaceStr = rangeText.replace(regex, replaceText);
-					}
-					editorView.dispatch({
-						changes: {
-							from: current.from,
-							to: current.to,
-							insert: replaceStr,
-						},
-					});
-				} else {
-					editorView.dispatch({
-						changes: {
-							from: current.from,
-							to: current.to,
-							insert: replaceText,
-						},
-					});
-				}
-
-				this.setFindText(text);
-			}
-		}
-		return this;
-	}
-
-	replaceAllMatchedText(replaceText: string) {
-		const activeEditor = this.getActiveEditor();
-		if (activeEditor) {
-			const { editor, editorView } = activeEditor;
-			const {
-				cache: { matches, text },
-				options: {
-					enableRegexMode: useRegex,
-					enableCaseSensitive: ignoreCase,
-				},
-			} = this;
-			if (matches.length > 0) {
-				let result = [];
-				if (useRegex) {
-					const regex = new RegExp(text, "g" + ignoreCase ? "i" : "");
-					result = matches.map((item) => {
-						let replaceContent = replaceText;
-						if (useRegex) {
-							const rangeText = editor.getRange(
-								editor.offsetToPos(item.from),
-								editor.offsetToPos(item.to)
-							);
-							replaceContent = rangeText.replace(
-								regex,
-								replaceText
-							);
-						}
-						return {
-							from: item.from,
-							to: item.to,
-							insert: replaceContent,
-						};
-					});
-				} else {
-					result = matches.map((item) => {
-						return {
-							from: item.from,
-							to: item.to,
-							insert: replaceText,
-						};
-					});
-				}
-
-				editorView.dispatch({
-					changes: result,
-				});
-				this.setFindText(text);
-			}
-		}
-		return this;
 	}
 }
 
@@ -392,9 +181,9 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				oldState: DecorationSet,
 				transaction: Transaction
 			): DecorationSet {
-				const { cache } = editorSearch;
+				const cache = editorSearch.component.getSearchCache();
 				const builder = new RangeSetBuilder<Decoration>();
-				if (editorSearch.isVisible()) {
+				if (editorSearch.component.isVisible()) {
 					const length = transaction.state.doc.length;
 					cache.matches.forEach((item, index) => {
 						const from = item.from;

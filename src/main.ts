@@ -11,11 +11,16 @@ interface PluginSettings {
 	 * 展示窗口时选中搜索框的文本
 	 */
 	selectWhenDisplay: boolean;
+	/**
+	 * 启用输入框的快捷键
+	 */
+	enableInputHotkeys: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
 	clearAfterHidden: false,
 	selectWhenDisplay: true,
+	enableInputHotkeys: false,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -77,6 +82,18 @@ class SettingTab extends PluginSettingTab {
 				cb.setValue(pluginSetting.selectWhenDisplay).onChange(
 					async (value: boolean) => {
 						pluginSetting.selectWhenDisplay = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName("Enable Input Hotkeys")
+			.setDesc("Enable input hotkeys")
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.enableInputHotkeys).onChange(
+					async (value: boolean) => {
+						pluginSetting.enableInputHotkeys = value;
 						await this.plugin.saveSettings();
 					}
 				);

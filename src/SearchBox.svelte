@@ -10,19 +10,28 @@
 		ChevronDown,
 		ChevronRight,
 	} from "lucide-svelte";
-	import type { EditorSearch } from "./editor-extension";
+	import { queryPositionList, type EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
+	import { MarkdownView } from "obsidian";
+	import type { EditorView } from "@codemirror/view";
 
-	// 想用store来管理变量但是感觉哪里怪怪的,先凑合实现功能再说
-	// ts文件和svelte组件互相调用的太多太乱了,考虑把实现全都放到svelte中,ts中只调用组件里的方法.
-	let searchKey: string = "";
-	let replaceKey: string = "";
-
-	let cache: SearchCache = {
+	const cache: SearchCache = {
 		index: 0,
 		matches: [],
-		text: "",
+		search: "",
+		replace: "",
 	};
+	export function getSearchCache() {
+		return cache;
+	}
+
+	const options: SearchOptions = {
+		enableRegexMode: false,
+		enableCaseSensitive: false,
+	};
+	export function getSearchOptions() {
+		return options;
+	}
 
 	let iconSize = 18;
 	let visible = false;
@@ -30,88 +39,298 @@
 	let collapse = true;
 
 	export let editorSearch: EditorSearch;
+
 	export function setVisible(flag: boolean, searchText?: string) {
 		const searchInput = searchEl as HTMLInputElement;
 		visible = flag;
 		const settings = editorSearch.plugin.settings;
 		if (visible) {
 			if (searchText) {
-				searchKey = searchText;
+				cache.search = searchText;
 			}
+			setFindText(cache.search);
 			if (settings.selectWhenDisplay) {
 				searchInput.select();
 			} else {
 				searchEl.focus();
 			}
-
-			editorSearch.setFindText(searchKey);
 		} else {
+			collapse = true;
 			if (settings.clearAfterHidden) {
-				editorSearch.clearMatches(true);
+				clearMatches(true);
 				clearInput();
 				clearReplace();
 			}
 		}
 	}
-
+	export function setCollapse(flag: boolean) {
+		collapse = flag;
+	}
 	export function clearInput() {
-		searchKey = "";
+		cache.search = "";
 	}
 	export function clearReplace() {
-		replaceKey = "";
+		cache.replace = "";
 	}
 
 	export function toggleVisible() {
-		visible = !visible;
-		setVisible(visible);
+		setVisible(!visible);
+	}
+	export function toggleCollapse() {
+		setCollapse(!collapse);
 	}
 
-	export function getVisible() {
+	export function isVisible() {
 		return visible;
-	}
-
-	export function getReplaceKey() {
-		return replaceKey;
-	}
-
-	export function updateMatchedCache(searchCache: SearchCache) {
-		cache = searchCache;
 	}
 
 	const onFindTextChanged = (e: Event) => {
 		const target = e.target as HTMLInputElement;
-		editorSearch.setFindText(target.value);
+		setFindText(target.value);
 	};
 
 	const clickNextMatch = () => {
-		editorSearch.toNextMatch();
+		toNextMatch();
 	};
 	const clickPreviousMatch = () => {
-		editorSearch.toPreviousMatch();
+		toPreviousMatch();
 	};
 
 	const clickReplaceAll = () => {
-		editorSearch.replaceAllMatchedText(replaceKey);
+		replaceAllMatchedText(cache.replace);
 	};
 	const clickReplace = () => {
-		editorSearch.replaceMatchedText(replaceKey).toNextMatch();
+		replaceMatchedText(cache.replace);
+		toNextMatch();
 	};
 
-	const clickClose = () => {
+	export const clickClose = () => {
 		visible = false;
 	};
-	const toggleRegexMode = (e: Event) => {
-		editorSearch.options.enableRegexMode =
-			!editorSearch.options.enableRegexMode;
+	export const toggleRegexMode = (e: Event) => {
+		options.enableRegexMode = !options.enableRegexMode;
 		searchEl.focus();
-		editorSearch.setFindText(cache.text);
+		setFindText(cache.search);
 	};
 
-	const toggleMatchCaseMode = (e: Event) => {
-		editorSearch.options.enableCaseSensitive =
-			!editorSearch.options.enableCaseSensitive;
+	export const toggleMatchCaseMode = (e: Event) => {
+		options.enableCaseSensitive = !options.enableCaseSensitive;
 		searchEl.focus();
-		editorSearch.setFindText(cache.text);
+		setFindText(cache.search);
+	};
+
+	export const getActiveEditor = () => {
+		const view =
+			editorSearch.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+		if (view) {
+			const editor = view.editor;
+			return {
+				view: view,
+				editor: editor,
+				// eslint-disable-next-line
+				editorView: (editor as any).cm as EditorView,
+			};
+		}
+		return null;
+	};
+
+	export const setFindText = (text: string) => {
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const { editor } = activeEditor;
+			const { enableRegexMode, enableCaseSensitive } = options;
+			cache.search = text;
+
+			const content = editor.getValue();
+			cache.matches = queryPositionList(
+				content,
+				text,
+				enableRegexMode,
+				enableCaseSensitive,
+			);
+			if (cache.index > cache.matches.length - 1) {
+				cache.index = 0;
+			}
+			if (cache.matches.length > 0) {
+				scrollToMatch();
+			} else {
+				clearMatches();
+			}
+		}
+	};
+
+	export const toNextMatch = () => {
+		const matchSize = cache.matches.length;
+		if (matchSize == 0) {
+			cache.index = 0;
+		} else {
+			cache.index = (cache.index + 1) % matchSize;
+		}
+		scrollToMatch();
+	};
+	export const toPreviousMatch = () => {
+		const matchSize = cache.matches.length;
+		if (matchSize == 0) {
+			cache.index = 0;
+		} else {
+			cache.index = (cache.index - 1 + matchSize) % matchSize;
+		}
+		scrollToMatch();
+	};
+
+	export const scrollToMatch = () => {
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const { editorView, editor } = activeEditor;
+
+			const { matches, index } = cache;
+			if (matches.length > 0) {
+				const matched = matches[index];
+				const { from, to } = matched;
+
+				editorView.dispatch({
+					selection: { anchor: from, head: to },
+					// scrollIntoView: true,
+				});
+				editor.scrollIntoView(
+					{
+						from: editor.offsetToPos(from),
+						to: editor.offsetToPos(to),
+					},
+					true,
+				);
+			}
+		}
+	};
+
+	export const clearMatches = (clearText = false) => {
+		cache.matches = [];
+		cache.index = 0;
+		if (clearText) {
+			cache.search = "";
+		}
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const { editorView } = activeEditor;
+			editorView.dispatch({
+				selection: { anchor: 0, head: 0 },
+			});
+		}
+	};
+
+	export const replaceMatchedText = (replaceText: string) => {
+		const { matches, search: text, index } = cache;
+		const { enableRegexMode, enableCaseSensitive } = options;
+		if (matches.length > 0) {
+			const activeEditor = getActiveEditor();
+			if (activeEditor) {
+				const { editor, editorView } = activeEditor;
+				const current = matches[index];
+				if (enableRegexMode) {
+					const regex = new RegExp(
+						text,
+						"g" + enableCaseSensitive ? "i" : "",
+					);
+					let replaceStr = replaceText;
+					if (enableRegexMode) {
+						const rangeText = editor.getRange(
+							editor.offsetToPos(current.from),
+							editor.offsetToPos(current.to),
+						);
+						replaceStr = rangeText.replace(regex, replaceText);
+					}
+					editorView.dispatch({
+						changes: {
+							from: current.from,
+							to: current.to,
+							insert: replaceStr,
+						},
+					});
+				} else {
+					editorView.dispatch({
+						changes: {
+							from: current.from,
+							to: current.to,
+							insert: replaceText,
+						},
+					});
+				}
+
+				setFindText(text);
+			}
+		}
+	};
+
+	export const replaceAllMatchedText = (replaceText: string) => {
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const { editor, editorView } = activeEditor;
+			const { matches, search: text } = cache;
+			const { enableRegexMode, enableCaseSensitive } = options;
+			if (matches.length > 0) {
+				let result = [];
+				if (enableRegexMode) {
+					const regex = new RegExp(
+						text,
+						"g" + enableCaseSensitive ? "i" : "",
+					);
+					result = matches.map((item) => {
+						let replaceContent = replaceText;
+						if (enableRegexMode) {
+							const rangeText = editor.getRange(
+								editor.offsetToPos(item.from),
+								editor.offsetToPos(item.to),
+							);
+							replaceContent = rangeText.replace(
+								regex,
+								replaceText,
+							);
+						}
+						return {
+							from: item.from,
+							to: item.to,
+							insert: replaceContent,
+						};
+					});
+				} else {
+					result = matches.map((item) => {
+						return {
+							from: item.from,
+							to: item.to,
+							insert: replaceText,
+						};
+					});
+				}
+
+				editorView.dispatch({
+					changes: result,
+				});
+				setFindText(text);
+			}
+		}
+	};
+	const onFindInputKeyPress = (e: KeyboardEvent) => {
+		const enableInputHotkeys =
+			editorSearch.plugin.settings.enableInputHotkeys;
+		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
+		if (enableInputHotkeys && isEnterPress) {
+			// 这里本来打算监听enter shift+enter ctrl+enter 但是加上修饰键 会和默认的快捷键有冲突.所以除了enter都用命令的快捷键算了
+			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
+				e.preventDefault();
+				toNextMatch();
+			}
+		}
+	};
+	const onReplaceInputKeyPress = (e: KeyboardEvent) => {
+		const enableInputHotkeys =
+			editorSearch.plugin.settings.enableInputHotkeys;
+		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
+		if (enableInputHotkeys && isEnterPress) {
+			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
+				e.preventDefault();
+				replaceMatchedText(cache.replace);
+			}
+		}
 	};
 </script>
 
@@ -140,17 +359,19 @@
 				autocapitalize="off"
 				spellcheck="false"
 				on:input={onFindTextChanged}
+				on:keypress={onFindInputKeyPress}
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
-				bind:value={searchKey}
+				bind:value={cache.search}
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
+				tabindex={collapse ? 0 : 1}
 			/>
 			<div
 				style="display: flex;justify-content: center;align-items: center;height: 28px;flex:1;padding-left:4px"
 			>
 				<div
-					style="font-size: 12px;text-align: left;flex:1;padding-left:4px"
+					style="font-size: 12px;text-align: left;flex:1;padding:0 4px"
 				>
 					{#if cache.matches.length > 0}
 						<div>
@@ -160,13 +381,13 @@
 							})}
 						</div>
 					{:else}
-						<div style:color={cache.text ? "red" : ""}>
+						<div style:color={cache.search ? "red" : ""}>
 							{i18n.t("search.tip.NoResults")}
 						</div>
 					{/if}
 				</div>
 				<div
-					class={`nya-btn nya-focus ${editorSearch.options.enableRegexMode ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus ${options.enableRegexMode ? "nya-btn--active" : ""}`}
 					on:click={toggleRegexMode}
 					role="button"
 					tabindex="0"
@@ -175,7 +396,7 @@
 					<Regex size={iconSize} />
 				</div>
 				<div
-					class={`nya-btn nya-focus ${editorSearch.options.enableCaseSensitive ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus ${options.enableCaseSensitive ? "nya-btn--active" : ""}`}
 					on:click={toggleMatchCaseMode}
 					role="button"
 					tabindex="0"
@@ -220,8 +441,10 @@
 				spellcheck="false"
 				rows="1"
 				class="nya-input"
-				bind:value={replaceKey}
+				bind:value={cache.replace}
+				on:keypress={onReplaceInputKeyPress}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
+				tabindex={collapse ? -1 : 2}
 			/>
 			<div
 				style="display: flex;justify-content: start;align-items: center;height: 28px;flex:1;padding-left:4px"
@@ -257,7 +480,7 @@
 			transform 0.2s linear,
 			opacity 0.2s linear;
 		height: 72px;
-		min-width: 450px;
+		min-width: 464px;
 		top: 96px;
 		right: 360px;
 		// box-shadow: 0 0 1px #ababab;
