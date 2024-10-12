@@ -51,6 +51,7 @@
 			setFindText(cache.search);
 			if (settings.selectWhenDisplay) {
 				searchInput.select();
+				searchInput.select();
 			} else {
 				searchEl.focus();
 			}

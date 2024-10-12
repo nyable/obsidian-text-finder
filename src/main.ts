@@ -65,8 +65,8 @@ class SettingTab extends PluginSettingTab {
 
 		const pluginSetting = this.plugin.settings;
 		new Setting(containerEl)
-			.setName("Clear Input")
-			.setDesc("Clear input when hidden.")
+			.setName("Clear text")
+			.setDesc("Clear text after hiding the search window.")
 			.addToggle((cb) => {
 				cb.setValue(pluginSetting.clearAfterHidden).onChange(
 					async (value: boolean) => {
@@ -75,21 +75,12 @@ class SettingTab extends PluginSettingTab {
 					}
 				);
 			});
-		new Setting(containerEl)
-			.setName("Select When Display")
-			.setDesc("Select when display.")
-			.addToggle((cb) => {
-				cb.setValue(pluginSetting.selectWhenDisplay).onChange(
-					async (value: boolean) => {
-						pluginSetting.selectWhenDisplay = value;
-						await this.plugin.saveSettings();
-					}
-				);
-			});
 
 		new Setting(containerEl)
-			.setName("Enable Input Hotkeys")
-			.setDesc("Enable input hotkeys")
+			.setName("Enable input box hotkey")
+			.setDesc(
+				"Add hotkey (Enter) for the search box and replace box in the search window. The search box will jump to the next match, while the replace box will perform a replacement."
+			)
 			.addToggle((cb) => {
 				cb.setValue(pluginSetting.enableInputHotkeys).onChange(
 					async (value: boolean) => {
