@@ -23,6 +23,10 @@ interface PluginSettings {
 	 * 是否使用选中文本作为搜索文本
 	 */
 	useSelectionAsSearch: boolean;
+	/**
+	 * 在阅读模式下,命令会调用Obsidian的搜索
+	 */
+	useObsidianSearchInRead: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -31,6 +35,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	sourceModeWhenSearch: true,
 	moveCursorToMatch: true,
 	useSelectionAsSearch: true,
+	useObsidianSearchInRead: true,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -129,6 +134,25 @@ class SettingTab extends PluginSettingTab {
 				cb.setValue(pluginSetting.useSelectionAsSearch).onChange(
 					async (value: boolean) => {
 						pluginSetting.useSelectionAsSearch = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.UseObsidianSearchInRead.name"))
+			.setDesc(
+				i18n.t("settings.UseObsidianSearchInRead.desc", {
+					name:
+						i18n.t("plugin.name") +
+						": " +
+						i18n.t("commands.ShowFind.name"),
+				})
+			)
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.useObsidianSearchInRead).onChange(
+					async (value: boolean) => {
+						pluginSetting.useObsidianSearchInRead = value;
 						await this.plugin.saveSettings();
 					}
 				);

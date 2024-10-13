@@ -102,17 +102,34 @@ export class EditorSearch {
 		});
 	}
 
+	private openObsidianSearch() {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(this.plugin.app as any).commands.commands[
+			"editor:open-search"
+		].checkCallback();
+	}
+
 	private registerCommand() {
 		const { plugin, component } = this;
 		plugin.addCommand({
 			id: CMD.SHOW_FIND,
 			name: i18n.t("commands.ShowFind.name"),
-			editorCallback: (editor, ctx) => {
-				const { useSelectionAsSearch } = plugin.settings;
-				const defaultSearchText = useSelectionAsSearch
-					? editor.getSelection()
-					: "";
-				component.setVisible(true, defaultSearchText);
+			callback: () => {
+				const view =
+					plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				if (view) {
+					const mode = view.getMode();
+					const { useObsidianSearchInRead, useSelectionAsSearch } =
+						plugin.settings;
+					if (mode == "preview" && useObsidianSearchInRead) {
+						this.openObsidianSearch();
+					} else if (mode == "source") {
+						const defaultSearchText = useSelectionAsSearch
+							? view.editor.getSelection()
+							: "";
+						component.setVisible(true, defaultSearchText);
+					}
+				}
 			},
 		});
 		plugin.addCommand({

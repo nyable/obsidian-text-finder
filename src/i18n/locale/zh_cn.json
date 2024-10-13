@@ -1,6 +1,6 @@
 {
   "plugin": {
-    "name": "文本查找"
+    "name": "Obsidian Text Finder"
   },
   "search": {
     "tip": {
@@ -20,10 +20,10 @@
   },
   "commands": {
     "ShowFind": {
-      "name": "在当前笔记中查找"
+      "name": "在当前文件中查找"
     },
     "ShowFindAndReplace": {
-      "name": "在当前笔记中查找并替换"
+      "name": "在当前文件中查找并替换"
     },
     "HideFind": {
       "name": "关闭查找窗口"
@@ -54,7 +54,7 @@
     },
     "EnableInputHotkeys": {
       "name": "启用输入框的快捷键",
-      "desc": "为输入框添加快捷键（Enter）。搜索：到下一个匹配项；替换：替换一次"
+      "desc": "为输入框添加快捷键（Enter）。搜索：到下一个匹配项，替换：替换一次"
     },
     "SourceModeWhenSearch": {
       "name": "搜索时强制源代码模式",
@@ -67,6 +67,10 @@
     "UseSelectionAsSearch": {
       "name": "将所选内容用作搜索文本",
       "desc": "将所选文本用作搜索文本"
+    },
+    "UseObsidianSearchInRead": {
+      "name": "阅读模式下使用Obsidian搜索",
+      "desc": "在阅读模式下，使用命令 \"{{name}}\" 将会调用Obsidian原生的搜索功能(插件提供的搜索与替换仅适用于编辑模式)"
     }
   }
 }

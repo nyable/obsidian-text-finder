@@ -1,6 +1,6 @@
 {
   "plugin": {
-    "name": "Text Finder"
+    "name": "Obsidian Text Finder"
   },
   "search": {
     "tip": {
@@ -54,7 +54,7 @@
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",
-      "desc": "Add a hotkey (Enter) to the input box. Search: Go to the next matching item; Replace: Replace once."
+      "desc": "Add a hotkey (Enter) to the input box. Search: Go to the next matching item.Replace: Replace once."
     },
     "SourceModeWhenSearch": {
       "name": "Force source code mode during search",
@@ -67,6 +67,10 @@
     "UseSelectionAsSearch": {
       "name": "Use selection as search text",
       "desc": "Use the selected text as the search text."
+    },
+    "UseObsidianSearchInRead": {
+      "name": "Using Obsidian Search in Reading",
+      "desc": "In reading mode, using the command  \"{{name}}\"  will invoke Obsidian's native search function(The search and replace provided by the plugin are only applicable to editing mode)"
     }
   }
 }
