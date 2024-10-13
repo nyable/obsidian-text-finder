@@ -8,19 +8,29 @@ interface PluginSettings {
 	 */
 	clearAfterHidden: boolean;
 	/**
-	 * 展示窗口时选中搜索框的文本
-	 */
-	selectWhenDisplay: boolean;
-	/**
 	 * 启用输入框的快捷键
 	 */
 	enableInputHotkeys: boolean;
+	/**
+	 * 在搜索启用时,强制进入source模式.在退出后,根据是否开启预览模式切换
+	 */
+	sourceModeWhenSearch: boolean;
+	/**
+	 * 是否移动光标至匹配项
+	 */
+	moveCursorToMatch: boolean;
+	/**
+	 * 是否使用选中文本作为搜索文本
+	 */
+	useSelectionAsSearch: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
 	clearAfterHidden: false,
-	selectWhenDisplay: true,
 	enableInputHotkeys: false,
+	sourceModeWhenSearch: true,
+	moveCursorToMatch: true,
+	useSelectionAsSearch: true,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -65,8 +75,8 @@ class SettingTab extends PluginSettingTab {
 
 		const pluginSetting = this.plugin.settings;
 		new Setting(containerEl)
-			.setName("Clear text")
-			.setDesc("Clear text after hiding the search window.")
+			.setName(i18n.t("settings.ClearAfterHidden.name"))
+			.setDesc(i18n.t("settings.ClearAfterHidden.desc"))
 			.addToggle((cb) => {
 				cb.setValue(pluginSetting.clearAfterHidden).onChange(
 					async (value: boolean) => {
@@ -77,14 +87,48 @@ class SettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
-			.setName("Enable input box hotkey")
-			.setDesc(
-				"Add hotkey (Enter) for the search box and replace box in the search window. The search box will jump to the next match, while the replace box will perform a replacement."
-			)
+			.setName(i18n.t("settings.EnableInputHotkeys.name"))
+			.setDesc(i18n.t("settings.EnableInputHotkeys.desc"))
 			.addToggle((cb) => {
 				cb.setValue(pluginSetting.enableInputHotkeys).onChange(
 					async (value: boolean) => {
 						pluginSetting.enableInputHotkeys = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.SourceModeWhenSearch.name"))
+			.setDesc(i18n.t("settings.SourceModeWhenSearch.desc"))
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.sourceModeWhenSearch).onChange(
+					async (value: boolean) => {
+						pluginSetting.sourceModeWhenSearch = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.MoveCursorToMatch.name"))
+			.setDesc(i18n.t("settings.MoveCursorToMatch.desc"))
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.moveCursorToMatch).onChange(
+					async (value: boolean) => {
+						pluginSetting.moveCursorToMatch = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.UseSelectionAsSearch.name"))
+			.setDesc(i18n.t("settings.UseSelectionAsSearch.desc"))
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.useSelectionAsSearch).onChange(
+					async (value: boolean) => {
+						pluginSetting.useSelectionAsSearch = value;
 						await this.plugin.saveSettings();
 					}
 				);

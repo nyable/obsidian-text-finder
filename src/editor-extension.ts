@@ -14,10 +14,22 @@ import {
 	type MarkdownFileInfo,
 } from "obsidian";
 import SearchBox from "./SearchBox.svelte";
+import { i18n } from "./i18n";
 
 const CLS = {
 	MATCH: "nya-text-finder-match",
 	MATCH_CURRENT: "nya-text-finder-match-current",
+};
+export const CMD = {
+	SHOW_FIND: "text-finder-show-find",
+	SHOW_FIND_AND_REPLACE: "text-finder-show-find-and-replace",
+	HIDE_FIND: "text-finder-hide-find",
+	TOGGLE_REPLACE: "text-finder-toggle-replace",
+	TOGGLE_FIND: "text-finder-toggle-find",
+	PREVIOUS_MATCH: "text-finder-previous-match",
+	NEXT_MATCH: "text-finder-next-match",
+	REPLACE: "text-finder-replace",
+	REPLACE_ALL: "text-finder-replace-all",
 };
 
 export class EditorSearch {
@@ -85,7 +97,7 @@ export class EditorSearch {
 		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
 			// press esc
 			if (e.key == "Escape") {
-				this.component.setVisible(false);
+				this.component.closeSearch();
 			}
 		});
 	}
@@ -93,62 +105,70 @@ export class EditorSearch {
 	private registerCommand() {
 		const { plugin, component } = this;
 		plugin.addCommand({
-			id: "text-finder-show-find",
-			name: "Search in current file",
+			id: CMD.SHOW_FIND,
+			name: i18n.t("commands.ShowFind.name"),
 			editorCallback: (editor, ctx) => {
-				component.setVisible(true, editor.getSelection());
+				const { useSelectionAsSearch } = plugin.settings;
+				const defaultSearchText = useSelectionAsSearch
+					? editor.getSelection()
+					: "";
+				component.setVisible(true, defaultSearchText);
 			},
 		});
 		plugin.addCommand({
-			id: "text-finder-show-find-and-replace",
-			name: "Search & replace in current file",
+			id: CMD.SHOW_FIND_AND_REPLACE,
+			name: i18n.t("commands.ShowFindAndReplace.name"),
 			editorCallback: (editor, ctx) => {
 				component.setCollapse(false);
-				component.setVisible(true, editor.getSelection());
+				const { useSelectionAsSearch } = plugin.settings;
+				const defaultSearchText = useSelectionAsSearch
+					? editor.getSelection()
+					: "";
+				component.setVisible(true, defaultSearchText);
 			},
 		});
 		plugin.addCommand({
-			id: "text-finder-hide-find",
-			name: "Hide finder",
+			id: CMD.HIDE_FIND,
+			name: i18n.t("commands.HideFind.name"),
 			editorCallback: (editor, ctx) => {
 				component.setVisible(false);
 			},
 		});
 
 		plugin.addCommand({
-			id: "text-finder-toggle-replace",
-			name: "Toggle replacer",
-			editorCallback: (editor, ctx) => {
-				component.toggleCollapse();
-			},
-		});
-
-		plugin.addCommand({
-			id: "text-finder-toggle-find",
-			name: "Toggle finder",
+			id: CMD.TOGGLE_FIND,
+			name: i18n.t("commands.ToggleFind.name"),
 			editorCallback: (editor, ctx) => {
 				component.toggleVisible();
 			},
 		});
 
 		plugin.addCommand({
-			id: "text-finder-previous-match",
-			name: "Previous match",
+			id: CMD.TOGGLE_REPLACE,
+			name: i18n.t("commands.ToggleReplace.name"),
+			editorCallback: (editor, ctx) => {
+				component.toggleCollapse();
+			},
+		});
+
+		plugin.addCommand({
+			id: CMD.PREVIOUS_MATCH,
+			name: i18n.t("commands.PreviousMatch.name"),
 			editorCallback: (editor, ctx) => {
 				component.toPreviousMatch();
 			},
 		});
 
 		plugin.addCommand({
-			id: "text-finder-next-match",
-			name: "Next match",
+			id: CMD.NEXT_MATCH,
+			name: i18n.t("commands.NextMatch.name"),
 			editorCallback: (editor, ctx) => {
 				component.toNextMatch();
 			},
 		});
 		plugin.addCommand({
-			id: "text-finder-replace",
-			name: "Replace in current file",
+			id: CMD.REPLACE,
+			name: i18n.t("commands.Replace.name"),
 			editorCallback: (editor, ctx) => {
 				component.replaceMatchedText(
 					component.getSearchCache().replace
@@ -156,8 +176,8 @@ export class EditorSearch {
 			},
 		});
 		plugin.addCommand({
-			id: "text-finder-replace-all",
-			name: "Replace all in current file",
+			id: CMD.REPLACE_ALL,
+			name: i18n.t("commands.ReplaceAll.name"),
 			editorCallback: (editor, ctx) => {
 				component.replaceAllMatchedText(
 					component.getSearchCache().replace

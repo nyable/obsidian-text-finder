@@ -17,5 +17,56 @@
       "FindPlaceholder": "查找",
       "ReplacePlaceholder": "替换"
     }
+  },
+  "commands": {
+    "ShowFind": {
+      "name": "在当前笔记中查找"
+    },
+    "ShowFindAndReplace": {
+      "name": "在当前笔记中查找并替换"
+    },
+    "HideFind": {
+      "name": "关闭查找窗口"
+    },
+    "ToggleReplace": {
+      "name": "切换替换窗口"
+    },
+    "ToggleFind": {
+      "name": "切换查找窗口"
+    },
+    "PreviousMatch": {
+      "name": "上一个匹配"
+    },
+    "NextMatch": {
+      "name": "下一个匹配"
+    },
+    "Replace": {
+      "name": "在当前文件中替换"
+    },
+    "ReplaceAll": {
+      "name": "在当前文件中替换所有"
+    }
+  },
+  "settings": {
+    "ClearAfterHidden": {
+      "name": "清空搜索文本",
+      "desc": "在关闭搜索窗口后清空搜索文本"
+    },
+    "EnableInputHotkeys": {
+      "name": "启用输入框的快捷键",
+      "desc": "为输入框添加快捷键（Enter）。搜索：到下一个匹配项；替换：替换一次"
+    },
+    "SourceModeWhenSearch": {
+      "name": "搜索时强制源代码模式",
+      "desc": "在搜索过程中强制使用源代码模式（某些搜索结果无法直接显示在实时预览中，如图像和超链接）"
+    },
+    "MoveCursorToMatch": {
+      "name": "将光标移动至匹配项",
+      "desc": "搜索时移动光标并选择当前匹配项"
+    },
+    "UseSelectionAsSearch": {
+      "name": "将所选内容用作搜索文本",
+      "desc": "将所选文本用作搜索文本"
+    }
   }
 }

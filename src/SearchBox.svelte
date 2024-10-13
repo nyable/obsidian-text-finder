@@ -49,12 +49,7 @@
 				cache.search = searchText;
 			}
 			setFindText(cache.search);
-			if (settings.selectWhenDisplay) {
-				searchInput.select();
-				searchInput.select();
-			} else {
-				searchEl.focus();
-			}
+			searchInput.select();
 		} else {
 			collapse = true;
 			if (settings.clearAfterHidden) {
@@ -105,8 +100,17 @@
 		toNextMatch();
 	};
 
-	export const clickClose = () => {
-		visible = false;
+	export const closeSearch = () => {
+		setVisible(false);
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const state = activeEditor.view.getState();
+			const { sourceModeWhenSearch } = editorSearch.plugin.settings;
+			if (state.mode === "source" && sourceModeWhenSearch) {
+				state.source = !isLivePreview();
+				activeEditor.view.setState(state, { history: false });
+			}
+		}
 	};
 	export const toggleRegexMode = (e: Event) => {
 		options.enableRegexMode = !options.enableRegexMode;
@@ -196,10 +200,6 @@
 				const matched = matches[index];
 				const { from, to } = matched;
 
-				editorView.dispatch({
-					selection: { anchor: from, head: to },
-					// scrollIntoView: true,
-				});
 				editor.scrollIntoView(
 					{
 						from: editor.offsetToPos(from),
@@ -207,6 +207,19 @@
 					},
 					true,
 				);
+				const view = activeEditor.view;
+				const state = view.getState();
+				const { sourceModeWhenSearch, moveCursorToMatch } =
+					editorSearch.plugin.settings;
+				if (sourceModeWhenSearch && state.mode === "source") {
+					state.source = true;
+				}
+				view.setState(state, { history: false });
+				if (moveCursorToMatch) {
+					editorView.dispatch({
+						selection: { anchor: from, head: to },
+					});
+				}
 			}
 		}
 	};
@@ -219,10 +232,9 @@
 		}
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
-			const { editorView } = activeEditor;
-			editorView.dispatch({
-				selection: { anchor: 0, head: 0 },
-			});
+			const view = activeEditor.view;
+			const state = view.getState();
+			view.setState(state, { history: false });
 		}
 	};
 
@@ -340,6 +352,10 @@
 			}
 		}
 	};
+
+	const isLivePreview = (): boolean => {
+		return (editorSearch.plugin.app.vault as any).getConfig("livePreview");
+	};
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -436,7 +452,7 @@
 				</div>
 				<div
 					class="nya-btn nya-focus"
-					on:click={clickClose}
+					on:click={closeSearch}
 					role="button"
 					tabindex="0"
 					title={i18n.t("search.tip.Close")}
