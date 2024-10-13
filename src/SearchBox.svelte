@@ -97,7 +97,6 @@
 	};
 	const clickReplace = () => {
 		replaceMatchedText(cache.replace);
-		toNextMatch();
 	};
 
 	export const closeSearch = () => {
@@ -230,11 +229,11 @@
 		if (clearText) {
 			cache.search = "";
 		}
+
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
-			const view = activeEditor.view;
-			const state = view.getState();
-			view.setState(state, { history: false });
+			const editor = activeEditor.editor;
+			editor.setCursor(editor.getCursor());
 		}
 	};
 
@@ -251,14 +250,11 @@
 						text,
 						"g" + enableCaseSensitive ? "i" : "",
 					);
-					let replaceStr = replaceText;
-					if (enableRegexMode) {
-						const rangeText = editor.getRange(
-							editor.offsetToPos(current.from),
-							editor.offsetToPos(current.to),
-						);
-						replaceStr = rangeText.replace(regex, replaceText);
-					}
+					const rangeText = editor.getRange(
+						editor.offsetToPos(current.from),
+						editor.offsetToPos(current.to),
+					);
+					const replaceStr = rangeText.replace(regex, replaceText);
 					editorView.dispatch({
 						changes: {
 							from: current.from,
@@ -275,7 +271,6 @@
 						},
 					});
 				}
-
 				setFindText(text);
 			}
 		}
@@ -329,7 +324,7 @@
 			}
 		}
 	};
-	const onFindInputKeyPress = (e: KeyboardEvent) => {
+	const enterOnFindHandle = (e: KeyboardEvent) => {
 		const enableInputHotkeys =
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
@@ -341,7 +336,7 @@
 			}
 		}
 	};
-	const onReplaceInputKeyPress = (e: KeyboardEvent) => {
+	const enterOnReplaceHandle = (e: KeyboardEvent) => {
 		const enableInputHotkeys =
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
@@ -383,7 +378,7 @@
 				autocapitalize="off"
 				spellcheck="false"
 				on:input={onFindTextChanged}
-				on:keypress={onFindInputKeyPress}
+				on:keypress={enterOnFindHandle}
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
@@ -470,7 +465,7 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
-				on:keypress={onReplaceInputKeyPress}
+				on:keypress={enterOnReplaceHandle}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={collapse ? -1 : 2}
 			/>
