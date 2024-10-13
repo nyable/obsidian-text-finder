@@ -18,6 +18,8 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## ScreenShot
 
+![Text Finder](https://github.com/nyable/obsidian-text-finder/blob/master/screenshot/demo.gif?raw=true)
+
 # How to use
 
 ## Install

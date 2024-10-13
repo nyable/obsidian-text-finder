@@ -16,6 +16,8 @@
 
 ## 截图
 
+![Text Finder](https://github.com/nyable/obsidian-text-finder/blob/master/screenshot/demo.gif?raw=true)
+
 # 如何使用
 
 ## 安装
