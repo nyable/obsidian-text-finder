@@ -1,6 +1,7 @@
 # Obsidian Text Finder
 
-[简体中文说明](README-zh_CN.md)
+[English](README.md)
+[中文说明](README-zh_CN.md)
 
 This plugin for Obsidian(https://obsidian.md).  
 Provides a search/replace window similar to VSCode in editing mode.
@@ -45,18 +46,20 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 ## Customize Style
 
 Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.
+
 Such as:
 
 ```css
 .nya-text-finder-match {
 	border-radius: 2px;
-	box-shadow: 0 0 0 1px #5fb4b4;
+	box-shadow: 0 0 0 1px rgb(60, 115, 75);
 	background-color: inherit;
 	color: inherit;
 }
 
 .nya-text-finder-match-current {
-	background-color: #fac761;
+	box-shadow: 0 0 0 1px rgb(187, 187, 187);
+	background-color: rgba(255, 170, 0, 0.8);
 	color: black;
 }
 ```

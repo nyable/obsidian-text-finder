@@ -1,5 +1,8 @@
 # Obsidian 文本查找器
 
+[English](README.md)
+[中文说明](README-zh_CN.md)
+
 这是一个用于 Obsidian 的插件（https://obsidian.md）。  
 在编辑模式下提供类似于 VSCode 的搜索/替换窗口。
 
@@ -42,19 +45,21 @@
 
 ## 自定义样式
 
-使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来重写类，自定义匹配高亮和当前项的样式。  
+使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来重写类，自定义匹配高亮和当前项的样式。
+
 例如：
 
 ```css
 .nya-text-finder-match {
 	border-radius: 2px;
-	box-shadow: 0 0 0 1px #5fb4b4;
+	box-shadow: 0 0 0 1px rgb(60, 115, 75);
 	background-color: inherit;
 	color: inherit;
 }
 
 .nya-text-finder-match-current {
-	background-color: #fac761;
+	box-shadow: 0 0 0 1px rgb(187, 187, 187);
+	background-color: rgba(255, 170, 0, 0.8);
 	color: black;
 }
 ```
