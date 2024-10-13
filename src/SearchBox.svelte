@@ -538,7 +538,7 @@
 			display: flex;
 			justify-content: center;
 			align-items: center;
-			border-left: 3px solid #454545;
+			border-left: 3px solid #39c5bb;
 		}
 		.main {
 			padding: 4px 0px;
