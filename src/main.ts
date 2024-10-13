@@ -31,7 +31,7 @@ interface PluginSettings {
 
 const DEFAULT_SETTINGS: PluginSettings = {
 	clearAfterHidden: false,
-	enableInputHotkeys: false,
+	enableInputHotkeys: true,
 	sourceModeWhenSearch: true,
 	moveCursorToMatch: true,
 	useSelectionAsSearch: true,
