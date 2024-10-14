@@ -627,7 +627,7 @@
 
 	:global(.is-right-sidedock-open) {
 		.nya-finder {
-			right: 360px;
+			right: 352px;
 		}
 	}
 
