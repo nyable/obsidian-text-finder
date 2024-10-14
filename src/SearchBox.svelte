@@ -377,7 +377,7 @@
 			<ChevronDown size={iconSize} />
 		{/if}
 	</div>
-	<div class="main">
+	<div class="main-part">
 		<div class="finder">
 			<textarea
 				wrap="off"
@@ -393,25 +393,17 @@
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
 				tabindex={collapse ? 0 : 1}
 			/>
-			<div
-				style="display: flex;justify-content: center;align-items: center;height: 28px;flex:1;padding-left:4px"
-			>
-				<div
-					style="font-size: 12px;text-align: left;flex:1;padding:0 4px;"
-				>
+			<div class="finder-act">
+				<div class="nya-tip">
 					{#if cache.matches.length > 0}
-						<div style="font-family: auto">
+						<div>
 							{i18n.t("search.tip.HasResults", {
 								current: cache.index + 1,
 								total: cache.matches.length,
 							})}
 						</div>
 					{:else}
-						<div
-							style="color:{cache.search
-								? 'red'
-								: ''};font-family: auto"
-						>
+						<div style={cache.search ? "color:red" : ""}>
 							{i18n.t("search.tip.NoResults")}
 						</div>
 					{/if}
@@ -481,9 +473,7 @@
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={collapse ? -1 : 1}
 			/>
-			<div
-				style="display: flex;justify-content: start;align-items: center;height: 28px;flex:1;padding-left:4px"
-			>
+			<div class="replacer-act">
 				<div
 					class="nya-btn nya-focus"
 					on:click={clickReplace}
@@ -509,7 +499,8 @@
 	</div>
 </div>
 
-<style lang="scss">
+<style lang="scss" global>
+	$border-color: #2488db;
 	.nya-finder {
 		position: absolute;
 		background-color: var(--background-primary);
@@ -545,6 +536,7 @@
 		&--active {
 			transform: translateY(0);
 		}
+
 		.toggle-btn {
 			width: 18px;
 			height: 100%;
@@ -554,7 +546,8 @@
 			align-items: center;
 			border-left: 3px solid #39c5bb;
 		}
-		.main {
+
+		.main-part {
 			padding: 4px 0px;
 			flex: 1;
 			flex-direction: column;
@@ -570,7 +563,31 @@
 			.replacer {
 				display: flex;
 			}
+
+			.finder-act {
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 28px;
+				flex: 1;
+				padding-left: 4px;
+			}
+			.replacer-act {
+				display: flex;
+				justify-content: start;
+				align-items: center;
+				height: 28px;
+				flex: 1;
+				padding-left: 4px;
+			}
 		}
+	}
+	.nya-tip {
+		font-size: 12px;
+		text-align: left;
+		flex: 1;
+		padding: 0 4px;
+		font-family: auto;
 	}
 
 	.nya-btn {
@@ -583,7 +600,7 @@
 		align-items: center;
 		border-radius: 2px;
 		&--active {
-			border: 1px solid #2488db;
+			border: 1px solid $border-color;
 			background-color: rgba(36, 137, 219, 0.51);
 			color: #fff;
 		}
@@ -595,7 +612,7 @@
 		height: 28px;
 		scrollbar-width: none;
 		&:focus {
-			border-color: #2488db;
+			border-color: $border-color;
 		}
 	}
 	.nya-focus {
@@ -603,7 +620,7 @@
 			background-color: rgba(90, 93, 94, 0.31);
 		}
 		&:focus {
-			box-shadow: 0 0 0 1px #2488db;
+			box-shadow: 0 0 0 1px $border-color;
 		}
 	}
 </style>
