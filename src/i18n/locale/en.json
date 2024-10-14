@@ -1,76 +1,76 @@
 {
-  "plugin": {
-    "name": "Obsidian Text Finder"
-  },
-  "search": {
-    "tip": {
-      "NoResults": "No results",
-      "HasResults": "{{current}} of {{total}}",
-      "ToggleReplace": "Toggle Replace",
-      "MatchCase": "Match Case",
-      "UseRegularExpression": "Use Regular Expression",
-      "PreviousMatch": "Previous Match",
-      "NextMatch": "Next Match",
-      "Close": "Close (Escape)",
-      "Replace": "Replace",
-      "ReplaceAll": "Replace All",
-      "FindPlaceholder": "Find",
-      "ReplacePlaceholder": "Replace"
-    }
-  },
-  "commands": {
-    "ShowFind": {
-      "name": "Search in current file"
-    },
-    "ShowFindAndReplace": {
-      "name": "Search & replace in current file"
-    },
-    "HideFind": {
-      "name": "Hide Finder"
-    },
-    "ToggleReplace": {
-      "name": "Toggle replacer"
-    },
-    "ToggleFind": {
-      "name": "Toggle finder"
-    },
-    "PreviousMatch": {
-      "name": "Previous match"
-    },
-    "NextMatch": {
-      "name": "Next match"
-    },
-    "Replace": {
-      "name": "Replace in current file"
-    },
-    "ReplaceAll": {
-      "name": "Replace all in current file"
-    }
-  },
-  "settings": {
-    "ClearAfterHidden": {
-      "name": "Clear search text",
-      "desc": "When closing the search box, the search text will be cleared."
-    },
-    "EnableInputHotkeys": {
-      "name": "Enable input box hotkey",
-      "desc": "Add a hotkey (Enter) to the input box. Search: Go to the next matching item.Replace: Replace once."
-    },
-    "SourceModeWhenSearch": {
-      "name": "Force source code mode during search",
-      "desc": "Force the use of source code mode during the search process (some search results cannot be directly displayed in live preview, such as images and hyperlinks)."
-    },
-    "MoveCursorToMatch": {
-      "name": "Move the cursor to the matching item",
-      "desc": "Move the cursor and select the current match when searching."
-    },
-    "UseSelectionAsSearch": {
-      "name": "Use selection as search text",
-      "desc": "Use the selected text as the search text."
-    },
-    "UseObsidianSearchInRead": {
-      "name": "Using Obsidian Search in Reading",
-      "desc": "In reading mode, using the command  \"{{name}}\"  will invoke Obsidian's native search function(The search and replace provided by the plugin are only applicable to editing mode)"
-    }
-  }
+	"plugin": {
+		"name": "Text Finder"
+	},
+	"search": {
+		"tip": {
+			"NoResults": "No results",
+			"HasResults": "{{current}} of {{total}}",
+			"ToggleReplace": "Toggle Replace",
+			"MatchCase": "Match Case",
+			"UseRegularExpression": "Use Regular Expression",
+			"PreviousMatch": "Previous Match",
+			"NextMatch": "Next Match",
+			"Close": "Close (Escape)",
+			"Replace": "Replace",
+			"ReplaceAll": "Replace All",
+			"FindPlaceholder": "Find",
+			"ReplacePlaceholder": "Replace"
+		}
+	},
+	"commands": {
+		"ShowFind": {
+			"name": "Search in current file"
+		},
+		"ShowFindAndReplace": {
+			"name": "Search & replace in current file"
+		},
+		"HideFind": {
+			"name": "Hide Finder"
+		},
+		"ToggleReplace": {
+			"name": "Toggle replacer"
+		},
+		"ToggleFind": {
+			"name": "Toggle finder"
+		},
+		"PreviousMatch": {
+			"name": "Previous match"
+		},
+		"NextMatch": {
+			"name": "Next match"
+		},
+		"Replace": {
+			"name": "Replace in current file"
+		},
+		"ReplaceAll": {
+			"name": "Replace all in current file"
+		}
+	},
+	"settings": {
+		"ClearAfterHidden": {
+			"name": "Clear search text",
+			"desc": "When closing the search box, the search text will be cleared."
+		},
+		"EnableInputHotkeys": {
+			"name": "Enable input box hotkey",
+			"desc": "Add a hotkey (Enter) to the input box. Search: Go to the next matching item.Replace: Replace once."
+		},
+		"SourceModeWhenSearch": {
+			"name": "Force source code mode during search",
+			"desc": "Force the use of source code mode during the search process (some search results cannot be directly displayed in live preview, such as images and hyperlinks)."
+		},
+		"MoveCursorToMatch": {
+			"name": "Move the cursor to the matching item",
+			"desc": "Move the cursor and select the current match when searching."
+		},
+		"UseSelectionAsSearch": {
+			"name": "Use selection as search text",
+			"desc": "Use the selected text as the search text."
+		},
+		"UseObsidianSearchInRead": {
+			"name": "Using Obsidian Search in Reading",
+			"desc": "In reading mode, using the command  \"{{name}}\"  will invoke Obsidian's native search function(The search and replace provided by the plugin are only applicable to editing mode)"
+		}
+	}
 }
