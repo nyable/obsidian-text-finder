@@ -45,9 +45,10 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Customize Style
 
-Use [Css snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to override classes, customize matching highlights and styles for the current item.
+Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to customize styles.  
+Here are some examples.
 
-Such as:
+### Match Highlight and Current Item
 
 ```css
 .nya-text-finder-match {
@@ -61,5 +62,36 @@ Such as:
 	box-shadow: 0 0 0 1px rgb(187, 187, 187);
 	background-color: rgba(255, 170, 0, 0.8);
 	color: black;
+}
+```
+
+### Change Position
+
+Top Left
+
+```css
+.nya-finder {
+	right: unset !important;
+	left: 376px;
+}
+```
+
+Bottom Right
+
+```css
+.nya-finder {
+	top: unset !important;
+	bottom: 72px;
+}
+```
+
+Bottom Left
+
+```css
+.nya-finder {
+	top: unset !important;
+	right: unset !important;
+	left: 376px;
+	bottom: 72px;
 }
 ```

@@ -45,9 +45,10 @@
 
 ## 自定义样式
 
-使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来重写类，自定义匹配高亮和当前项的样式。
+使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来自定义样式。  
+以下是部分示例。
 
-例如：
+### 匹配高亮与当前项
 
 ```css
 .nya-text-finder-match {
@@ -61,5 +62,36 @@
 	box-shadow: 0 0 0 1px rgb(187, 187, 187);
 	background-color: rgba(255, 170, 0, 0.8);
 	color: black;
+}
+```
+
+### 修改位置
+
+左上角
+
+```css
+.nya-finder {
+	right: unset !important;
+	left: 376px;
+}
+```
+
+右下角
+
+```css
+.nya-finder {
+	top: unset !important;
+	bottom: 72px;
+}
+```
+
+左下角
+
+```css
+.nya-finder {
+	top: unset !important;
+	right: unset !important;
+	left: 376px;
+	bottom: 72px;
 }
 ```
