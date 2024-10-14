@@ -30,13 +30,13 @@
 -   克隆此仓库。
 -   使用 `npm i` 或 `yarn` 安装依赖。
 -   使用 `npm run build` 在 `./dist` 中构建文件。
--   将 `main.js`、`styles.css`、`manifest.json` 复制到你的 vault 的 `VaultFolder/.obsidian/plugins/obsidian-text-finder/` 中。
+-   将 `main.js`、`styles.css`、`manifest.json` 复制到你的 vault 的 `VaultFolder/.obsidian/plugins/text-finder/` 中。
 -   在 Obsidian 设置中启用插件。
 
 ### 从 Release 安装
 
 -   在 [最新发布版本](https://github.com/nyable/obsidian-text-finder/releases/latest) 中下载 `main.js`、`styles.css`、`manifest.json`。
--   将 `main.js`、`styles.css`、`manifest.json` 复制到你的 vault 的 `VaultFolder/.obsidian/plugins/obsidian-text-finder/` 中。
+-   将 `main.js`、`styles.css`、`manifest.json` 复制到你的 vault 的 `VaultFolder/.obsidian/plugins/text-finder/` 中。
 -   在 Obsidian 设置中启用插件。
 
 ## 设置

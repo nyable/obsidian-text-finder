@@ -30,13 +30,13 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 -   Clone this repo.
 -   `npm i` or `yarn` to install dependencies
 -   `npm run build` to build file in `./dist`.
--   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-text-finder/`.
+-   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/text-finder/`.
 -   Enable plugin in Obsidian setting.
 
 ### Releases
 
 -   Download `main.js`, `styles.css`, `manifest.json` in the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest)
--   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/obsidian-text-finder/`.
+-   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/text-finder/`.
 -   Enable plugin in Obsidian setting.
 
 ## Settings
