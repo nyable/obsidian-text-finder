@@ -506,15 +506,16 @@
 		background-color: var(--background-primary);
 		transition:
 			transform 0.2s linear,
-			opacity 0.2s linear;
+			opacity 0.2s linear,
+			right 0.3s cubic-bezier(0.45, 0.05, 0.55, 0.95);
 		height: 72px;
-		min-width: 464px;
+		min-width: 448px;
 		top: 88px;
-		right: 352px;
+		right: 48px;
 		// box-shadow: 0 0 1px #ababab;
 		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
 		border: 1px solid var(--modal-border-color);
-
+		z-index: 20;
 		display: flex;
 		flex-direction: row;
 		border-radius: 4px;
@@ -607,7 +608,7 @@
 	}
 	.nya-input {
 		box-shadow: none;
-		width: 192px;
+		width: 177px;
 		resize: none;
 		height: 28px;
 		scrollbar-width: none;
@@ -623,4 +624,27 @@
 			box-shadow: 0 0 0 1px $border-color;
 		}
 	}
+
+	:global(.is-right-sidedock-open) {
+		.nya-finder {
+			right: 360px;
+		}
+	}
+
+	:global(body) {
+		.mod-root:has(
+				.mod-active > .workspace-leaf-content[data-mode="preview"]
+			)
+			~ .nya-finder {
+			visibility: hidden;
+			user-select: none;
+			pointer-events: none;
+		}
+	}
+
+	// @media screen and (max-width: 1200px) {
+	// 	.nya-finder {
+	// 		right: 64px;
+	// 	}
+	// }
 </style>
