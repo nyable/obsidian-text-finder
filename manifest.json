@@ -1,7 +1,7 @@
 {
 	"id": "obsidian-text-finder",
 	"name": "Obsidian Text Finder",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"minAppVersion": "0.15.0",
 	"description": "This plugin for Obsidian provides a find/replace window in edit mode similar to VSCode.",
 	"author": "hafuhafu",
