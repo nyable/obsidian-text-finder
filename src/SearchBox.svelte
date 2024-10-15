@@ -344,7 +344,7 @@
 		if (enableInputHotkeys && isEnterPress) {
 			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
 				e.preventDefault();
-				replaceMatchedText(cache.replace);
+				clickReplace();
 			}
 		}
 	};
