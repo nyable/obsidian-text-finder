@@ -358,10 +358,12 @@
 		return (editorSearch.plugin.app.vault as any).getConfig("livePreview");
 	};
 
-	const defaultKeyPressHandler = (e: KeyboardEvent) => {
+	const defaultEnterPress = (e: KeyboardEvent) => {
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (isEnterPress) {
-			(e.target as HTMLElement).click();
+			e.preventDefault();
+			const el = e.target as HTMLElement;
+			el.click();
 		}
 	};
 </script>
@@ -375,7 +377,7 @@
 		role="button"
 		tabindex="0"
 		title={i18n.t("search.tip.ToggleReplace")}
-		on:keypress={defaultKeyPressHandler}
+		on:keydown={defaultEnterPress}
 	>
 		{#if collapse}
 			<ChevronRight size={iconSize} />
@@ -391,7 +393,7 @@
 				autocapitalize="off"
 				spellcheck="false"
 				on:input={onFindTextChanged}
-				on:keypress={enterOnFindHandle}
+				on:keydown={enterOnFindHandle}
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
@@ -420,7 +422,7 @@
 					role="button"
 					tabindex={collapse ? 0 : 2}
 					title={i18n.t("search.tip.UseRegularExpression")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<Regex size={iconSize} />
 				</div>
@@ -430,7 +432,7 @@
 					role="button"
 					tabindex={collapse ? 0 : 2}
 					title={i18n.t("search.tip.MatchCase")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<CaseSensitive size={iconSize} />
 				</div>
@@ -440,7 +442,7 @@
 					role="button"
 					tabindex={collapse ? 0 : 2}
 					title={i18n.t("search.tip.PreviousMatch")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<ArrowUp size={iconSize} />
 				</div>
@@ -450,7 +452,7 @@
 					role="button"
 					tabindex={collapse ? 0 : 2}
 					title={i18n.t("search.tip.NextMatch")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<ArrowDown size={iconSize} />
 				</div>
@@ -460,7 +462,7 @@
 					role="button"
 					tabindex={collapse ? 0 : 2}
 					title={i18n.t("search.tip.Close")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<X size={iconSize} />
 				</div>
@@ -475,7 +477,7 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
-				on:keypress={enterOnReplaceHandle}
+				on:keydown={enterOnReplaceHandle}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={collapse ? -1 : 1}
 			/>
@@ -486,7 +488,7 @@
 					tabindex={collapse ? 0 : 2}
 					role="button"
 					title={i18n.t("search.tip.Replace")}
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 				>
 					<Replace size={iconSize} />
 				</div>
@@ -495,7 +497,7 @@
 					on:click={clickReplaceAll}
 					tabindex={collapse ? 0 : 2}
 					role="button"
-					on:keypress={defaultKeyPressHandler}
+					on:keydown={defaultEnterPress}
 					title={i18n.t("search.tip.ReplaceAll")}
 				>
 					<ReplaceAll xlink:title="Replace All" size={iconSize} />
