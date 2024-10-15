@@ -10,10 +10,11 @@
 		ChevronDown,
 		ChevronRight,
 	} from "lucide-svelte";
-	import { queryPositionList, type EditorSearch } from "./editor-extension";
+	import { type EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
 	import { MarkdownView } from "obsidian";
 	import type { EditorView } from "@codemirror/view";
+	import { findTextOffsets } from "./util/text-helper";
 
 	const cache: SearchCache = {
 		index: 0,
@@ -146,7 +147,7 @@
 			cache.search = text;
 			if (text) {
 				const content = editor.getValue();
-				cache.matches = queryPositionList(
+				cache.matches = findTextOffsets(
 					content,
 					text,
 					enableRegexMode,
