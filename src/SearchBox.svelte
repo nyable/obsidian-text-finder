@@ -139,6 +139,16 @@
 		return null;
 	};
 
+	export const freshEditorView = () => {
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			const { editorView } = activeEditor;
+			editorView.dispatch({
+				effects: [],
+			});
+		}
+	};
+
 	export const setFindText = (text: string, scroll: boolean = true) => {
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
@@ -160,7 +170,7 @@
 					if (scroll) {
 						scrollToMatch();
 					} else {
-						editor.setCursor(editor.getCursor());
+						freshEditorView();
 					}
 				} else {
 					clearMatches();
@@ -230,12 +240,7 @@
 		if (clearText) {
 			cache.search = "";
 		}
-
-		const activeEditor = getActiveEditor();
-		if (activeEditor) {
-			const editor = activeEditor.editor;
-			editor.setCursor(editor.getCursor());
-		}
+		freshEditorView();
 	};
 
 	export const replaceMatchedText = (replaceText: string) => {
