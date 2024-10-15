@@ -18,12 +18,10 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 -   Supports regular expressions
 -   Supports case sensitivity
 
-## Todo
+## To Do
 
 -   [ ] Search/Replace in Selection
 -   [ ] Input history
-
-## TODO
 
 ## ScreenShot
 
