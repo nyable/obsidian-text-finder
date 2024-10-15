@@ -1,6 +1,6 @@
 # Obsidian Text Finder
 
-[English](README.md)
+[English](README.md)  
 [中文说明](README-zh_CN.md)
 
 This plugin for Obsidian(https://obsidian.md).  
@@ -12,10 +12,18 @@ Provides a search/replace window similar to VSCode in editing mode.
 
 Search or replace the text of the current MarkDown file **in editor mode**.
 
--   Highlight matching text.
--   Display the total number of matches and the current item.
--   Supports regular expressions.
--   Supports case sensitivity.
+-   Search/Replace in current file
+-   Highlight matching text
+-   Show number of matches
+-   Supports regular expressions
+-   Supports case sensitivity
+
+## Todo
+
+-   [ ] Search/Replace in Selection
+-   [ ] Input history
+
+## TODO
 
 ## ScreenShot
 
