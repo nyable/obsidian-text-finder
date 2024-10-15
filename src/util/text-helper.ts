@@ -73,24 +73,13 @@ export function findTextOffsets(
  * 找出list中,位于target之后的第一个符合结果
  * @param target 目标Offset
  * @param list Offset数组
+ * @param extraOffset 偏移量 额外偏移量
  * @returns index
  */
 export function findIndexAfterOffset(
 	target: EditorOffset,
-	list: EditorOffset[]
+	list: EditorOffset[],
+	extraOffset: number
 ): number {
-	return list.findIndex((item) => item.from > target.to);
-}
-
-/**
- * 找出list中,位于target之前的第一个符合结果
- * @param target 目标Offset
- * @param list Offset数组
- * @returns index
- */
-export function findIndexBeforeOffset(
-	target: EditorOffset,
-	list: EditorOffset[]
-): number {
-	return list.findIndex((item) => item.to > target.from);
+	return list.findIndex((item) => item.from >= target.from + extraOffset);
 }
