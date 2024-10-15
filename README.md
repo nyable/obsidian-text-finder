@@ -25,6 +25,13 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Install
 
+### BRAT
+
+-   [Install the BRAT Plugin](https://obsidian.md/plugins?id=obsidian42-brat)
+-   Execute command `Obsidian42 - BRAT: Add a beta plugin for testing`
+-   Paste the URL of this repository and confirm
+-   Enable plugin in Obsidian setting.
+
 ### Source Code
 
 -   Clone this repo.

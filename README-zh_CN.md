@@ -25,6 +25,13 @@
 
 ## 安装
 
+### 使用 BRAT 安装
+
+-   [安装 BRAT 插件](https://obsidian.md/plugins?id=obsidian42-brat)
+-   执行命令 `Obsidian42 - BRAT: Add a beta plugin for testing`
+-   粘贴此存储库的 URL 并确认
+-   在 Obsidian 设置中启用插件。
+
 ### 从源代码安装
 
 -   克隆此仓库。
