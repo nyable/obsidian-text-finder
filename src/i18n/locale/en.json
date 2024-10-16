@@ -6,27 +6,27 @@
 		"tip": {
 			"NoResults": "No results",
 			"HasResults": "{{current}} of {{total}}",
-			"ToggleReplace": "Toggle Replace",
-			"MatchCase": "Match Case",
-			"UseRegularExpression": "Use Regular Expression",
-			"PreviousMatch": "Previous Match",
-			"NextMatch": "Next Match",
+			"ToggleReplace": "Toggle replace",
+			"MatchCase": "Match case",
+			"UseRegularExpression": "Use regular expression",
+			"PreviousMatch": "Previous match",
+			"NextMatch": "Next match",
 			"Close": "Close (Escape)",
 			"Replace": "Replace",
-			"ReplaceAll": "Replace All",
+			"ReplaceAll": "Replace all",
 			"FindPlaceholder": "Find",
 			"ReplacePlaceholder": "Replace"
 		}
 	},
 	"commands": {
 		"ShowFind": {
-			"name": "Search in current file"
+			"name": "Open search in current file"
 		},
 		"ShowFindAndReplace": {
-			"name": "Search & replace in current file"
+			"name": "Open search & replace in current file"
 		},
 		"HideFind": {
-			"name": "Hide Finder"
+			"name": "Hide finder"
 		},
 		"ToggleReplace": {
 			"name": "Toggle replacer"
@@ -69,7 +69,7 @@
 			"desc": "Use the selected text as the search text."
 		},
 		"UseObsidianSearchInRead": {
-			"name": "Using Obsidian Search in Reading",
+			"name": "Using Obsidian's native search in reading",
 			"desc": "In reading mode, using the command  \"{{name}}\"  will invoke Obsidian's native search function(The search and replace provided by the plugin are only applicable to editing mode)"
 		}
 	}

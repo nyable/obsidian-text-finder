@@ -20,10 +20,10 @@
 	},
 	"commands": {
 		"ShowFind": {
-			"name": "在当前文件中查找"
+			"name": "在当前文件中：打开查找"
 		},
 		"ShowFindAndReplace": {
-			"name": "在当前文件中查找并替换"
+			"name": "在当前文件中：打开查找与替换"
 		},
 		"HideFind": {
 			"name": "关闭查找窗口"
@@ -41,10 +41,10 @@
 			"name": "下一个匹配"
 		},
 		"Replace": {
-			"name": "在当前文件中替换"
+			"name": "在当前文件中：替换"
 		},
 		"ReplaceAll": {
-			"name": "在当前文件中替换所有"
+			"name": "在当前文件中：替换所有"
 		}
 	},
 	"settings": {
