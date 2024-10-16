@@ -252,6 +252,4 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 		});
 		plugin.registerEditorExtension([textMathcer]);
 	});
-
-	return [];
 }

@@ -45,7 +45,7 @@ export default class TextFinderPlugin extends Plugin {
 		await this.loadSettings();
 		this.addSettingTab(new SettingTab(this.app, this));
 
-		this.registerEditorExtension(editorExtensionProvider(this));
+		editorExtensionProvider(this);
 	}
 
 	onunload() {}
