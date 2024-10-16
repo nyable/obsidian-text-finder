@@ -223,8 +223,6 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				for (const effect of transaction.effects) {
 					if (effect.is(searchCacheEffect)) {
 						const cache = effect.value;
-						console.log("cache", cache);
-
 						const builder = new RangeSetBuilder<Decoration>();
 						if (cache.visible) {
 							const length = transaction.state.doc.length;
