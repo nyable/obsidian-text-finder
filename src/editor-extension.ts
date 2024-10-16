@@ -1,6 +1,7 @@
 import type TextFinderPlugin from "./main";
 import {
 	RangeSetBuilder,
+	StateEffect,
 	StateField,
 	Transaction,
 	type Extension,
@@ -16,7 +17,7 @@ import {
 import SearchBox from "./SearchBox.svelte";
 import { i18n } from "./i18n";
 
-const CLS = {
+export const CLS = {
 	MATCH: "nya-text-finder-match",
 	MATCH_CURRENT: "nya-text-finder-match-current",
 };
@@ -203,12 +204,13 @@ export class EditorSearch {
 		});
 	}
 }
+export const searchCacheEffect = StateEffect.define<SearchCache>();
 
 export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
 	workspace.onLayoutReady(() => {
 		const mountEl = plugin.app.workspace.containerEl;
-		const editorSearch = new EditorSearch(plugin, mountEl);
+		new EditorSearch(plugin, mountEl);
 
 		const textMathcer = StateField.define<DecorationSet>({
 			create(state): DecorationSet {
@@ -218,33 +220,38 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				oldState: DecorationSet,
 				transaction: Transaction
 			): DecorationSet {
-				// TODO: Refactoring with effects
-				const cache = editorSearch.component.getSearchCache();
-				const builder = new RangeSetBuilder<Decoration>();
-				if (editorSearch.component.isVisible()) {
-					const length = transaction.state.doc.length;
-					cache.matches.forEach(
-						(item: EditorOffset, index: number) => {
-							const from = item.from;
-							const to = item.to;
-							if (to <= length) {
-								const classStr = `
-								${CLS.MATCH} 
-								${cache.index == index ? CLS.MATCH_CURRENT : ""} 
-								`;
-								builder.add(
-									from,
-									to,
-									Decoration.mark({
-										class: classStr,
-									})
-								);
-							}
-						}
-					);
-				}
+				for (const effect of transaction.effects) {
+					if (effect.is(searchCacheEffect)) {
+						const cache = effect.value;
+						console.log("cache", cache);
 
-				return builder.finish();
+						const builder = new RangeSetBuilder<Decoration>();
+						if (cache.visible) {
+							const length = transaction.state.doc.length;
+							cache.matches.forEach(
+								(item: EditorOffset, index: number) => {
+									const from = item.from;
+									const to = item.to;
+									if (to <= length) {
+										const classStr = `
+										${CLS.MATCH} 
+										${cache.index == index ? CLS.MATCH_CURRENT : ""} 
+										`;
+										builder.add(
+											from,
+											to,
+											Decoration.mark({
+												class: classStr,
+											})
+										);
+									}
+								}
+							);
+						}
+						return builder.finish();
+					}
+				}
+				return oldState;
 			},
 			provide(field: StateField<DecorationSet>): Extension {
 				return EditorView.decorations.from(field);

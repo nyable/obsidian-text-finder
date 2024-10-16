@@ -31,4 +31,5 @@ interface SearchCache {
 	replace: string = "";
 	index: number = 0;
 	matches: EditorOffset[] = [];
+	visible: boolean = false;
 }

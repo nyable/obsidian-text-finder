@@ -10,42 +10,45 @@
 		ChevronDown,
 		ChevronRight,
 	} from "lucide-svelte";
-	import { type EditorSearch } from "./editor-extension";
+	import { searchCacheEffect, type EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
 	import { MarkdownView } from "obsidian";
 	import type { EditorView } from "@codemirror/view";
 	import { findTextOffsets } from "./util/text-helper";
+	import type { TransactionSpec } from "@codemirror/state";
 
 	const cache: SearchCache = {
 		index: 0,
 		matches: [],
 		search: "",
 		replace: "",
+		visible: false,
 	};
-	export function getSearchCache() {
-		return cache;
-	}
 
 	const options: SearchOptions = {
 		enableRegexMode: false,
 		enableCaseSensitive: false,
 	};
-	export function getSearchOptions() {
-		return options;
-	}
 
 	let iconSize = 18;
-	let visible = false;
 	let searchEl: HTMLElement;
 	let collapse = true;
 
 	export let editorSearch: EditorSearch;
 
+	export function getSearchCache() {
+		return cache;
+	}
+
+	export function getSearchOptions() {
+		return options;
+	}
+
 	export function setVisible(flag: boolean, searchText?: string) {
 		const searchInput = searchEl as HTMLInputElement;
-		visible = flag;
+		cache.visible = flag;
 		const settings = editorSearch.plugin.settings;
-		if (visible) {
+		if (cache.visible) {
 			if (searchText) {
 				cache.search = searchText;
 			}
@@ -56,29 +59,30 @@
 			if (settings.clearAfterHidden) {
 				clearMatches(true);
 				clearInput();
-				clearReplace();
+			} else {
+				emitChange();
 			}
 		}
 	}
 	export function setCollapse(flag: boolean) {
 		collapse = flag;
 	}
+
 	export function clearInput() {
 		cache.search = "";
-	}
-	export function clearReplace() {
 		cache.replace = "";
 	}
 
 	export function toggleVisible() {
-		setVisible(!visible);
+		setVisible(!cache.visible);
 	}
+
 	export function toggleCollapse() {
 		setCollapse(!collapse);
 	}
 
 	export function isVisible() {
-		return visible;
+		return cache.visible;
 	}
 
 	const onFindTextChanged = (e: Event) => {
@@ -97,11 +101,15 @@
 		replaceAllMatchedText(cache.replace);
 	};
 	const clickReplace = () => {
+		const beforeSize = cache.matches.length;
 		replaceMatchedText(cache.replace);
+		const afterSize = cache.matches.length;
+		if (beforeSize === afterSize) {
+			toNextMatch();
+		}
 	};
 
 	export const closeSearch = () => {
-		setVisible(false);
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const state = activeEditor.view.getState();
@@ -111,6 +119,7 @@
 				activeEditor.view.setState(state, { history: false });
 			}
 		}
+		setVisible(false);
 	};
 	export const toggleRegexMode = (e: Event) => {
 		options.enableRegexMode = !options.enableRegexMode;
@@ -139,13 +148,20 @@
 		return null;
 	};
 
-	export const freshEditorView = () => {
+	export const emitChange = (
+		withCache: boolean = true,
+		extraSpec?: TransactionSpec,
+	) => {
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editorView } = activeEditor;
-			editorView.dispatch({
-				effects: [],
-			});
+			let spec: TransactionSpec = {
+				effects: withCache ? [searchCacheEffect.of(cache)] : [],
+			};
+			if (extraSpec) {
+				spec = Object.assign(spec, extraSpec);
+			}
+			editorView.dispatch(spec);
 		}
 	};
 
@@ -170,7 +186,7 @@
 					if (scroll) {
 						scrollToMatch();
 					} else {
-						freshEditorView();
+						emitChange();
 					}
 				} else {
 					clearMatches();
@@ -225,11 +241,17 @@
 					state.source = true;
 				}
 				view.setState(state, { history: false });
-				if (moveCursorToMatch) {
-					editorView.dispatch({
-						selection: { anchor: from, head: to },
-					});
-				}
+				emitChange(true, {
+					selection: moveCursorToMatch
+						? { anchor: from, head: to }
+						: undefined,
+				});
+				// editorView.dispatch({
+				// 	selection: moveCursorToMatch
+				// 		? { anchor: from, head: to }
+				// 		: undefined,
+				// 	effects: [searchCacheEffect.of(cache)],
+				// });
 			}
 		}
 	};
@@ -240,7 +262,7 @@
 		if (clearText) {
 			cache.search = "";
 		}
-		freshEditorView();
+		emitChange();
 	};
 
 	export const replaceMatchedText = (replaceText: string) => {
@@ -369,7 +391,7 @@
 </script>
 
 <div
-	class={`nya-finder ${visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapse ? "nya-finder--collapsed" : ""}`}
+	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapse ? "nya-finder--collapsed" : ""}`}
 >
 	<div
 		class={`toggle-btn nya-focus`}
