@@ -218,6 +218,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				oldState: DecorationSet,
 				transaction: Transaction
 			): DecorationSet {
+				// TODO: Refactoring with effects
 				const cache = editorSearch.component.getSearchCache();
 				const builder = new RangeSetBuilder<Decoration>();
 				if (editorSearch.component.isVisible()) {
