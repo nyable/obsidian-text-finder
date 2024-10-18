@@ -52,7 +52,7 @@
 				cache.search = searchText;
 			}
 			setFindText(cache.search);
-			//TODO: 当前index定位至里光标最近的那个
+			//TODO: 感觉应该把当前index定位到离光标最近的那个
 			searchEl.select();
 		} else {
 			cache.collapse = true;
@@ -268,7 +268,6 @@
 			changed: false,
 			search: search,
 			replace: replace,
-			replaceValues: [],
 			beforeCount: matchSize,
 			afterCount: matchSize,
 		};
@@ -303,7 +302,6 @@
 				setFindText(search);
 				result.changeCount = 1;
 				result.changed = true;
-				result.replaceValues = [replaceStr];
 				result.afterCount = cache.matches.length;
 			}
 		}
@@ -320,7 +318,6 @@
 			changed: false,
 			search: search,
 			replace: replace,
-			replaceValues: [],
 			beforeCount: matchSize,
 			afterCount: matchSize,
 		};
@@ -371,7 +368,6 @@
 				result.changed = true;
 				result.changeCount = changes.length;
 				result.afterCount = cache.matches.length;
-				result.replaceValues = changes.map((item) => item.insert);
 			}
 		}
 		return result;

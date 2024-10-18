@@ -71,10 +71,6 @@ interface ReplaceResult {
 	 */
 	replace: string;
 	/**
-	 * 实际替换文本
-	 */
-	replaceValues: string[];
-	/**
 	 * 影响的记录数
 	 */
 	changeCount: number;
