@@ -268,14 +268,14 @@
 			changed: false,
 			search: search,
 			replace: replace,
-			replaceValues: [replace],
+			replaceValues: [],
 			beforeCount: matchSize,
 			afterCount: matchSize,
 		};
 
-		if (matchSize > 0) {
-			const activeEditor = getActiveEditor();
-			if (activeEditor) {
+		const activeEditor = getActiveEditor();
+		if (activeEditor) {
+			if (matchSize > 0) {
 				const { regexMode, caseSensitive } = cache.options;
 				const { editor, editorView } = activeEditor;
 				const current = matches[index];
@@ -311,7 +311,7 @@
 	};
 
 	export const replaceAllMatchedText = (
-		replaceText: string,
+		replacement: string,
 	): ReplaceResult => {
 		const { matches, search, replace } = cache;
 		const matchSize = matches.length;
@@ -320,7 +320,7 @@
 			changed: false,
 			search: search,
 			replace: replace,
-			replaceValues: [replace],
+			replaceValues: [],
 			beforeCount: matchSize,
 			afterCount: matchSize,
 		};
@@ -330,29 +330,26 @@
 			const { editor, editorView } = activeEditor;
 
 			if (matchSize > 0) {
-				let changes = [];
+				let changes: { from: number; to: number; insert: string }[] =
+					[];
 				const { regexMode, caseSensitive } = cache.options;
 				if (regexMode) {
 					const regex = new RegExp(
 						search,
 						"g" + caseSensitive ? "i" : "",
 					);
+
 					changes = matches.map((item) => {
-						let replaceContent = replaceText;
-						if (regexMode) {
-							const rangeText = editor.getRange(
-								editor.offsetToPos(item.from),
-								editor.offsetToPos(item.to),
-							);
-							replaceContent = rangeText.replace(
-								regex,
-								replaceText,
-							);
-						}
+						let text = replacement;
+						const rangeText = editor.getRange(
+							editor.offsetToPos(item.from),
+							editor.offsetToPos(item.to),
+						);
+						text = rangeText.replace(regex, replacement);
 						return {
 							from: item.from,
 							to: item.to,
-							insert: replaceContent,
+							insert: text,
 						};
 					});
 				} else {
@@ -360,7 +357,7 @@
 						return {
 							from: item.from,
 							to: item.to,
-							insert: replaceText,
+							insert: replacement,
 						};
 					});
 				}
@@ -368,11 +365,13 @@
 				editorView.dispatch({
 					changes: changes,
 				});
+
 				setFindText(search);
+
 				result.changed = true;
 				result.changeCount = changes.length;
 				result.afterCount = cache.matches.length;
-				result.replaceValues = changes.map((i) => i.insert);
+				result.replaceValues = changes.map((item) => item.insert);
 			}
 		}
 		return result;
