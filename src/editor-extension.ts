@@ -98,7 +98,7 @@ export class EditorSearch {
 		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
 			// press esc
 			if (e.key == "Escape") {
-				this.component.closeSearch();
+				this.component.closeFinder();
 			}
 		});
 	}

@@ -52,11 +52,12 @@
 				cache.search = searchText;
 			}
 			setFindText(cache.search);
+			//TODO: 当前index定位至里光标最近的那个
 			searchEl.select();
 		} else {
 			cache.collapse = true;
 			if (settings.clearAfterHidden) {
-				resetMatches(true);
+				resetMatches(true, true);
 			} else {
 				emitChange();
 			}
@@ -103,10 +104,8 @@
 	};
 
 	const replaceOnce = () => {
-		const beforeSize = cache.matches.length;
-		replaceMatchedText(cache.replace);
-		const afterSize = cache.matches.length;
-		if (beforeSize === afterSize) {
+		const { beforeCount, afterCount } = replaceMatchedText(cache.replace);
+		if (beforeCount === afterCount) {
 			toNextMatch();
 		}
 	};
@@ -252,71 +251,93 @@
 		}
 	};
 
-	export const resetMatches = (clearText = false) => {
+	export const resetMatches = (clearSearch = false, clearReplace = false) => {
 		cache.matches = [];
 		cache.index = 0;
-		if (clearText) {
+		if (clearSearch) {
 			cache.search = "";
-			cache.replace = "";
 		}
 		emitChange();
 	};
 
-	export const replaceMatchedText = (replaceText: string) => {
-		const { matches, search: text, index } = cache;
+	export const replaceMatchedText = (replaceText: string): ReplaceResult => {
+		const { matches, search, replace, index } = cache;
+		const matchSize = matches.length;
+		const result: ReplaceResult = {
+			changeCount: 0,
+			changed: false,
+			search: search,
+			replace: replace,
+			replaceValues: [replace],
+			beforeCount: matchSize,
+			afterCount: matchSize,
+		};
 
-		if (matches.length > 0) {
+		if (matchSize > 0) {
 			const activeEditor = getActiveEditor();
 			if (activeEditor) {
 				const { regexMode, caseSensitive } = cache.options;
 				const { editor, editorView } = activeEditor;
 				const current = matches[index];
+
+				let replaceStr = replaceText;
 				if (regexMode) {
 					const regex = new RegExp(
-						text,
+						search,
 						"g" + caseSensitive ? "i" : "",
 					);
 					const rangeText = editor.getRange(
 						editor.offsetToPos(current.from),
 						editor.offsetToPos(current.to),
 					);
-					const replaceStr = rangeText.replace(regex, replaceText);
-					editorView.dispatch({
-						changes: {
-							from: current.from,
-							to: current.to,
-							insert: replaceStr,
-						},
-					});
-				} else {
-					editorView.dispatch({
-						changes: {
-							from: current.from,
-							to: current.to,
-							insert: replaceText,
-						},
-					});
+					replaceStr = rangeText.replace(regex, replaceText);
 				}
-				setFindText(text);
+				editorView.dispatch({
+					changes: {
+						from: current.from,
+						to: current.to,
+						insert: replaceStr,
+					},
+				});
+
+				setFindText(search);
+				result.changeCount = 1;
+				result.changed = true;
+				result.replaceValues = [replaceStr];
+				result.afterCount = cache.matches.length;
 			}
 		}
+		return result;
 	};
 
-	export const replaceAllMatchedText = (replaceText: string) => {
+	export const replaceAllMatchedText = (
+		replaceText: string,
+	): ReplaceResult => {
+		const { matches, search, replace } = cache;
+		const matchSize = matches.length;
+		const result: ReplaceResult = {
+			changeCount: 0,
+			changed: false,
+			search: search,
+			replace: replace,
+			replaceValues: [replace],
+			beforeCount: matchSize,
+			afterCount: matchSize,
+		};
+
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editor, editorView } = activeEditor;
-			const { matches, search: text } = cache;
 
-			if (matches.length > 0) {
-				let result = [];
+			if (matchSize > 0) {
+				let changes = [];
 				const { regexMode, caseSensitive } = cache.options;
 				if (regexMode) {
 					const regex = new RegExp(
-						text,
+						search,
 						"g" + caseSensitive ? "i" : "",
 					);
-					result = matches.map((item) => {
+					changes = matches.map((item) => {
 						let replaceContent = replaceText;
 						if (regexMode) {
 							const rangeText = editor.getRange(
@@ -335,7 +356,7 @@
 						};
 					});
 				} else {
-					result = matches.map((item) => {
+					changes = matches.map((item) => {
 						return {
 							from: item.from,
 							to: item.to,
@@ -345,11 +366,16 @@
 				}
 
 				editorView.dispatch({
-					changes: result,
+					changes: changes,
 				});
-				setFindText(text);
+				setFindText(search);
+				result.changed = true;
+				result.changeCount = changes.length;
+				result.afterCount = cache.matches.length;
+				result.replaceValues = changes.map((i) => i.insert);
 			}
 		}
+		return result;
 	};
 	const enterOnFinder = (e: KeyboardEvent) => {
 		const enableInputHotkeys =

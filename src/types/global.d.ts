@@ -56,3 +56,34 @@ interface SearchCache {
 	 */
 	options: SearchOptions;
 }
+
+interface ReplaceResult {
+	/**
+	 * 是否有进行替换
+	 */
+	changed: boolean;
+	/**
+	 * 替换时的搜索框文本
+	 */
+	search: string;
+	/**
+	 * 替换时的替换框文本
+	 */
+	replace: string;
+	/**
+	 * 实际替换文本
+	 */
+	replaceValues: string[];
+	/**
+	 * 影响的记录数
+	 */
+	changeCount: number;
+	/**
+	 * 替换前的匹配总数量
+	 */
+	beforeCount: number;
+	/**
+	 * 替换后的匹配总数量
+	 */
+	afterCount: number;
+}
