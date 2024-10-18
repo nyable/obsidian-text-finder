@@ -11,8 +11,8 @@ export function findTextOffsets(
 	target: string,
 	enableRegexMode: boolean,
 	enableCaseSensitive: boolean
-): EditorOffset[] {
-	const matches: EditorOffset[] = [];
+): MatchOffset[] {
+	const matches: MatchOffset[] = [];
 	if (source != "" && target != "") {
 		let index = 0;
 		if (enableRegexMode) {
@@ -77,8 +77,8 @@ export function findTextOffsets(
  * @returns index
  */
 export function findIndexAfterOffset(
-	target: EditorOffset,
-	list: EditorOffset[],
+	target: MatchOffset,
+	list: MatchOffset[],
 	extraOffset: number
 ): number {
 	return list.findIndex((item) => item.from >= target.from + extraOffset);

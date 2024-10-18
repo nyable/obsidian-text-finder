@@ -17,35 +17,34 @@
 	import { findTextOffsets } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
 
+	export let editorSearch: EditorSearch;
+
 	const cache: SearchCache = {
-		index: 0,
-		matches: [],
 		search: "",
 		replace: "",
+		index: 0,
+		matches: [],
 		visible: false,
+		collapse: true,
+		options: {
+			regexMode: false,
+			caseSensitive: false,
+		},
 	};
 
-	const options: SearchOptions = {
-		enableRegexMode: false,
-		enableCaseSensitive: false,
-	};
+	$: collapsed = cache.collapse;
+	$: finderTabIndex = cache.collapse ? 0 : 1;
+	$: commonTabIndex = cache.collapse ? 0 : 2;
+	$: replacerTabIndex = cache.collapse ? -1 : 1;
 
 	let iconSize = 18;
-	let searchEl: HTMLElement;
-	let collapse = true;
-
-	export let editorSearch: EditorSearch;
+	let searchEl: HTMLTextAreaElement;
 
 	export function getSearchCache() {
 		return cache;
 	}
 
-	export function getSearchOptions() {
-		return options;
-	}
-
 	export function setVisible(flag: boolean, searchText?: string) {
-		const searchInput = searchEl as HTMLInputElement;
 		cache.visible = flag;
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
@@ -53,24 +52,33 @@
 				cache.search = searchText;
 			}
 			setFindText(cache.search);
-			searchInput.select();
+			searchEl.select();
 		} else {
-			collapse = true;
+			cache.collapse = true;
 			if (settings.clearAfterHidden) {
-				clearMatches(true);
-				clearInput();
+				resetMatches(true);
 			} else {
 				emitChange();
 			}
 		}
 	}
+
 	export function setCollapse(flag: boolean) {
-		collapse = flag;
+		cache.collapse = flag;
 	}
 
-	export function clearInput() {
+	export function resetAll() {
 		cache.search = "";
 		cache.replace = "";
+		cache.index = 0;
+		cache.matches = [];
+		cache.visible = false;
+		cache.collapse = true;
+		cache.options = {
+			regexMode: false,
+			caseSensitive: false,
+		};
+		emitChange();
 	}
 
 	export function toggleVisible() {
@@ -78,29 +86,23 @@
 	}
 
 	export function toggleCollapse() {
-		setCollapse(!collapse);
+		setCollapse(!cache.collapse);
 	}
 
 	export function isVisible() {
 		return cache.visible;
 	}
 
-	const onFindTextChanged = (e: Event) => {
-		const target = e.target as HTMLInputElement;
+	const onSearchChanged = (e: Event) => {
+		const target = e.target as HTMLTextAreaElement;
 		setFindText(target.value);
 	};
 
-	const clickNextMatch = () => {
-		toNextMatch();
-	};
-	const clickPreviousMatch = () => {
-		toPreviousMatch();
-	};
-
-	const clickReplaceAll = () => {
+	const replaceAll = () => {
 		replaceAllMatchedText(cache.replace);
 	};
-	const clickReplace = () => {
+
+	const replaceOnce = () => {
 		const beforeSize = cache.matches.length;
 		replaceMatchedText(cache.replace);
 		const afterSize = cache.matches.length;
@@ -109,26 +111,26 @@
 		}
 	};
 
-	export const closeSearch = () => {
+	export const closeFinder = () => {
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const state = activeEditor.view.getState();
 			const { sourceModeWhenSearch } = editorSearch.plugin.settings;
 			if (state.mode === "source" && sourceModeWhenSearch) {
-				state.source = !isLivePreview();
+				state.source = !isNeedPreviewMode();
 				activeEditor.view.setState(state, { history: false });
 			}
 		}
 		setVisible(false);
 	};
 	export const toggleRegexMode = (e: Event) => {
-		options.enableRegexMode = !options.enableRegexMode;
+		cache.options.regexMode = !cache.options.regexMode;
 		searchEl.focus();
 		setFindText(cache.search);
 	};
 
 	export const toggleMatchCaseMode = (e: Event) => {
-		options.enableCaseSensitive = !options.enableCaseSensitive;
+		cache.options.caseSensitive = !cache.options.caseSensitive;
 		searchEl.focus();
 		setFindText(cache.search);
 	};
@@ -169,15 +171,14 @@
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editor } = activeEditor;
-			const { enableRegexMode, enableCaseSensitive } = options;
 			cache.search = text;
 			if (text) {
 				const content = editor.getValue();
 				cache.matches = findTextOffsets(
 					content,
 					text,
-					enableRegexMode,
-					enableCaseSensitive,
+					cache.options.regexMode,
+					cache.options.caseSensitive,
 				);
 				if (cache.index > cache.matches.length - 1) {
 					cache.index = 0;
@@ -189,10 +190,10 @@
 						emitChange();
 					}
 				} else {
-					clearMatches();
+					resetMatches();
 				}
 			} else {
-				clearMatches(true);
+				resetMatches(true);
 			}
 		}
 	};
@@ -206,6 +207,7 @@
 		}
 		scrollToMatch();
 	};
+
 	export const toPreviousMatch = () => {
 		const matchSize = cache.matches.length;
 		if (matchSize == 0) {
@@ -246,37 +248,33 @@
 						? { anchor: from, head: to }
 						: undefined,
 				});
-				// editorView.dispatch({
-				// 	selection: moveCursorToMatch
-				// 		? { anchor: from, head: to }
-				// 		: undefined,
-				// 	effects: [searchCacheEffect.of(cache)],
-				// });
 			}
 		}
 	};
 
-	export const clearMatches = (clearText = false) => {
+	export const resetMatches = (clearText = false) => {
 		cache.matches = [];
 		cache.index = 0;
 		if (clearText) {
 			cache.search = "";
+			cache.replace = "";
 		}
 		emitChange();
 	};
 
 	export const replaceMatchedText = (replaceText: string) => {
 		const { matches, search: text, index } = cache;
-		const { enableRegexMode, enableCaseSensitive } = options;
+
 		if (matches.length > 0) {
 			const activeEditor = getActiveEditor();
 			if (activeEditor) {
+				const { regexMode, caseSensitive } = cache.options;
 				const { editor, editorView } = activeEditor;
 				const current = matches[index];
-				if (enableRegexMode) {
+				if (regexMode) {
 					const regex = new RegExp(
 						text,
-						"g" + enableCaseSensitive ? "i" : "",
+						"g" + caseSensitive ? "i" : "",
 					);
 					const rangeText = editor.getRange(
 						editor.offsetToPos(current.from),
@@ -309,17 +307,18 @@
 		if (activeEditor) {
 			const { editor, editorView } = activeEditor;
 			const { matches, search: text } = cache;
-			const { enableRegexMode, enableCaseSensitive } = options;
+
 			if (matches.length > 0) {
 				let result = [];
-				if (enableRegexMode) {
+				const { regexMode, caseSensitive } = cache.options;
+				if (regexMode) {
 					const regex = new RegExp(
 						text,
-						"g" + enableCaseSensitive ? "i" : "",
+						"g" + caseSensitive ? "i" : "",
 					);
 					result = matches.map((item) => {
 						let replaceContent = replaceText;
-						if (enableRegexMode) {
+						if (regexMode) {
 							const rangeText = editor.getRange(
 								editor.offsetToPos(item.from),
 								editor.offsetToPos(item.to),
@@ -352,7 +351,7 @@
 			}
 		}
 	};
-	const enterOnFindHandle = (e: KeyboardEvent) => {
+	const enterOnFinder = (e: KeyboardEvent) => {
 		const enableInputHotkeys =
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
@@ -364,23 +363,23 @@
 			}
 		}
 	};
-	const enterOnReplaceHandle = (e: KeyboardEvent) => {
+	const enterOnReplacer = (e: KeyboardEvent) => {
 		const enableInputHotkeys =
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (enableInputHotkeys && isEnterPress) {
 			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
 				e.preventDefault();
-				clickReplace();
+				replaceOnce();
 			}
 		}
 	};
 
-	const isLivePreview = (): boolean => {
+	const isNeedPreviewMode = (): boolean => {
 		return (editorSearch.plugin.app.vault as any).getConfig("livePreview");
 	};
 
-	const defaultEnterPress = (e: KeyboardEvent) => {
+	const defaultEnterEvent = (e: KeyboardEvent) => {
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (isEnterPress) {
 			e.preventDefault();
@@ -391,17 +390,17 @@
 </script>
 
 <div
-	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapse ? "nya-finder--collapsed" : ""}`}
+	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapsed ? "nya-finder--collapsed" : ""}`}
 >
 	<div
 		class={`toggle-btn nya-focus`}
-		on:click={() => (collapse = !collapse)}
+		on:click={toggleCollapse}
 		role="button"
 		tabindex="0"
 		title={i18n.t("search.tip.ToggleReplace")}
-		on:keydown={defaultEnterPress}
+		on:keydown={defaultEnterEvent}
 	>
-		{#if collapse}
+		{#if collapsed}
 			<ChevronRight size={iconSize} />
 		{:else}
 			<ChevronDown size={iconSize} />
@@ -414,14 +413,14 @@
 				autocorrect="off"
 				autocapitalize="off"
 				spellcheck="false"
-				on:input={onFindTextChanged}
-				on:keydown={enterOnFindHandle}
+				on:input={onSearchChanged}
+				on:keydown={enterOnFinder}
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
 				bind:value={cache.search}
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
-				tabindex={collapse ? 0 : 1}
+				tabindex={finderTabIndex}
 			/>
 			<div class="finder-act">
 				<div class="nya-tip">
@@ -439,58 +438,58 @@
 					{/if}
 				</div>
 				<div
-					class={`nya-btn nya-focus ${options.enableRegexMode ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus ${cache.options.regexMode ? "nya-btn--active" : ""}`}
 					on:click={toggleRegexMode}
 					role="button"
-					tabindex={collapse ? 0 : 2}
+					tabindex={commonTabIndex}
 					title={i18n.t("search.tip.UseRegularExpression")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<Regex size={iconSize} />
 				</div>
 				<div
-					class={`nya-btn nya-focus ${options.enableCaseSensitive ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus ${cache.options.caseSensitive ? "nya-btn--active" : ""}`}
 					on:click={toggleMatchCaseMode}
 					role="button"
-					tabindex={collapse ? 0 : 2}
+					tabindex={commonTabIndex}
 					title={i18n.t("search.tip.MatchCase")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<CaseSensitive size={iconSize} />
 				</div>
 				<div
 					class="nya-btn nya-focus"
-					on:click={clickPreviousMatch}
+					on:click={toPreviousMatch}
 					role="button"
-					tabindex={collapse ? 0 : 2}
+					tabindex={commonTabIndex}
 					title={i18n.t("search.tip.PreviousMatch")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<ArrowUp size={iconSize} />
 				</div>
 				<div
 					class="nya-btn nya-focus"
-					on:click={clickNextMatch}
+					on:click={toNextMatch}
 					role="button"
-					tabindex={collapse ? 0 : 2}
+					tabindex={commonTabIndex}
 					title={i18n.t("search.tip.NextMatch")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<ArrowDown size={iconSize} />
 				</div>
 				<div
 					class="nya-btn nya-focus"
-					on:click={closeSearch}
+					on:click={closeFinder}
 					role="button"
-					tabindex={collapse ? 0 : 2}
+					tabindex={commonTabIndex}
 					title={i18n.t("search.tip.Close")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<X size={iconSize} />
 				</div>
 			</div>
 		</div>
-		<div class="replacer" style={collapse ? "display: none" : ""}>
+		<div class="replacer" style={collapsed ? "display: none" : ""}>
 			<textarea
 				wrap="off"
 				autocorrect="off"
@@ -499,27 +498,27 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
-				on:keydown={enterOnReplaceHandle}
+				on:keydown={enterOnReplacer}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
-				tabindex={collapse ? -1 : 1}
+				tabindex={replacerTabIndex}
 			/>
 			<div class="replacer-act">
 				<div
 					class="nya-btn nya-focus"
-					on:click={clickReplace}
-					tabindex={collapse ? 0 : 2}
+					on:click={replaceOnce}
+					tabindex={commonTabIndex}
 					role="button"
 					title={i18n.t("search.tip.Replace")}
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 				>
 					<Replace size={iconSize} />
 				</div>
 				<div
 					class="nya-btn nya-focus"
-					on:click={clickReplaceAll}
-					tabindex={collapse ? 0 : 2}
+					on:click={replaceAll}
+					tabindex={commonTabIndex}
 					role="button"
-					on:keydown={defaultEnterPress}
+					on:keydown={defaultEnterEvent}
 					title={i18n.t("search.tip.ReplaceAll")}
 				>
 					<ReplaceAll xlink:title="Replace All" size={iconSize} />
@@ -542,7 +541,6 @@
 		min-width: 448px;
 		top: 88px;
 		right: 48px;
-		// box-shadow: 0 0 1px #ababab;
 		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
 		border: 1px solid var(--modal-border-color);
 		z-index: 20;
@@ -557,7 +555,6 @@
 		}
 
 		&--hidden {
-			// transform: translateY(-100vh);
 			transform: translateY(-100%);
 			opacity: 0;
 			user-select: none;
@@ -584,7 +581,6 @@
 			flex-direction: column;
 			height: 100%;
 			display: flex;
-			// justify-content: center;
 
 			.finder {
 				display: flex;
@@ -671,10 +667,4 @@
 			pointer-events: none;
 		}
 	}
-
-	// @media screen and (max-width: 1200px) {
-	// 	.nya-finder {
-	// 		right: 64px;
-	// 	}
-	// }
 </style>

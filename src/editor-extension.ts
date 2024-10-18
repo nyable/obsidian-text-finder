@@ -212,7 +212,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 		const mountEl = plugin.app.workspace.containerEl;
 		new EditorSearch(plugin, mountEl);
 
-		const textMathcer = StateField.define<DecorationSet>({
+		const textMatchMarker = StateField.define<DecorationSet>({
 			create(state): DecorationSet {
 				return Decoration.none;
 			},
@@ -227,7 +227,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 						if (cache.visible) {
 							const length = transaction.state.doc.length;
 							cache.matches.forEach(
-								(item: EditorOffset, index: number) => {
+								(item: MatchOffset, index: number) => {
 									const from = item.from;
 									const to = item.to;
 									if (to <= length) {
@@ -255,6 +255,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 				return EditorView.decorations.from(field);
 			},
 		});
-		plugin.registerEditorExtension([textMathcer]);
+
+		plugin.registerEditorExtension([textMatchMarker]);
 	});
 }
