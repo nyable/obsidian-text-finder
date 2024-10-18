@@ -32,7 +32,7 @@
 		},
 	};
 
-	$: collapsed = cache.collapse;
+	$: isCollapsed = cache.collapse;
 	$: finderTabIndex = cache.collapse ? 0 : 1;
 	$: commonTabIndex = cache.collapse ? 0 : 2;
 	$: replacerTabIndex = cache.collapse ? -1 : 1;
@@ -411,7 +411,7 @@
 </script>
 
 <div
-	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${collapsed ? "nya-finder--collapsed" : ""}`}
+	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${isCollapsed ? "nya-finder--collapsed" : ""}`}
 >
 	<div
 		class={`toggle-btn nya-focus`}
@@ -421,7 +421,7 @@
 		title={i18n.t("search.tip.ToggleReplace")}
 		on:keydown={defaultEnterEvent}
 	>
-		{#if collapsed}
+		{#if isCollapsed}
 			<ChevronRight size={iconSize} />
 		{:else}
 			<ChevronDown size={iconSize} />
@@ -510,7 +510,7 @@
 				</div>
 			</div>
 		</div>
-		<div class="replacer" style={collapsed ? "display: none" : ""}>
+		<div class="replacer" style={isCollapsed ? "display: none" : ""}>
 			<textarea
 				wrap="off"
 				autocorrect="off"
