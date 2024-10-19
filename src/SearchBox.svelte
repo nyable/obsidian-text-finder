@@ -12,7 +12,7 @@
 	} from "lucide-svelte";
 	import { searchCacheEffect, type EditorSearch } from "./editor-extension";
 	import { i18n } from "./i18n";
-	import { MarkdownView } from "obsidian";
+	import { MarkdownView, Platform } from "obsidian";
 	import type { EditorView } from "@codemirror/view";
 	import { findTextOffsets } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
@@ -36,8 +36,8 @@
 	$: finderTabIndex = cache.collapse ? 0 : 1;
 	$: commonTabIndex = cache.collapse ? 0 : 2;
 	$: replacerTabIndex = cache.collapse ? -1 : 1;
-
-	let iconSize = 18;
+	const isMobile = Platform.isMobile;
+	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
 
 	export function getSearchCache() {
@@ -52,7 +52,6 @@
 				cache.search = searchText;
 			}
 			setFindText(cache.search);
-			//TODO: 感觉应该把当前index定位到离光标最近的那个
 			searchEl.select();
 		} else {
 			cache.collapse = true;
@@ -418,7 +417,9 @@
 </script>
 
 <div
-	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"} ${isCollapsed ? "nya-finder--collapsed" : ""}`}
+	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"}`}
+	class:nya-finder--collapsed={isCollapsed}
+	class:nya-mobile={isMobile}
 >
 	<div
 		class={`toggle-btn nya-focus`}
@@ -466,7 +467,8 @@
 					{/if}
 				</div>
 				<div
-					class={`nya-btn nya-focus ${cache.options.regexMode ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus`}
+					class:nya-btn--active={cache.options.regexMode}
 					on:click={toggleRegexMode}
 					role="button"
 					tabindex={commonTabIndex}
@@ -476,7 +478,8 @@
 					<Regex size={iconSize} />
 				</div>
 				<div
-					class={`nya-btn nya-focus ${cache.options.caseSensitive ? "nya-btn--active" : ""}`}
+					class={`nya-btn nya-focus`}
+					class:nya-btn--active={cache.options.caseSensitive}
 					on:click={toggleMatchCaseMode}
 					role="button"
 					tabindex={commonTabIndex}
@@ -693,6 +696,27 @@
 			visibility: hidden;
 			user-select: none;
 			pointer-events: none;
+		}
+	}
+
+	:global(.is-mobile) {
+		.nya-finder.nya-mobile {
+			min-width: auto;
+			max-width: 416px;
+			width: 100%;
+			right: 50%;
+			transform: translateX(50%);
+
+			.nya-tip {
+				background-color: var(--background-primary);
+				top: -22px;
+				position: absolute;
+				right: 0px;
+				padding: 2px 4px;
+				text-align: center;
+				border-radius: 2px;
+				border: 1px solid var(--modal-border-color);
+			}
 		}
 	}
 </style>
