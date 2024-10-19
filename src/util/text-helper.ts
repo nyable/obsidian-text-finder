@@ -81,5 +81,5 @@ export function findIndexAfterOffset(
 	list: MatchOffset[],
 	extraOffset: number
 ): number {
-	return list.findIndex((item) => item.from >= target.from + extraOffset);
+	return list.findIndex((item) => item.to >= target.from + extraOffset);
 }
