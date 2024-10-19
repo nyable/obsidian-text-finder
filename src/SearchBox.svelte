@@ -408,6 +408,13 @@
 			el.click();
 		}
 	};
+
+	export const matchAgain = (scroll = true) => {
+		const { search } = cache;
+		if (cache.visible && search != "") {
+			setFindText(search, scroll);
+		}
+	};
 </script>
 
 <div

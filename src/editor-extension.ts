@@ -60,11 +60,7 @@ export class EditorSearch {
 		const onActiveLeafChange = debounce(
 			(leaf: WorkspaceLeaf | null) => {
 				if (leaf?.view instanceof MarkdownView) {
-					const cache = this.component.getSearchCache();
-					const searchKey = cache.search;
-					if (this.component.isVisible() && searchKey != "") {
-						this.component.setFindText(searchKey);
-					}
+					this.component.matchAgain();
 				}
 			},
 			250,
@@ -76,11 +72,7 @@ export class EditorSearch {
 			edt: Editor,
 			info: MarkdownView | MarkdownFileInfo
 		) => {
-			const cache = this.component.getSearchCache();
-			const searchKey = cache.search;
-			if (this.component.isVisible() && searchKey != "") {
-				this.component.setFindText(searchKey, false);
-			}
+			this.component.matchAgain(false);
 		};
 		workspace.on(EDITOR_CHANGE, onEditorChange);
 
