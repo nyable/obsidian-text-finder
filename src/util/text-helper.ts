@@ -17,7 +17,7 @@ export function findTextOffsets(
 		let index = 0;
 		if (enableRegexMode) {
 			try {
-				const flags = "g" + (enableCaseSensitive ? "" : "i");
+				const flags = "gm" + (enableCaseSensitive ? "" : "i");
 				const regex = new RegExp(target, flags);
 
 				// for (const match of source.matchAll(regex)) {
