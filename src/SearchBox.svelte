@@ -569,7 +569,6 @@
 </div>
 
 <style lang="scss" global>
-	$border-color: #2488db;
 	.nya-finder {
 		position: absolute;
 		background-color: var(--background-primary);
@@ -667,7 +666,7 @@
 		align-items: center;
 		border-radius: 2px;
 		&--active {
-			border: 1px solid $border-color;
+			border: 1px solid var(--nya-focus-border-color);
 			background-color: rgba(36, 137, 219, 0.51);
 			color: #fff;
 		}
@@ -679,7 +678,7 @@
 		height: 28px;
 		scrollbar-width: none;
 		&:focus {
-			border-color: $border-color;
+			border-color: var(--nya-focus-border-color);
 		}
 	}
 	.nya-focus {
@@ -687,7 +686,7 @@
 			background-color: rgba(90, 93, 94, 0.31);
 		}
 		&:focus {
-			box-shadow: 0 0 0 1px $border-color;
+			box-shadow: 0 0 0 1px var(--nya-focus-border-color);
 		}
 	}
 
