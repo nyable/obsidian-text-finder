@@ -219,7 +219,7 @@
 	export const scrollToMatch = () => {
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
-			const { editorView, editor } = activeEditor;
+			const { editor } = activeEditor;
 
 			const { matches, index } = cache;
 			if (matches.length > 0) {
@@ -259,7 +259,18 @@
 		emitChange();
 	};
 
-	export const replaceMatchedText = (replaceText: string): ReplaceResult => {
+	const adjustReplaceText = (text: string) => {
+		if (editorSearch.plugin.settings.useEscapeCharInReplace) {
+			return text
+				.replace(/\\\\/g, "\0")
+				.replace(/\\n/g, "\n")
+				.replace(/\\t/g, "\t")
+				.replace(/\0/g, "\\");
+		}
+		return text;
+	};
+
+	export const replaceMatchedText = (inputText: string): ReplaceResult => {
 		const { matches, search, replace, index } = cache;
 		const matchSize = matches.length;
 		const result: ReplaceResult = {
@@ -278,7 +289,7 @@
 				const { editor, editorView } = activeEditor;
 				const current = matches[index];
 
-				let replaceStr = replaceText;
+				let replaceStr = inputText;
 				if (regexMode) {
 					const regex = new RegExp(
 						search,
@@ -288,7 +299,8 @@
 						editor.offsetToPos(current.from),
 						editor.offsetToPos(current.to),
 					);
-					replaceStr = rangeText.replace(regex, replaceText);
+					const replacement = adjustReplaceText(inputText);
+					replaceStr = rangeText.replace(regex, replacement);
 				}
 				editorView.dispatch({
 					changes: {
@@ -307,9 +319,7 @@
 		return result;
 	};
 
-	export const replaceAllMatchedText = (
-		replacement: string,
-	): ReplaceResult => {
+	export const replaceAllMatchedText = (inputText: string): ReplaceResult => {
 		const { matches, search, replace } = cache;
 		const matchSize = matches.length;
 		const result: ReplaceResult = {
@@ -334,14 +344,13 @@
 						search,
 						"g" + caseSensitive ? "i" : "",
 					);
-
+					const replacement = adjustReplaceText(inputText);
 					changes = matches.map((item) => {
-						let text = replacement;
 						const rangeText = editor.getRange(
 							editor.offsetToPos(item.from),
 							editor.offsetToPos(item.to),
 						);
-						text = rangeText.replace(regex, replacement);
+						const text = rangeText.replace(regex, replacement);
 						return {
 							from: item.from,
 							to: item.to,
@@ -353,7 +362,7 @@
 						return {
 							from: item.from,
 							to: item.to,
-							insert: replacement,
+							insert: inputText,
 						};
 					});
 				}

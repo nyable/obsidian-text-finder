@@ -27,6 +27,10 @@ interface PluginSettings {
 	 * 在阅读模式下,命令会调用Obsidian的搜索
 	 */
 	useObsidianSearchInRead: boolean;
+	/**
+	 * 在替换框中支持部分转义字符串:\n \t
+	 */
+	useEscapeCharInReplace: boolean;
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -36,6 +40,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	moveCursorToMatch: true,
 	useSelectionAsSearch: true,
 	useObsidianSearchInRead: true,
+	useEscapeCharInReplace: true,
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -153,6 +158,18 @@ class SettingTab extends PluginSettingTab {
 				cb.setValue(pluginSetting.useObsidianSearchInRead).onChange(
 					async (value: boolean) => {
 						pluginSetting.useObsidianSearchInRead = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.UseEscapeCharInReplace.name"))
+			.setDesc(i18n.t("settings.UseEscapeCharInReplace.desc"))
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.useEscapeCharInReplace).onChange(
+					async (value: boolean) => {
+						pluginSetting.useEscapeCharInReplace = value;
 						await this.plugin.saveSettings();
 					}
 				);
