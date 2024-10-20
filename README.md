@@ -108,3 +108,19 @@ Bottom Left
 	bottom: 72px;
 }
 ```
+
+### Change the border color when focused
+
+```css
+body {
+	--nya-focus-border-color: #39c5bb;
+}
+```
+
+### Change the color of the collapse button
+
+```
+.toggle-btn {
+	border-left: 3px solid red !important;
+}
+```

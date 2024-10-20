@@ -108,3 +108,19 @@
 	bottom: 72px;
 }
 ```
+
+### 更改聚焦时的边框颜色
+
+```css
+body {
+	--nya-focus-border-color: #39c5bb;
+}
+```
+
+### 更改折叠按钮的颜色
+
+```
+.toggle-btn {
+	border-left: 3px solid red !important;
+}
+```
