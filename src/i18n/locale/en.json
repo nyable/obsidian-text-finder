@@ -74,7 +74,7 @@
     },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
-      "desc": "\"Once enabled, entering \n in the replacement input box will be treated as a newline, and \\t will be treated as a tab. If you want to replace it with the text \n, you need to enter \\\n.\""
+      "desc": "When enabled, line feed (LF) and horizontal tab (HT) escape characters can be used in the Replace input box."
     }
   }
 }
