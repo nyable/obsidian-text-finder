@@ -74,7 +74,7 @@
     },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
-      "desc": "When enabled, line feed (LF) and horizontal tab (HT) escape characters can be used in the Replace input box."
+      "desc": "Line feed (LF) and horizontal tab (HT) escape characters can be used in the Replace input box."
     }
   }
 }
