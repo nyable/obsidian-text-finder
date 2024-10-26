@@ -18,6 +18,7 @@
 	"author": "hafuhafu",
 	"license": "MIT",
 	"devDependencies": {
+		"@tsconfig/svelte": "5.0.4",
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",
 		"@typescript-eslint/parser": "5.29.0",
@@ -26,18 +27,18 @@
 		"esbuild-sass-plugin": "^3.3.1",
 		"esbuild-svelte": "0.8.2",
 		"obsidian": "latest",
-		"tslib": "2.4.0",
-		"typescript": "5.6.2",
+		"postcss": "8.4.47",
 		"sass": "^1.79.4",
-		"@tsconfig/svelte": "5.0.4",
 		"svelte": "4.2.19",
-		"svelte-preprocess": "6.0.3"
+		"svelte-preprocess": "6.0.3",
+		"tslib": "2.4.0",
+		"typescript": "5.6.2"
 	},
 	"dependencies": {
 		"@codemirror/language": "6.10.3",
 		"@codemirror/state": "^6.0.0",
 		"@codemirror/view": "^6.23.0",
-		"lucide-svelte": "^0.446.0",
-		"i18next": "23.15.1"
+		"i18next": "23.15.1",
+		"lucide-svelte": "^0.446.0"
 	}
 }

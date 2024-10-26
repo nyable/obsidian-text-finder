@@ -568,7 +568,7 @@
 	</div>
 </div>
 
-<style lang="scss" global>
+<style lang="scss">
 	.nya-finder {
 		position: absolute;
 		background-color: var(--background-primary);
@@ -678,7 +678,7 @@
 		height: 28px;
 		scrollbar-width: none;
 		&:focus {
-			border-color: var(--nya-focus-border-color);
+			border: 1px solid var(--nya-focus-border-color);
 		}
 	}
 	.nya-focus {
