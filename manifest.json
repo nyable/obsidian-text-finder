@@ -1,9 +1,9 @@
 {
 	"id": "text-finder",
 	"name": "Text Finder",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"minAppVersion": "0.15.0",
-	"description": "This plugin for Obsidian provides a find/replace window in edit mode similar to VSCode.",
+	"description": "Provides a find/replace window in edit mode similar to VSCode (supports regular expressions and case sensitivity).",
 	"author": "hafuhafu",
 	"authorUrl": "https://github.com/nyable",
 	"fundingUrl": "https://buymeacoffee.com/nyable",
