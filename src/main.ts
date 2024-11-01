@@ -79,9 +79,6 @@ class SettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl("h1", {
-			text: `${i18n.t("plugin.name")} ${this.plugin.manifest.version}`,
-		});
 
 		const pluginSetting = this.plugin.settings;
 		new Setting(containerEl)

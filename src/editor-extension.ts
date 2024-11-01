@@ -52,40 +52,31 @@ export class EditorSearch {
 		this.registerCommand();
 	}
 	private registerEvent() {
-		const ACTIVE_LEAF_CHANGE = "active-leaf-change";
-		const EDITOR_CHANGE = "editor-change";
-
 		const workspace = this.plugin.app.workspace;
 
-		const onActiveLeafChange = debounce(
-			(leaf: WorkspaceLeaf | null) => {
-				if (leaf?.view instanceof MarkdownView) {
-					this.component.matchAgain();
-				}
-			},
-			250,
-			true
+		this.plugin.registerEvent(
+			workspace.on(
+				"active-leaf-change",
+				debounce(
+					(leaf: WorkspaceLeaf | null) => {
+						if (leaf?.view instanceof MarkdownView) {
+							this.component.matchAgain();
+						}
+					},
+					250,
+					true
+				)
+			)
 		);
-		workspace.on(ACTIVE_LEAF_CHANGE, onActiveLeafChange);
 
-		const onEditorChange = (
-			edt: Editor,
-			info: MarkdownView | MarkdownFileInfo
-		) => {
-			this.component.matchAgain(false);
-		};
-		workspace.on(EDITOR_CHANGE, onEditorChange);
-
-		this.plugin.onunload = () => {
-			workspace.off(
-				EDITOR_CHANGE,
-				onEditorChange as (...data: unknown[]) => unknown
-			);
-			workspace.off(
-				ACTIVE_LEAF_CHANGE,
-				onActiveLeafChange as (...data: unknown[]) => unknown
-			);
-		};
+		this.plugin.registerEvent(
+			workspace.on(
+				"editor-change",
+				(edt: Editor, info: MarkdownView | MarkdownFileInfo) => {
+					this.component.matchAgain(false);
+				}
+			)
+		);
 
 		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
 			// press esc
@@ -107,22 +98,31 @@ export class EditorSearch {
 		plugin.addCommand({
 			id: CMD.SHOW_FIND,
 			name: i18n.t("commands.ShowFind.name"),
-			callback: () => {
+			checkCallback: (checking: boolean) => {
 				const view =
 					plugin.app.workspace.getActiveViewOfType(MarkdownView);
 				if (view) {
 					const mode = view.getMode();
 					const { useObsidianSearchInRead, useSelectionAsSearch } =
 						plugin.settings;
-					if (mode == "preview" && useObsidianSearchInRead) {
-						this.openObsidianSearch();
-					} else if (mode == "source") {
-						const defaultSearchText = useSelectionAsSearch
-							? view.editor.getSelection()
-							: "";
-						component.setVisible(true, defaultSearchText);
+					const previewCheck =
+						useObsidianSearchInRead && mode === "preview";
+					const sourceCheck = mode === "source";
+					if (previewCheck || sourceCheck) {
+						if (!checking) {
+							if (mode === "preview") {
+								this.openObsidianSearch();
+							} else if (mode === "source") {
+								const defaultSearchText = useSelectionAsSearch
+									? view.editor.getSelection()
+									: "";
+								component.setVisible(true, defaultSearchText);
+							}
+						}
+						return true;
 					}
 				}
+				return false;
 			},
 		});
 		plugin.addCommand({
