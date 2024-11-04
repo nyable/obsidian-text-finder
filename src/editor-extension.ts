@@ -18,6 +18,7 @@ import SearchBox from "./SearchBox.svelte";
 import { i18n } from "./i18n";
 
 export const CLS = {
+	FINDER: "nya-finder",
 	MATCH: "nya-text-finder-match",
 	MATCH_CURRENT: "nya-text-finder-match-current",
 };
@@ -200,10 +201,23 @@ export const searchCacheEffect = StateEffect.define<SearchCache>();
 
 export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
-	workspace.onLayoutReady(() => {
-		const mountEl = plugin.app.workspace.containerEl;
-		new EditorSearch(plugin, mountEl);
 
+	const mountSearchBox = () => {
+		const mountEl = plugin.app.workspace.containerEl;
+		const finderEl = mountEl.querySelector(`.${CLS.FINDER}`);
+		if (!finderEl) {
+			new EditorSearch(plugin, mountEl);
+		}
+	};
+
+	plugin.registerEvent(
+		workspace.on("active-leaf-change", () => {
+			mountSearchBox();
+		})
+	);
+
+	workspace.onLayoutReady(() => {
+		mountSearchBox();
 		const textMatchMarker = StateField.define<DecorationSet>({
 			create(state): DecorationSet {
 				return Decoration.none;
