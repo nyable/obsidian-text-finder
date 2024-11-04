@@ -38,6 +38,7 @@ export class EditorSearch {
 	plugin: TextFinderPlugin;
 	mountEl: HTMLElement;
 	finder: SearchBox;
+	// finder: SearchBox | null = null;
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
@@ -49,8 +50,13 @@ export class EditorSearch {
 		this.registerCommand();
 	}
 
+	/**
+	 * 获取Finder组件,如果不存在则创建
+	 * @returns SearchBox
+	 */
 	getFinder(): SearchBox {
 		if (!this.finder || !this.mountEl.querySelector(`.${CLS.FINDER}`)) {
+			this.destoryFinder();
 			this.finder = new SearchBox({
 				target: this.mountEl,
 				props: {
@@ -61,8 +67,23 @@ export class EditorSearch {
 		return this.finder;
 	}
 
+	/**
+	 * 销毁Finder组件
+	 */
+	destoryFinder() {
+		if (this.finder) {
+			this.finder.$destroy();
+		}
+	}
+
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
+
+		this.plugin.onunload = () => {
+			// 在取消加载插件的时候销毁finder的svelte组件,不然重复开关会重复创建,虽然没有影响
+			this.destoryFinder();
+		};
+
 		this.plugin.registerEvent(
 			workspace.on(
 				"active-leaf-change",
@@ -214,6 +235,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 
 	workspace.onLayoutReady(() => {
 		new EditorSearch(plugin);
+
 		const textMatchMarker = StateField.define<DecorationSet>({
 			create(state): DecorationSet {
 				return Decoration.none;

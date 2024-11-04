@@ -53,8 +53,6 @@ export default class TextFinderPlugin extends Plugin {
 		editorExtensionProvider(this);
 	}
 
-	onunload() {}
-
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
