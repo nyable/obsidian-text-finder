@@ -37,31 +37,39 @@ export const CMD = {
 export class EditorSearch {
 	plugin: TextFinderPlugin;
 	mountEl: HTMLElement;
-	component: SearchBox;
-	constructor(plugin: TextFinderPlugin, mountEl: HTMLElement) {
+	finder: SearchBox;
+
+	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
 
-		this.mountEl = mountEl;
-		this.component = new SearchBox({
-			target: this.mountEl,
-			props: {
-				editorSearch: this,
-			},
-		});
+		this.mountEl = plugin.app.workspace.containerEl;
+		this.finder = this.getFinder();
 
 		this.registerEvent();
 		this.registerCommand();
 	}
+
+	getFinder(): SearchBox {
+		if (!this.finder || !this.mountEl.querySelector(`.${CLS.FINDER}`)) {
+			this.finder = new SearchBox({
+				target: this.mountEl,
+				props: {
+					editorSearch: this,
+				},
+			});
+		}
+		return this.finder;
+	}
+
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
-
 		this.plugin.registerEvent(
 			workspace.on(
 				"active-leaf-change",
 				debounce(
 					(leaf: WorkspaceLeaf | null) => {
 						if (leaf?.view instanceof MarkdownView) {
-							this.component.matchAgain();
+							this.getFinder().matchAgain();
 						}
 					},
 					250,
@@ -74,7 +82,7 @@ export class EditorSearch {
 			workspace.on(
 				"editor-change",
 				(edt: Editor, info: MarkdownView | MarkdownFileInfo) => {
-					this.component.matchAgain(false);
+					this.getFinder().matchAgain(false);
 				}
 			)
 		);
@@ -82,7 +90,7 @@ export class EditorSearch {
 		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
 			// press esc
 			if (e.key == "Escape") {
-				this.component.closeFinder();
+				this.getFinder().closeFinder();
 			}
 		});
 	}
@@ -95,7 +103,7 @@ export class EditorSearch {
 	}
 
 	private registerCommand() {
-		const { plugin, component } = this;
+		const { plugin } = this;
 		plugin.addCommand({
 			id: CMD.SHOW_FIND,
 			name: i18n.t("commands.ShowFind.name"),
@@ -117,7 +125,10 @@ export class EditorSearch {
 								const defaultSearchText = useSelectionAsSearch
 									? view.editor.getSelection()
 									: "";
-								component.setVisible(true, defaultSearchText);
+								this.getFinder().setVisible(
+									true,
+									defaultSearchText
+								);
 							}
 						}
 						return true;
@@ -130,19 +141,20 @@ export class EditorSearch {
 			id: CMD.SHOW_FIND_AND_REPLACE,
 			name: i18n.t("commands.ShowFindAndReplace.name"),
 			editorCallback: (editor, ctx) => {
-				component.setCollapse(false);
+				const finder = this.getFinder();
+				finder.setCollapse(false);
 				const { useSelectionAsSearch } = plugin.settings;
 				const defaultSearchText = useSelectionAsSearch
 					? editor.getSelection()
 					: "";
-				component.setVisible(true, defaultSearchText);
+				finder.setVisible(true, defaultSearchText);
 			},
 		});
 		plugin.addCommand({
 			id: CMD.HIDE_FIND,
 			name: i18n.t("commands.HideFind.name"),
 			editorCallback: (editor, ctx) => {
-				component.setVisible(false);
+				this.getFinder().setVisible(false);
 			},
 		});
 
@@ -150,7 +162,7 @@ export class EditorSearch {
 			id: CMD.TOGGLE_FIND,
 			name: i18n.t("commands.ToggleFind.name"),
 			editorCallback: (editor, ctx) => {
-				component.toggleVisible();
+				this.getFinder().toggleVisible();
 			},
 		});
 
@@ -158,7 +170,7 @@ export class EditorSearch {
 			id: CMD.TOGGLE_REPLACE,
 			name: i18n.t("commands.ToggleReplace.name"),
 			editorCallback: (editor, ctx) => {
-				component.toggleCollapse();
+				this.getFinder().toggleCollapse();
 			},
 		});
 
@@ -166,7 +178,7 @@ export class EditorSearch {
 			id: CMD.PREVIOUS_MATCH,
 			name: i18n.t("commands.PreviousMatch.name"),
 			editorCallback: (editor, ctx) => {
-				component.toPreviousMatch();
+				this.getFinder().toPreviousMatch();
 			},
 		});
 
@@ -174,25 +186,23 @@ export class EditorSearch {
 			id: CMD.NEXT_MATCH,
 			name: i18n.t("commands.NextMatch.name"),
 			editorCallback: (editor, ctx) => {
-				component.toNextMatch();
+				this.getFinder().toNextMatch();
 			},
 		});
 		plugin.addCommand({
 			id: CMD.REPLACE,
 			name: i18n.t("commands.Replace.name"),
 			editorCallback: (editor, ctx) => {
-				component.replaceMatchedText(
-					component.getSearchCache().replace
-				);
+				const finder = this.getFinder();
+				finder.replaceMatchedText(finder.getSearchCache().replace);
 			},
 		});
 		plugin.addCommand({
 			id: CMD.REPLACE_ALL,
 			name: i18n.t("commands.ReplaceAll.name"),
 			editorCallback: (editor, ctx) => {
-				component.replaceAllMatchedText(
-					component.getSearchCache().replace
-				);
+				const finder = this.getFinder();
+				finder.replaceAllMatchedText(finder.getSearchCache().replace);
 			},
 		});
 	}
@@ -202,22 +212,8 @@ export const searchCacheEffect = StateEffect.define<SearchCache>();
 export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
 
-	const mountSearchBox = () => {
-		const mountEl = plugin.app.workspace.containerEl;
-		const finderEl = mountEl.querySelector(`.${CLS.FINDER}`);
-		if (!finderEl) {
-			new EditorSearch(plugin, mountEl);
-		}
-	};
-
-	plugin.registerEvent(
-		workspace.on("active-leaf-change", () => {
-			mountSearchBox();
-		})
-	);
-
 	workspace.onLayoutReady(() => {
-		mountSearchBox();
+		new EditorSearch(plugin);
 		const textMatchMarker = StateField.define<DecorationSet>({
 			create(state): DecorationSet {
 				return Decoration.none;
