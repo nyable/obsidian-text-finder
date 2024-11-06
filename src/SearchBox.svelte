@@ -435,7 +435,7 @@
 		on:click={toggleCollapse}
 		role="button"
 		tabindex="0"
-		title={i18n.t("search.tip.ToggleReplace")}
+		aria-label={i18n.t("search.tip.ToggleReplace")}
 		on:keydown={defaultEnterEvent}
 	>
 		{#if isCollapsed}
@@ -481,8 +481,8 @@
 					on:click={toggleRegexMode}
 					role="button"
 					tabindex={commonTabIndex}
-					title={i18n.t("search.tip.UseRegularExpression")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.UseRegularExpression")}
 				>
 					<Regex size={iconSize} />
 				</div>
@@ -492,8 +492,8 @@
 					on:click={toggleMatchCaseMode}
 					role="button"
 					tabindex={commonTabIndex}
-					title={i18n.t("search.tip.MatchCase")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.MatchCase")}
 				>
 					<CaseSensitive size={iconSize} />
 				</div>
@@ -502,8 +502,8 @@
 					on:click={toPreviousMatch}
 					role="button"
 					tabindex={commonTabIndex}
-					title={i18n.t("search.tip.PreviousMatch")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.PreviousMatch")}
 				>
 					<ArrowUp size={iconSize} />
 				</div>
@@ -512,8 +512,8 @@
 					on:click={toNextMatch}
 					role="button"
 					tabindex={commonTabIndex}
-					title={i18n.t("search.tip.NextMatch")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.NextMatch")}
 				>
 					<ArrowDown size={iconSize} />
 				</div>
@@ -522,8 +522,8 @@
 					on:click={closeFinder}
 					role="button"
 					tabindex={commonTabIndex}
-					title={i18n.t("search.tip.Close")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.Close")}
 				>
 					<X size={iconSize} />
 				</div>
@@ -548,8 +548,8 @@
 					on:click={replaceOnce}
 					tabindex={commonTabIndex}
 					role="button"
-					title={i18n.t("search.tip.Replace")}
 					on:keydown={defaultEnterEvent}
+					aria-label={i18n.t("search.tip.Replace")}
 				>
 					<Replace size={iconSize} />
 				</div>
@@ -559,7 +559,7 @@
 					tabindex={commonTabIndex}
 					role="button"
 					on:keydown={defaultEnterEvent}
-					title={i18n.t("search.tip.ReplaceAll")}
+					aria-label={i18n.t("search.tip.ReplaceAll")}
 				>
 					<ReplaceAll xlink:title="Replace All" size={iconSize} />
 				</div>
