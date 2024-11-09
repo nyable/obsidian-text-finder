@@ -79,11 +79,6 @@ export class EditorSearch {
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
 
-		this.plugin.onunload = () => {
-			// 在取消加载插件的时候销毁finder的svelte组件,不然重复开关会重复创建,虽然没有影响
-			this.destoryFinder();
-		};
-
 		this.plugin.registerEvent(
 			workspace.on(
 				"active-leaf-change",
@@ -234,7 +229,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
 
 	workspace.onLayoutReady(() => {
-		new EditorSearch(plugin);
+		plugin.editorSearch = new EditorSearch(plugin);
 
 		const textMatchMarker = StateField.define<DecorationSet>({
 			create(state): DecorationSet {

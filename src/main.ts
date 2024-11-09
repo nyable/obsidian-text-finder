@@ -1,6 +1,6 @@
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { i18n } from "./i18n";
-import { editorExtensionProvider } from "./editor-extension";
+import { editorExtensionProvider, EditorSearch } from "./editor-extension";
 
 interface PluginSettings {
 	/**
@@ -45,14 +45,17 @@ const DEFAULT_SETTINGS: PluginSettings = {
 
 export default class TextFinderPlugin extends Plugin {
 	settings!: PluginSettings;
-
+	editorSearch: EditorSearch | null = null;
 	async onload() {
 		await this.loadSettings();
 		this.addSettingTab(new SettingTab(this.app, this));
 
 		editorExtensionProvider(this);
 	}
-
+	onunload() {
+		// 在取消加载插件的时候销毁finder的svelte组件,不然重复开关会重复创建,虽然没有影响
+		this.editorSearch?.destoryFinder();
+	}
 	async loadSettings() {
 		this.settings = Object.assign(
 			{},
