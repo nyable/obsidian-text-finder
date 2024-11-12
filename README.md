@@ -31,6 +31,11 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Install
 
+### Community plugins
+
+-   Search for "text finder" in the community plugins and install it.
+-   Enable plugin in Obsidian setting.
+
 ### BRAT
 
 -   [Install the BRAT Plugin](https://obsidian.md/plugins?id=obsidian42-brat)
@@ -54,7 +59,7 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Settings
 
--   Assign hotkeys in settings.
+-   Assign a hotkeys for the plugin's command.
 
 ## Customize Style
 
