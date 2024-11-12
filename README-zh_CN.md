@@ -124,7 +124,7 @@ body {
 
 ### 更改折叠按钮的颜色
 
-```
+```css
 .toggle-btn {
 	border-left: 3px solid red !important;
 }

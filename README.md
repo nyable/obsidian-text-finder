@@ -124,7 +124,7 @@ body {
 
 ### Change the color of the collapse button
 
-```
+```css
 .toggle-btn {
 	border-left: 3px solid red !important;
 }
