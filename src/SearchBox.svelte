@@ -430,6 +430,8 @@
 	class:nya-finder--collapsed={isCollapsed}
 	class:nya-mobile={isMobile}
 >
+	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
+	<div class="nya-dragger"></div>
 	<div
 		class={`toggle-btn nya-focus`}
 		on:click={toggleCollapse}
@@ -461,6 +463,7 @@
 				tabindex={finderTabIndex}
 			/>
 			<div class="finder-act">
+				<!-- TODO: 文本提示这里改成最小宽度，然后增大输入宽的默认宽度 -->
 				<div class="nya-tip">
 					{#if cache.matches.length > 0}
 						<div>
@@ -588,6 +591,7 @@
 		border-radius: 4px;
 		justify-content: center;
 		align-items: center;
+		overflow: hidden;
 
 		&--collapsed {
 			height: 38px;
@@ -605,13 +609,22 @@
 		}
 
 		.toggle-btn {
-			width: 18px;
+			width: 16px;
 			height: 100%;
-			margin-right: 4px;
+			margin-right: 2px;
+			margin-left: 2px;
 			display: flex;
 			justify-content: center;
 			align-items: center;
+		}
+		.nya-dragger {
+			width: 1px;
+			height: 100%;
 			border-left: 3px solid #39c5bb;
+			cursor: ew-resize;
+			&:active {
+				filter: brightness(1.3);
+			}
 		}
 
 		.main-part {
@@ -620,16 +633,16 @@
 			flex-direction: column;
 			height: 100%;
 			display: flex;
-
+			// 搜索框容器
 			.finder {
 				display: flex;
 				margin-bottom: 6px;
 			}
-
+			// 替换框容器
 			.replacer {
 				display: flex;
 			}
-
+			// 搜索框的操作区
 			.finder-act {
 				display: flex;
 				justify-content: center;
@@ -638,6 +651,7 @@
 				flex: 1;
 				padding-left: 4px;
 			}
+			// 替换框的操作区
 			.replacer-act {
 				display: flex;
 				justify-content: start;
@@ -673,6 +687,7 @@
 	}
 	.nya-input {
 		box-shadow: none;
+		// TODO:这里可以改成flex:1 ,方便后面拖动的时候自适应宽度
 		width: 177px;
 		resize: none;
 		height: 28px;
