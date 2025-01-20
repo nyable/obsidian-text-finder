@@ -610,7 +610,7 @@
 
 		.toggle-btn {
 			width: 16px;
-			height: 100%;
+			height: calc(100% - 4px);
 			margin-right: 2px;
 			margin-left: 2px;
 			display: flex;
