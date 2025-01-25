@@ -63,8 +63,11 @@
 
 ## 自定义样式
 
-使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) 来自定义样式。  
-以下是部分示例。
+使用 [CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets)或[Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings)来自定义样式。
+
+[示例的 Style Settings 配置文件](./style-settings.css).
+
+以下是部分 CSS 片段示例。
 
 ### 匹配高亮与当前项
 
@@ -125,7 +128,7 @@ body {
 ### 更改折叠按钮的颜色
 
 ```css
-.toggle-btn {
+.nya-toggle {
 	border-left: 3px solid red !important;
 }
 ```

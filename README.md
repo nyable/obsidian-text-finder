@@ -63,8 +63,11 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 ## Customize Style
 
-Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) to customize styles.  
-Here are some examples.
+Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or [Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings) to customize styles.
+
+[Example Style Settings configuration file](./style-settings.css).
+
+Here are some CSS snippets examples.
 
 ### Match Highlight and Current Item
 
@@ -125,7 +128,7 @@ body {
 ### Change the color of the collapse button
 
 ```css
-.toggle-btn {
+.nya-toggle {
 	border-left: 3px solid red !important;
 }
 ```
