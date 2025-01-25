@@ -621,7 +621,7 @@
 		.nya-dragger {
 			width: 1px;
 			height: 100%;
-			border-left: 3px solid #39c5bb;
+			border-left: 3px solid var(--nya-dragger-color);
 			border-radius: 4px 0 0 4px;
 			cursor: ew-resize;
 			&:active {

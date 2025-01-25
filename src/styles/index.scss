@@ -1,13 +1,18 @@
 body {
 	--nya-focus-border-color: #2488db;
+	--nya-dragger-color: #39c5bb;
 	--nya-default-width: 448px;
+	--nya-match-bgColor: #ea5c0054;
+	--nya-match-color: #ffffff;
+	--nya-match-curbgColor: #fafa00f2;
+	--nya-match-curColor: #ff0000;
 }
 .nya-text-finder-match {
-	background-color: rgba(234, 92, 0, 0.33);
-	color: white;
+	background-color: var(--nya-match-bgColor);
+	color: var(--nya-match-color);
 }
 
 .nya-text-finder-match-current {
-	background-color: rgba(250, 250, 0, 0.95);
-	color: red;
+	background-color: var(--nya-match-curbgColor);
+	color: var(--nya-match-curColor);
 }
