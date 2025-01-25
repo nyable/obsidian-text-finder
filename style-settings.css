@@ -1,0 +1,74 @@
+/* @settings
+
+name: Text Finder
+id: obsidian-text-finder
+settings:
+    - 
+        id: nya-default-width
+        title: Default width
+        title.zh: 默认宽度
+        description: Default width of the search window
+        description.zh: 搜索窗口的默认宽度
+        type: variable-text
+        default: 448px
+    - 
+        id: nya-focus-border-color
+        title: Focused border color
+        title.zh: 聚焦边框颜色
+        description: The color of the border when focused
+        description.zh: 控件聚焦时的边框颜色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#2488db'
+    - 
+        id: nya-dragger-color
+        title: Dragger color
+        title.zh: 拖拽控件的颜色
+        description: The color of the dragger
+        description.zh: 拖拽控件的颜色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#39c5bb'
+    - 
+        id: nya-match-bgColor
+        title: Match item background color
+        title.zh: 匹配项背景颜色
+        description: The background color of the matched item
+        description.zh: 匹配项的背景色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#ea5c0054'
+    - 
+        id: nya-match-color
+        title: Match item text color
+        title.zh: 匹配项文字颜色
+        description: The text color of the matched item
+        description.zh: 匹配项的文字颜色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#ffffff'
+    - 
+        id: nya-match-curbgColor
+        title: Current item background color
+        title.zh: 当前项背景颜色
+        description: The background color of the current item
+        description.zh: 当前项的背景色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#fafa00f2'
+    - 
+        id: nya-match-curColor
+        title: Current item text color
+        title.zh: 当前项文字颜色
+        description: The text color of the current item
+        description.zh: 当前项的文字颜色
+        type: variable-color
+        opacity: true
+        format: hex
+        default: '#ff0000'
+*/
