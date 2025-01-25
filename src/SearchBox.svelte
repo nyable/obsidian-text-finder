@@ -433,7 +433,7 @@
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
 	<div class="nya-dragger"></div>
 	<div
-		class={`toggle-btn nya-focus`}
+		class={`nya-toggle nya-focus`}
 		on:click={toggleCollapse}
 		role="button"
 		tabindex="0"
@@ -608,7 +608,8 @@
 			transform: translateY(0);
 		}
 
-		.toggle-btn {
+		// 切换按钮
+		.nya-toggle {
 			width: 16px;
 			height: calc(100% - 4px);
 			margin-right: 2px;
@@ -617,6 +618,7 @@
 			justify-content: center;
 			align-items: center;
 		}
+		//拖拽按钮
 		.nya-dragger {
 			width: 1px;
 			height: 100%;
