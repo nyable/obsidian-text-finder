@@ -462,20 +462,50 @@
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
 				tabindex={finderTabIndex}
 			/>
-			<div class="nya-tip">
-				{#if cache.matches.length > 0}
-					<div>
-						{i18n.t("search.tip.HasResults", {
-							current: cache.index + 1,
-							total: cache.matches.length,
-						})}
+			<!-- TODO: 组件化,有空再优化 -->
+			{#if isMobile}
+				<div class="nya-float-act">
+					<div class="nya-float-tip">
+						{#if cache.matches.length > 0}
+							<div>
+								{i18n.t("search.tip.HasResults", {
+									current: cache.index + 1,
+									total: cache.matches.length,
+								})}
+							</div>
+						{:else}
+							<div style={cache.search ? "color:red" : ""}>
+								{i18n.t("search.tip.NoResults")}
+							</div>
+						{/if}
 					</div>
-				{:else}
-					<div style={cache.search ? "color:red" : ""}>
-						{i18n.t("search.tip.NoResults")}
+					<div
+						class="nya-btn nya-focus"
+						on:click={closeFinder}
+						role="button"
+						tabindex={commonTabIndex}
+						on:keydown={defaultEnterEvent}
+						aria-label={i18n.t("search.tip.Close")}
+					>
+						<X size={iconSize} />
 					</div>
-				{/if}
-			</div>
+				</div>
+			{:else}
+				<div class="nya-tip">
+					{#if cache.matches.length > 0}
+						<div>
+							{i18n.t("search.tip.HasResults", {
+								current: cache.index + 1,
+								total: cache.matches.length,
+							})}
+						</div>
+					{:else}
+						<div style={cache.search ? "color:red" : ""}>
+							{i18n.t("search.tip.NoResults")}
+						</div>
+					{/if}
+				</div>
+			{/if}
 			<div class="finder-act">
 				<div
 					class={`nya-btn nya-focus`}
@@ -519,16 +549,18 @@
 				>
 					<ArrowDown size={iconSize} />
 				</div>
-				<div
-					class="nya-btn nya-focus"
-					on:click={closeFinder}
-					role="button"
-					tabindex={commonTabIndex}
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.Close")}
-				>
-					<X size={iconSize} />
-				</div>
+				{#if !isMobile}
+					<div
+						class="nya-btn nya-focus"
+						on:click={closeFinder}
+						role="button"
+						tabindex={commonTabIndex}
+						on:keydown={defaultEnterEvent}
+						aria-label={i18n.t("search.tip.Close")}
+					>
+						<X size={iconSize} />
+					</div>
+				{/if}
 			</div>
 		</div>
 		<div class="replacer" style={isCollapsed ? "display: none" : ""}>
@@ -623,7 +655,7 @@
 			height: 100%;
 			border-left: 3px solid var(--nya-dragger-color);
 			border-radius: 4px 0 0 4px;
-			cursor: ew-resize;
+			// cursor: ew-resize;
 			&:active {
 				filter: brightness(1.3);
 			}
@@ -651,7 +683,7 @@
 				align-items: center;
 				height: 28px;
 				min-width: 140px;
-				padding-left: 4px;
+				margin-left: 4px;
 			}
 			// 替换框的操作区
 			.replacer-act {
@@ -660,8 +692,8 @@
 				align-items: center;
 				height: 28px;
 				min-width: 140px;
-				padding-left: 4px;
 				padding-right: 184px;
+				margin-left: 4px;
 			}
 		}
 	}
@@ -670,10 +702,10 @@
 		align-items: center;
 		font-size: 12px;
 		text-align: left;
+		font-family: auto;
 		min-width: 100px;
 		text-wrap: nowrap;
 		padding: 0 4px 0px 8px;
-		font-family: auto;
 	}
 
 	.nya-btn {
@@ -746,8 +778,46 @@
 				border: 1px solid var(--modal-border-color);
 			}
 
+			.nya-float-act {
+				font-size: 12px;
+				background-color: var(--background-primary);
+				top: -38px;
+				position: absolute;
+				right: 0px;
+				border-radius: 4px;
+				border: 1px solid var(--modal-border-color);
+				height: 36px;
+				display: flex;
+				flex-direction: row;
+				justify-content: center;
+				align-items: center;
+				.nya-float-tip {
+					display: flex;
+					align-items: center;
+					font-size: 12px;
+					text-align: left;
+					font-family: auto;
+					min-width: 88px;
+					text-wrap: nowrap;
+					padding: 0 4px;
+				}
+			}
+
+			.nya-input {
+				min-width: 100px;
+				&::-webkit-scrollbar {
+					display: none;
+				}
+			}
+			.finder-act {
+				min-width: unset;
+				width: 112px;
+			}
 			.replacer-act {
-				padding-right: 84px;
+				min-width: unset;
+				width: 112px;
+				justify-content: flex-start;
+				padding-right: unset;
 			}
 		}
 	}
