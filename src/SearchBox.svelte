@@ -462,22 +462,21 @@
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
 				tabindex={finderTabIndex}
 			/>
+			<div class="nya-tip">
+				{#if cache.matches.length > 0}
+					<div>
+						{i18n.t("search.tip.HasResults", {
+							current: cache.index + 1,
+							total: cache.matches.length,
+						})}
+					</div>
+				{:else}
+					<div style={cache.search ? "color:red" : ""}>
+						{i18n.t("search.tip.NoResults")}
+					</div>
+				{/if}
+			</div>
 			<div class="finder-act">
-				<!-- TODO: 文本提示这里改成最小宽度，然后增大输入宽的默认宽度 -->
-				<div class="nya-tip">
-					{#if cache.matches.length > 0}
-						<div>
-							{i18n.t("search.tip.HasResults", {
-								current: cache.index + 1,
-								total: cache.matches.length,
-							})}
-						</div>
-					{:else}
-						<div style={cache.search ? "color:red" : ""}>
-							{i18n.t("search.tip.NoResults")}
-						</div>
-					{/if}
-				</div>
 				<div
 					class={`nya-btn nya-focus`}
 					class:nya-btn--active={cache.options.regexMode}
@@ -580,7 +579,7 @@
 			opacity 0.2s linear,
 			right 0.3s cubic-bezier(0.45, 0.05, 0.55, 0.95);
 		height: 72px;
-		min-width: 448px;
+		min-width: var(--nya-default-width);
 		top: 88px;
 		right: 48px;
 		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
@@ -591,7 +590,7 @@
 		border-radius: 4px;
 		justify-content: center;
 		align-items: center;
-		overflow: hidden;
+		// overflow: hidden;
 
 		&--collapsed {
 			height: 38px;
@@ -623,6 +622,7 @@
 			width: 1px;
 			height: 100%;
 			border-left: 3px solid #39c5bb;
+			border-radius: 4px 0 0 4px;
 			cursor: ew-resize;
 			&:active {
 				filter: brightness(1.3);
@@ -647,28 +647,32 @@
 			// 搜索框的操作区
 			.finder-act {
 				display: flex;
-				justify-content: center;
+				justify-content: flex-end;
 				align-items: center;
 				height: 28px;
-				flex: 1;
+				min-width: 140px;
 				padding-left: 4px;
 			}
 			// 替换框的操作区
 			.replacer-act {
 				display: flex;
-				justify-content: start;
+				justify-content: flex-end;
 				align-items: center;
 				height: 28px;
-				flex: 1;
+				min-width: 140px;
 				padding-left: 4px;
+				padding-right: 184px;
 			}
 		}
 	}
 	.nya-tip {
+		display: flex;
+		align-items: center;
 		font-size: 12px;
 		text-align: left;
-		flex: 1;
-		padding: 0 4px;
+		min-width: 100px;
+		text-wrap: nowrap;
+		padding: 0 4px 0px 8px;
 		font-family: auto;
 	}
 
@@ -689,8 +693,8 @@
 	}
 	.nya-input {
 		box-shadow: none;
-		// TODO:这里可以改成flex:1 ,方便后面拖动的时候自适应宽度
-		width: 177px;
+		flex: 1;
+		min-width: 177px;
 		resize: none;
 		height: 28px;
 		scrollbar-width: none;
@@ -731,7 +735,6 @@
 			width: 100%;
 			right: 50%;
 			transform: translateX(50%);
-
 			.nya-tip {
 				background-color: var(--background-primary);
 				top: -22px;
@@ -741,6 +744,10 @@
 				text-align: center;
 				border-radius: 2px;
 				border: 1px solid var(--modal-border-color);
+			}
+
+			.replacer-act {
+				padding-right: 84px;
 			}
 		}
 	}
