@@ -16,6 +16,7 @@ import {
 } from "obsidian";
 import SearchBox from "./SearchBox.svelte";
 import { i18n } from "./i18n";
+import { generateUniqueId } from "./util/common-helper";
 
 export const CLS = {
 	FINDER: "nya-finder",
@@ -36,16 +37,11 @@ export const CMD = {
 
 export class EditorSearch {
 	plugin: TextFinderPlugin;
-	mountEl: HTMLElement;
-	finder: SearchBox;
-	// finder: SearchBox | null = null;
+	// 用来缓存各个窗口的finder，适配在新窗口打开的情况；暂时没对新窗口打开后关闭进行缓存清理，不过问题应该不大。
+	finderCache: Map<string, SearchBox> = new Map();
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
-
-		this.mountEl = plugin.app.workspace.containerEl;
-		this.finder = this.getFinder();
-
 		this.registerEvent();
 		this.registerCommand();
 	}
@@ -55,27 +51,72 @@ export class EditorSearch {
 	 * @returns SearchBox
 	 */
 	getFinder(): SearchBox {
-		if (!this.finder || !this.mountEl.querySelector(`.${CLS.FINDER}`)) {
-			this.destoryFinder();
-			this.finder = new SearchBox({
-				target: this.mountEl,
+		// const targetEl = this.plugin.app.workspace.containerEl;
+		const view =
+			this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) {
+			throw new Error(
+				"Get Text-Finder Error: plugin.app.workspace.getActiveViewOfType(MarkdownView) is null"
+			);
+		}
+		const targetEl = view.containerEl;
+		const finderEl = targetEl.querySelector(`.${CLS.FINDER}`);
+		if (finderEl) {
+			// 创建SearchBox组件的时候一定会传一个cid，因此这里可以放心取值
+			const cid = finderEl.getAttribute("data-cid");
+			if (cid) {
+				const cachedFinder = this.finderCache.get(cid);
+				if (cachedFinder) {
+					return cachedFinder;
+				} else {
+					finderEl.remove();
+					throw new Error(
+						"Get Text-Finder Error: this.finderCache.get(cid) is null"
+					);
+				}
+			} else {
+				finderEl.remove();
+				throw new Error(
+					"Get Text-Finder Error: finderEl.getAttribute('data-cid') is null"
+				);
+			}
+		} else {
+			const cid = generateUniqueId();
+			const finder = new SearchBox({
+				target: targetEl,
 				props: {
 					editorSearch: this,
+					cid: cid,
 				},
 			});
+			this.registerFinderEvent(targetEl, finder);
+			this.finderCache.set(cid, finder);
+			return finder;
 		}
-		return this.finder;
+	}
+	/**
+	 * 销毁所有finder。在onunload的时候调用
+	 */
+	destoryAll() {
+		this.finderCache.forEach((finder) => {
+			finder && finder.$destroy();
+		});
+		this.finderCache.clear();
 	}
 
 	/**
-	 * 销毁Finder组件
+	 * 注册finder的事件
+	 * @param mountEl 挂载的元素
+	 * @param finder finder
 	 */
-	destoryFinder() {
-		if (this.finder) {
-			this.finder.$destroy();
-		}
+	private registerFinderEvent(mountEl: HTMLElement, finder: SearchBox) {
+		this.plugin.registerDomEvent(mountEl, "keydown", (e) => {
+			// press esc
+			if (e.key == "Escape" && finder) {
+				finder.closeFinder();
+			}
+		});
 	}
-
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
 
@@ -102,13 +143,6 @@ export class EditorSearch {
 				}
 			)
 		);
-
-		this.plugin.registerDomEvent(this.mountEl, "keydown", (e) => {
-			// press esc
-			if (e.key == "Escape") {
-				this.getFinder().closeFinder();
-			}
-		});
 	}
 
 	private openObsidianSearch() {

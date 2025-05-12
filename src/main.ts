@@ -54,7 +54,7 @@ export default class TextFinderPlugin extends Plugin {
 	}
 	onunload() {
 		// 在取消加载插件的时候销毁finder的svelte组件,不然重复开关会重复创建,虽然没有影响
-		this.editorSearch?.destoryFinder();
+		this.editorSearch?.destoryAll();
 	}
 	async loadSettings() {
 		this.settings = Object.assign(

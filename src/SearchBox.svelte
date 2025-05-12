@@ -18,6 +18,7 @@
 	import type { TransactionSpec } from "@codemirror/state";
 
 	export let editorSearch: EditorSearch;
+	export let cid: string;
 
 	const cache: SearchCache = {
 		search: "",
@@ -426,6 +427,7 @@
 </script>
 
 <div
+	data-cid={cid}
 	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"}`}
 	class:nya-finder--collapsed={isCollapsed}
 	class:nya-mobile={isMobile}
@@ -462,7 +464,7 @@
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
 				tabindex={finderTabIndex}
 			/>
-			<!-- TODO: 组件化,有空再优化 -->
+			<!-- TODO: 组件化,有空再优化；考虑用svelte5来做 -->
 			{#if isMobile}
 				<div class="nya-float-act">
 					<div class="nya-float-tip">
@@ -740,12 +742,6 @@
 		}
 		&:focus {
 			box-shadow: 0 0 0 1px var(--nya-focus-border-color);
-		}
-	}
-
-	:global(.is-right-sidedock-open) {
-		.nya-finder {
-			right: 352px;
 		}
 	}
 
