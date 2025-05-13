@@ -16,3 +16,11 @@ body {
 	background-color: var(--nya-match-curbgColor);
 	color: var(--nya-match-curColor);
 }
+
+.workspace-leaf-content[data-mode="preview"] {
+	.nya-finder {
+		visibility: hidden;
+		user-select: none;
+		pointer-events: none;
+	}
+}

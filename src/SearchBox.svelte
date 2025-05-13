@@ -745,17 +745,6 @@
 		}
 	}
 
-	:global(body) {
-		.mod-root:has(
-				.mod-active > .workspace-leaf-content[data-mode="preview"]
-			)
-			~ .nya-finder {
-			visibility: hidden;
-			user-select: none;
-			pointer-events: none;
-		}
-	}
-
 	:global(.is-mobile) {
 		.nya-finder.nya-mobile {
 			min-width: auto;
