@@ -96,6 +96,9 @@
     "Empty": "暂无历史记录",
     "DeleteSelected": "删除选中",
     "SelectAll": "全选",
-    "UnselectAll": "取消全选"
+    "UnselectAll": "取消全选",
+    "Created": "创建时间",
+    "LastUsed": "最后使用",
+    "Count": "使用次数"
   }
 }

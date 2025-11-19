@@ -68,7 +68,7 @@
       "desc": "Move the cursor and select the current match when searching."
     },
     "UseSelectionAsSearch": {
-      "name": "Use selection as search text",
+      "name": "Use selected text as search text",
       "desc": "Use the selected text as the search text."
     },
     "UseObsidianSearchInRead": {
@@ -96,6 +96,9 @@
     "Empty": "No history",
     "DeleteSelected": "Delete Selected",
     "SelectAll": "Select All",
-    "UnselectAll": "Unselect All"
+    "UnselectAll": "Unselect All",
+    "Created": "Created",
+    "LastUsed": "Last Used",
+    "Count": "Count"
   }
 }

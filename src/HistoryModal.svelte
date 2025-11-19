@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { i18n } from "./i18n";
-	import { Trash2, Copy, CheckSquare, Square, XCircle } from "lucide-svelte";
+	import { Trash2, Copy, CheckSquare, Square } from "lucide-svelte";
 	import type TextFinderPlugin from "./main";
 	import type { SearchHistoryItem } from "./main";
 	import type { Modal } from "obsidian";
@@ -9,8 +9,32 @@
 	export let modal: Modal;
 	let history: SearchHistoryItem[] = [];
 	let selectedIndices: Set<number> = new Set();
-	$: history = plugin.settings.searchHistory;
+	// Sort by lastUsedAt descending (newest first)
+	$: history = [...plugin.settings.searchHistory].sort(
+		(a, b) => b.lastUsedAt - a.lastUsedAt,
+	);
+
+	const updateUsage = async (item: SearchHistoryItem) => {
+		const index = plugin.settings.searchHistory.findIndex(
+			(h) => h.text === item.text,
+		);
+		if (index !== -1) {
+			const updatedItem = {
+				...plugin.settings.searchHistory[index],
+				lastUsedAt: Date.now(),
+				count: (plugin.settings.searchHistory[index].count || 0) + 1,
+			};
+			plugin.settings.searchHistory.splice(index, 1);
+			plugin.settings.searchHistory.push(updatedItem);
+			plugin.settings.searchHistory = plugin.settings.searchHistory; // Trigger update
+			await plugin.saveSettings();
+		}
+	};
+
 	const select = (item: SearchHistoryItem) => {
+		// Update usage
+		updateUsage(item);
+
 		// Close modal first
 		modal.close();
 
@@ -21,23 +45,34 @@
 			finder.setVisible(true, item.text);
 		}
 	};
-	const remove = async (index: number) => {
-		plugin.settings.searchHistory.splice(index, 1);
-		plugin.settings.searchHistory = plugin.settings.searchHistory; // Trigger update
-		selectedIndices.delete(index);
-		// Re-calculate indices greater than removed index
-		const newSelected = new Set<number>();
-		selectedIndices.forEach((i) => {
-			if (i < index) newSelected.add(i);
-			else if (i > index) newSelected.add(i - 1);
-		});
-		selectedIndices = newSelected;
-		await plugin.saveSettings();
+	const remove = async (item: SearchHistoryItem) => {
+		const index = plugin.settings.searchHistory.findIndex(
+			(h) => h.text === item.text,
+		);
+		if (index !== -1) {
+			plugin.settings.searchHistory.splice(index, 1);
+			plugin.settings.searchHistory = plugin.settings.searchHistory; // Trigger update
+
+			// Clear selection if needed (simplified logic: just clear all if any remove happens to avoid index mismatch)
+			selectedIndices.clear();
+			selectedIndices = selectedIndices;
+
+			await plugin.saveSettings();
+		}
 	};
 	const removeSelected = async () => {
-		const indices = Array.from(selectedIndices).sort((a, b) => b - a); // Sort descending to remove from end
-		for (const index of indices) {
-			plugin.settings.searchHistory.splice(index, 1);
+		// Get items to remove based on current sorted history and selected indices
+		const itemsToRemove = history.filter((_, index) =>
+			selectedIndices.has(index),
+		);
+
+		for (const item of itemsToRemove) {
+			const index = plugin.settings.searchHistory.findIndex(
+				(h) => h.text === item.text,
+			);
+			if (index !== -1) {
+				plugin.settings.searchHistory.splice(index, 1);
+			}
 		}
 		plugin.settings.searchHistory = plugin.settings.searchHistory;
 		selectedIndices = new Set();
@@ -58,18 +93,25 @@
 			selectedIndices = new Set(history.map((_, i) => i));
 		}
 	};
-	const copy = (text: string) => {
-		navigator.clipboard.writeText(text);
+	const copy = (item: SearchHistoryItem) => {
+		navigator.clipboard.writeText(item.text);
+		updateUsage(item);
 	};
 	const formatTime = (timestamp: number) => {
 		// @ts-ignore
 		return `${moment(timestamp).format("YYYY-MM-DD HH:mm:ss")} (${moment(timestamp).fromNow()})`;
 	};
+	const getTooltip = (item: SearchHistoryItem) => {
+		return `${item.text}\n\n${i18n.t("history.Created")}: ${formatTime(item.createdAt || item.lastUsedAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n${i18n.t("history.Count")}: ${item.count || 1}`;
+	};
 </script>
 
 <div class="nya-history-modal">
 	<div class="nya-history-header">
-		<h2>{i18n.t("history.Title")}</h2>
+		<h2>
+			{i18n.t("history.Title")}({history.length}/{plugin.settings
+				.historyMaxCount})
+		</h2>
 	</div>
 
 	<div class="nya-history-toolbar">
@@ -125,24 +167,28 @@
 						role="button"
 						tabindex="0"
 						on:keydown={(e) => e.key === "Enter" && select(item)}
-						title={item.text}
+						title={getTooltip(item)}
 					>
 						<div class="nya-history-text">{item.text}</div>
 						<div class="nya-history-time">
-							{formatTime(item.timestamp)}
+							<span class="nya-history-count"
+								>Used: {item.count || 1}</span
+							>
+							<span class="nya-history-sep">|</span>
+							{formatTime(item.lastUsedAt)}
 						</div>
 					</div>
 					<div class="nya-history-actions">
 						<button
 							class="nya-icon-btn"
-							on:click|stopPropagation={() => copy(item.text)}
+							on:click|stopPropagation={() => copy(item)}
 							title={i18n.t("history.Copy")}
 						>
 							<Copy size={14} />
 						</button>
 						<button
 							class="nya-icon-btn delete"
-							on:click|stopPropagation={() => remove(index)}
+							on:click|stopPropagation={() => remove(item)}
 							title={i18n.t("history.Delete")}
 						>
 							<Trash2 size={14} />
@@ -155,6 +201,14 @@
 </div>
 
 <style lang="scss">
+	.nya-history-count {
+		color: var(--text-accent);
+		font-weight: 600;
+	}
+	.nya-history-sep {
+		margin: 0 4px;
+		color: var(--text-faint);
+	}
 	.nya-history-modal {
 		display: flex;
 		flex-direction: column;
@@ -273,6 +327,7 @@
 		/* Multi-line truncation */
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 		text-overflow: ellipsis;

@@ -455,16 +455,30 @@
 				if (enableHistory) {
 					// Add to history
 					const searchText = cache.search.trim();
-					if (
-						searchText &&
-						(searchHistory.length === 0 ||
-							searchHistory[searchHistory.length - 1].text !==
-								searchText)
-					) {
+					if (searchText) {
+						// Check if exists
+						const existingIndex = searchHistory.findIndex(
+							(item) => item.text === searchText,
+						);
+						let count = 1;
+						let createdAt = Date.now();
+
+						if (existingIndex !== -1) {
+							// Remove existing
+							count = searchHistory[existingIndex].count + 1;
+							createdAt =
+								searchHistory[existingIndex].createdAt ||
+								Date.now();
+							searchHistory.splice(existingIndex, 1);
+						}
+
 						searchHistory.push({
 							text: searchText,
-							timestamp: Date.now(),
+							lastUsedAt: Date.now(),
+							createdAt: createdAt,
+							count: count,
 						});
+
 						// Limit history size
 						while (searchHistory.length > historyMaxCount) {
 							searchHistory.shift();

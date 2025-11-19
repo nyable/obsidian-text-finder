@@ -4,7 +4,9 @@ import { editorExtensionProvider, EditorSearch } from "./editor-extension";
 
 export interface SearchHistoryItem {
 	text: string;
-	timestamp: number;
+	lastUsedAt: number;
+	createdAt: number;
+	count: number;
 }
 
 interface PluginSettings {
@@ -83,12 +85,32 @@ export default class TextFinderPlugin extends Plugin {
 			await this.loadData()
 		);
 		// Migration: Convert string[] to SearchHistoryItem[]
-		if (this.settings.searchHistory.length > 0 && typeof this.settings.searchHistory[0] === 'string') {
-			this.settings.searchHistory = (this.settings.searchHistory as unknown as string[]).map(text => ({
-				text,
-				timestamp: Date.now()
-			}));
-			await this.saveSettings();
+		if (this.settings.searchHistory.length > 0) {
+			if (typeof this.settings.searchHistory[0] === 'string') {
+				this.settings.searchHistory = (this.settings.searchHistory as unknown as string[]).map(text => ({
+					text,
+					lastUsedAt: Date.now(),
+					createdAt: Date.now(),
+					count: 1
+				}));
+				await this.saveSettings();
+			} else {
+				// Migration: Add count/createdAt/lastUsedAt if missing
+				// @ts-ignore
+				if (this.settings.searchHistory[0].count === undefined || this.settings.searchHistory[0].createdAt === undefined) {
+					this.settings.searchHistory = this.settings.searchHistory.map(item => {
+						// @ts-ignore
+						const timestamp = item.timestamp || Date.now();
+						return {
+							text: item.text,
+							lastUsedAt: timestamp,
+							createdAt: timestamp,
+							count: item.count || 1
+						};
+					});
+					await this.saveSettings();
+				}
+			}
 		}
 	}
 
