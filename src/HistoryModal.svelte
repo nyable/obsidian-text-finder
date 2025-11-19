@@ -51,10 +51,11 @@
 		modal.close();
 
 		// Open finder with the selected text
+		// Use setVisibleFromHistory to maintain history position
 		const editorSearch = plugin.editorSearch;
 		if (editorSearch) {
 			const finder = editorSearch.getFinder();
-			finder.setVisible(true, item.text);
+			finder.setVisibleFromHistory(item.text);
 		}
 	};
 	const remove = async (item: SearchHistoryItem) => {

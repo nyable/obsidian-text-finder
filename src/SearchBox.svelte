@@ -124,7 +124,11 @@
 		return cache;
 	}
 
-	export function setVisible(flag: boolean, searchText?: string) {
+	export function setVisible(
+		flag: boolean,
+		searchText?: string,
+		historyIndexOverride?: number,
+	) {
 		cache.visible = flag;
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
@@ -133,8 +137,9 @@
 			}
 			setFindText(cache.search);
 			searchEl.select();
-			// Reset history index when opening
-			historyIndex = -1;
+			// Set history index (either provided or reset to -1)
+			historyIndex =
+				historyIndexOverride !== undefined ? historyIndexOverride : -1;
 			tempInput = "";
 		} else {
 			cache.collapse = true;
@@ -144,6 +149,17 @@
 				emitChange();
 			}
 		}
+	}
+
+	// Set visible from history selection
+	// This function finds the position of the selected item in the sorted history
+	export function setVisibleFromHistory(searchText: string) {
+		const sortedHistory = getSortedHistory();
+		const index = sortedHistory.findIndex(
+			(item) => item.text === searchText,
+		);
+		// Set visible with the history index
+		setVisible(true, searchText, index);
 	}
 
 	export function setCollapse(flag: boolean) {
