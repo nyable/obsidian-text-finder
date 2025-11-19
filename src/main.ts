@@ -244,15 +244,15 @@ class SettingTab extends PluginSettingTab {
 			.setName(i18n.t("settings.HistoryMaxCount.name"))
 			.setDesc(i18n.t("settings.HistoryMaxCount.desc"))
 			.addText((text) => {
-				text.setValue(pluginSetting.historyMaxCount.toString()).onChange(
-					async (value) => {
+				text.setValue(pluginSetting.historyMaxCount.toString())
+					.setPlaceholder("1-200")
+					.onChange(async (value) => {
 						const count = parseInt(value);
-						if (!isNaN(count) && count > 0) {
+						if (!isNaN(count) && count >= 1 && count <= 200) {
 							pluginSetting.historyMaxCount = count;
 							await this.plugin.saveSettings();
 						}
-					}
-				);
+					});
 			});
 
 		new Setting(containerEl)
