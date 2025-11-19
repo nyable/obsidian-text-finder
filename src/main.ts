@@ -47,6 +47,10 @@ interface PluginSettings {
 	 */
 	historyMaxCount: number;
 	/**
+	 * 历史记录排序方式
+	 */
+	historySortOrder: 'createdAt' | 'count' | 'lastUsedAt';
+	/**
 	 * 搜索历史记录
 	 */
 	searchHistory: SearchHistoryItem[];
@@ -61,7 +65,8 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	useObsidianSearchInRead: true,
 	useEscapeCharInReplace: true,
 	enableHistory: true,
-	historyMaxCount: 50,
+	historyMaxCount: 10,
+	historySortOrder: 'lastUsedAt',
 	searchHistory: [],
 };
 
@@ -248,6 +253,21 @@ class SettingTab extends PluginSettingTab {
 						}
 					}
 				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.HistorySortOrder.name"))
+			.setDesc(i18n.t("settings.HistorySortOrder.desc"))
+			.addDropdown((dropdown) => {
+				dropdown
+					.addOption("createdAt", i18n.t("settings.HistorySortOrder.options.createdAt"))
+					.addOption("count", i18n.t("settings.HistorySortOrder.options.count"))
+					.addOption("lastUsedAt", i18n.t("settings.HistorySortOrder.options.lastUsedAt"))
+					.setValue(pluginSetting.historySortOrder)
+					.onChange(async (value) => {
+						pluginSetting.historySortOrder = value as 'createdAt' | 'count' | 'lastUsedAt';
+						await this.plugin.saveSettings();
+					});
 			});
 	}
 }

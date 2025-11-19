@@ -86,6 +86,15 @@
     "HistoryMaxCount": {
       "name": "历史记录最大数量",
       "desc": "保存的搜索历史记录的最大数量"
+    },
+    "HistorySortOrder": {
+      "name": "历史记录排序方式",
+      "desc": "选择历史记录列表的排序顺序",
+      "options": {
+        "createdAt": "按创建时间排序",
+        "count": "按使用次数排序",
+        "lastUsedAt": "按最后使用时间排序"
+      }
     }
   },
   "history": {

@@ -453,31 +453,33 @@
 				e.preventDefault();
 
 				if (enableHistory) {
-					// Add to history
+					// Add to history (first time only, update lastUsedAt for existing)
 					const searchText = cache.search.trim();
 					if (searchText) {
 						// Check if exists
 						const existingIndex = searchHistory.findIndex(
 							(item) => item.text === searchText,
 						);
-						let count = 1;
-						let createdAt = Date.now();
 
 						if (existingIndex !== -1) {
-							// Remove existing
-							count = searchHistory[existingIndex].count + 1;
-							createdAt =
-								searchHistory[existingIndex].createdAt ||
-								Date.now();
+							// Update lastUsedAt without incrementing count
+							const existing = searchHistory[existingIndex];
 							searchHistory.splice(existingIndex, 1);
+							searchHistory.push({
+								text: searchText,
+								lastUsedAt: Date.now(),
+								createdAt: existing.createdAt || Date.now(),
+								count: existing.count || 1,
+							});
+						} else {
+							// First time adding to history
+							searchHistory.push({
+								text: searchText,
+								lastUsedAt: Date.now(),
+								createdAt: Date.now(),
+								count: 1,
+							});
 						}
-
-						searchHistory.push({
-							text: searchText,
-							lastUsedAt: Date.now(),
-							createdAt: createdAt,
-							count: count,
-						});
 
 						// Limit history size
 						while (searchHistory.length > historyMaxCount) {

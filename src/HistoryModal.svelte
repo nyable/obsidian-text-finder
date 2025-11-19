@@ -9,10 +9,22 @@
 	export let modal: Modal;
 	let history: SearchHistoryItem[] = [];
 	let selectedIndices: Set<number> = new Set();
-	// Sort by lastUsedAt descending (newest first)
-	$: history = [...plugin.settings.searchHistory].sort(
-		(a, b) => b.lastUsedAt - a.lastUsedAt,
-	);
+
+	// Sort based on user preference
+	$: {
+		const sortOrder = plugin.settings.historySortOrder;
+		history = [...plugin.settings.searchHistory].sort((a, b) => {
+			switch (sortOrder) {
+				case "createdAt":
+					return b.createdAt - a.createdAt;
+				case "count":
+					return (b.count || 0) - (a.count || 0);
+				case "lastUsedAt":
+				default:
+					return b.lastUsedAt - a.lastUsedAt;
+			}
+		});
+	}
 
 	const updateUsage = async (item: SearchHistoryItem) => {
 		const index = plugin.settings.searchHistory.findIndex(

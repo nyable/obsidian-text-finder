@@ -86,6 +86,15 @@
     "HistoryMaxCount": {
       "name": "Max History Count",
       "desc": "Maximum number of search history items to save"
+    },
+    "HistorySortOrder": {
+      "name": "History Sort Order",
+      "desc": "Choose the sort order for history list",
+      "options": {
+        "createdAt": "Sort by Creation Time",
+        "count": "Sort by Usage Count",
+        "lastUsedAt": "Sort by Last Used Time"
+      }
     }
   },
   "history": {
