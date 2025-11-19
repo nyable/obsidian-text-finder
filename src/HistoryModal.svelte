@@ -187,7 +187,12 @@
 								>Used: {item.count || 1}</span
 							>
 							<span class="nya-history-sep">|</span>
-							{formatTime(item.lastUsedAt)}
+							{#if plugin.settings.historySortOrder === "createdAt"}
+								<span class="nya-history-label">Created:</span>
+								{formatTime(item.createdAt || item.lastUsedAt)}
+							{:else}
+								{formatTime(item.lastUsedAt)}
+							{/if}
 						</div>
 					</div>
 					<div class="nya-history-actions">
@@ -350,6 +355,10 @@
 	.nya-history-time {
 		font-size: 11px;
 		color: var(--text-muted);
+	}
+	.nya-history-label {
+		color: var(--text-faint);
+		font-weight: 500;
 	}
 	.nya-history-actions {
 		display: flex;

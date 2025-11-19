@@ -39,6 +39,23 @@
 	// Temporary storage for the current input when navigating history
 	let tempInput = "";
 
+	// Get sorted history based on user preference
+	const getSortedHistory = () => {
+		const searchHistory = editorSearch.plugin.settings.searchHistory;
+		const sortOrder = editorSearch.plugin.settings.historySortOrder;
+		return [...searchHistory].sort((a, b) => {
+			switch (sortOrder) {
+				case "createdAt":
+					return b.createdAt - a.createdAt;
+				case "count":
+					return (b.count || 0) - (a.count || 0);
+				case "lastUsedAt":
+				default:
+					return b.lastUsedAt - a.lastUsedAt;
+			}
+		});
+	};
+
 	$: isCollapsed = cache.collapse;
 	$: finderTabIndex = cache.collapse ? 0 : 1;
 	$: commonTabIndex = cache.collapse ? 0 : 2;
@@ -394,6 +411,8 @@
 		const { enableInputHotkeys, enableHistory, historyMaxCount } =
 			editorSearch.plugin.settings;
 		const searchHistory = editorSearch.plugin.settings.searchHistory;
+		// Use sorted history for navigation
+		const sortedHistory = getSortedHistory();
 
 		// Handle History Navigation
 		if (enableHistory && e.code === "ArrowUp") {
@@ -404,16 +423,20 @@
 			// Only navigate history if cursor is on the first line
 			if (firstLineEnd === -1 || cursorPosition <= firstLineEnd) {
 				if (historyIndex === -1) {
-					// Start navigating history, save current input
+					// Start navigating history from the beginning (most recent/used)
 					tempInput = cache.search;
-					historyIndex = searchHistory.length - 1;
+					historyIndex = 0;
 				} else {
-					historyIndex = Math.max(0, historyIndex - 1);
+					// Move forward in the sorted history
+					historyIndex = Math.min(
+						sortedHistory.length - 1,
+						historyIndex + 1,
+					);
 				}
 
-				if (historyIndex >= 0 && historyIndex < searchHistory.length) {
+				if (historyIndex >= 0 && historyIndex < sortedHistory.length) {
 					e.preventDefault();
-					setFindText(searchHistory[historyIndex].text);
+					setFindText(sortedHistory[historyIndex].text);
 				} else if (historyIndex === -1) {
 					// If we are at the beginning of history and go up, we might want to stay or do nothing
 					// For now, let's just prevent default if we successfully changed text
@@ -430,17 +453,23 @@
 			// Only navigate history if cursor is on the last line
 			if (lastLineStart === -1 || cursorPosition > lastLineStart) {
 				if (historyIndex === -1) {
+					// VSCode-like behavior: clear search when pressing down at newest position
+					if (cache.search.trim()) {
+						e.preventDefault();
+						setFindText("");
+					}
 					return;
 				}
 
 				e.preventDefault();
-				historyIndex = historyIndex + 1;
-				if (historyIndex >= searchHistory.length) {
-					// Reached end of history, restore temp input
+				// Move backward in the sorted history
+				historyIndex = historyIndex - 1;
+				if (historyIndex < 0) {
+					// Reached beginning of history, restore temp input
 					historyIndex = -1;
 					setFindText(tempInput);
 				} else {
-					setFindText(searchHistory[historyIndex].text);
+					setFindText(sortedHistory[historyIndex].text);
 				}
 			}
 			return;
