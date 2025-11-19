@@ -17,6 +17,7 @@ import {
 import SearchBox from "./SearchBox.svelte";
 import { i18n } from "./i18n";
 import { generateUniqueId } from "./util/common-helper";
+import { HistoryModal } from "./HistoryModal";
 
 export const CLS = {
 	FINDER: "nya-finder",
@@ -253,6 +254,13 @@ export class EditorSearch {
 			editorCallback: (editor, ctx) => {
 				const finder = this.getFinder();
 				finder.replaceAllMatchedText(finder.getSearchCache().replace);
+			},
+		});
+		plugin.addCommand({
+			id: "show-search-history",
+			name: i18n.t("commands.ShowSearchHistory.name"),
+			callback: () => {
+				new HistoryModal(plugin.app, plugin).open();
 			},
 		});
 	}

@@ -45,6 +45,9 @@
     },
     "ReplaceAll": {
       "name": "Replace all in current file"
+    },
+    "ShowSearchHistory": {
+      "name": "Show search history"
     }
   },
   "settings": {
@@ -75,6 +78,24 @@
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
       "desc": "In regular expression mode, escape characters for line feed (LF) and horizontal tab (HT) can be used in the replacement input box."
+    },
+    "EnableHistory": {
+      "name": "Enable Search History",
+      "desc": "Enable navigating search history with Up/Down keys"
+    },
+    "HistoryMaxCount": {
+      "name": "Max History Count",
+      "desc": "Maximum number of search history items to save"
     }
+  },
+  "history": {
+    "Title": "Search History",
+    "ClearAll": "Clear All",
+    "Delete": "Delete",
+    "Copy": "Copy",
+    "Empty": "No history",
+    "DeleteSelected": "Delete Selected",
+    "SelectAll": "Select All",
+    "UnselectAll": "Unselect All"
   }
 }

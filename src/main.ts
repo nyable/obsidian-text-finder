@@ -2,6 +2,11 @@ import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { i18n } from "./i18n";
 import { editorExtensionProvider, EditorSearch } from "./editor-extension";
 
+export interface SearchHistoryItem {
+	text: string;
+	timestamp: number;
+}
+
 interface PluginSettings {
 	/**
 	 * 隐藏窗口时清空输入项
@@ -31,6 +36,18 @@ interface PluginSettings {
 	 * 在替换框中支持部分转义字符串:\n \t
 	 */
 	useEscapeCharInReplace: boolean;
+	/**
+	 * 是否开启输入历史记录
+	 */
+	enableHistory: boolean;
+	/**
+	 * 历史记录最大保存条数
+	 */
+	historyMaxCount: number;
+	/**
+	 * 搜索历史记录
+	 */
+	searchHistory: SearchHistoryItem[];
 }
 
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -41,6 +58,9 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	useSelectionAsSearch: true,
 	useObsidianSearchInRead: true,
 	useEscapeCharInReplace: true,
+	enableHistory: true,
+	historyMaxCount: 50,
+	searchHistory: [],
 };
 
 export default class TextFinderPlugin extends Plugin {
@@ -62,6 +82,14 @@ export default class TextFinderPlugin extends Plugin {
 			DEFAULT_SETTINGS,
 			await this.loadData()
 		);
+		// Migration: Convert string[] to SearchHistoryItem[]
+		if (this.settings.searchHistory.length > 0 && typeof this.settings.searchHistory[0] === 'string') {
+			this.settings.searchHistory = (this.settings.searchHistory as unknown as string[]).map(text => ({
+				text,
+				timestamp: Date.now()
+			}));
+			await this.saveSettings();
+		}
 	}
 
 	async saveSettings() {
@@ -169,6 +197,33 @@ class SettingTab extends PluginSettingTab {
 					async (value: boolean) => {
 						pluginSetting.useEscapeCharInReplace = value;
 						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.EnableHistory.name"))
+			.setDesc(i18n.t("settings.EnableHistory.desc"))
+			.addToggle((cb) => {
+				cb.setValue(pluginSetting.enableHistory).onChange(
+					async (value: boolean) => {
+						pluginSetting.enableHistory = value;
+						await this.plugin.saveSettings();
+					}
+				);
+			});
+
+		new Setting(containerEl)
+			.setName(i18n.t("settings.HistoryMaxCount.name"))
+			.setDesc(i18n.t("settings.HistoryMaxCount.desc"))
+			.addText((text) => {
+				text.setValue(pluginSetting.historyMaxCount.toString()).onChange(
+					async (value) => {
+						const count = parseInt(value);
+						if (!isNaN(count) && count > 0) {
+							pluginSetting.historyMaxCount = count;
+							await this.plugin.saveSettings();
+						}
 					}
 				);
 			});

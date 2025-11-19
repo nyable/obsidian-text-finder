@@ -45,6 +45,9 @@
     },
     "ReplaceAll": {
       "name": "在当前文件中：替换所有"
+    },
+    "ShowSearchHistory": {
+      "name": "显示搜索历史"
     }
   },
   "settings": {
@@ -75,6 +78,24 @@
     "UseEscapeCharInReplace": {
       "name": "支持替换输入框中使用转义字符",
       "desc": "在正则表达式模式下，替换输入框中可以使用换行(LF)和水平制表符(HT)的转义字符"
+    },
+    "EnableHistory": {
+      "name": "启用搜索历史",
+      "desc": "启用后，可以通过上下键切换搜索历史"
+    },
+    "HistoryMaxCount": {
+      "name": "历史记录最大数量",
+      "desc": "保存的搜索历史记录的最大数量"
     }
+  },
+  "history": {
+    "Title": "搜索历史",
+    "ClearAll": "清空所有",
+    "Delete": "删除",
+    "Copy": "复制",
+    "Empty": "暂无历史记录",
+    "DeleteSelected": "删除选中",
+    "SelectAll": "全选",
+    "UnselectAll": "取消全选"
   }
 }

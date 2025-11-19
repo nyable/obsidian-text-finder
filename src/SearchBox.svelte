@@ -33,6 +33,12 @@
 		},
 	};
 
+	// Search History
+	// let searchHistory: string[] = []; // Use plugin.settings.searchHistory instead
+	let historyIndex = -1;
+	// Temporary storage for the current input when navigating history
+	let tempInput = "";
+
 	$: isCollapsed = cache.collapse;
 	$: finderTabIndex = cache.collapse ? 0 : 1;
 	$: commonTabIndex = cache.collapse ? 0 : 2;
@@ -54,6 +60,9 @@
 			}
 			setFindText(cache.search);
 			searchEl.select();
+			// Reset history index when opening
+			historyIndex = -1;
+			tempInput = "";
 		} else {
 			cache.collapse = true;
 			if (settings.clearAfterHidden) {
@@ -381,14 +390,93 @@
 		}
 		return result;
 	};
-	const enterOnFinder = (e: KeyboardEvent) => {
-		const enableInputHotkeys =
-			editorSearch.plugin.settings.enableInputHotkeys;
+	const onFinderKeyDown = async (e: KeyboardEvent) => {
+		const { enableInputHotkeys, enableHistory, historyMaxCount } =
+			editorSearch.plugin.settings;
+		const searchHistory = editorSearch.plugin.settings.searchHistory;
+
+		// Handle History Navigation
+		if (enableHistory && e.code === "ArrowUp") {
+			const cursorPosition = searchEl.selectionStart;
+			const value = searchEl.value;
+			const firstLineEnd = value.indexOf("\n");
+
+			// Only navigate history if cursor is on the first line
+			if (firstLineEnd === -1 || cursorPosition <= firstLineEnd) {
+				if (historyIndex === -1) {
+					// Start navigating history, save current input
+					tempInput = cache.search;
+					historyIndex = searchHistory.length - 1;
+				} else {
+					historyIndex = Math.max(0, historyIndex - 1);
+				}
+
+				if (historyIndex >= 0 && historyIndex < searchHistory.length) {
+					e.preventDefault();
+					setFindText(searchHistory[historyIndex].text);
+				} else if (historyIndex === -1) {
+					// If we are at the beginning of history and go up, we might want to stay or do nothing
+					// For now, let's just prevent default if we successfully changed text
+				}
+			}
+			return;
+		}
+
+		if (enableHistory && e.code === "ArrowDown") {
+			const cursorPosition = searchEl.selectionStart;
+			const value = searchEl.value;
+			const lastLineStart = value.lastIndexOf("\n");
+
+			// Only navigate history if cursor is on the last line
+			if (lastLineStart === -1 || cursorPosition > lastLineStart) {
+				if (historyIndex === -1) {
+					return;
+				}
+
+				e.preventDefault();
+				historyIndex = historyIndex + 1;
+				if (historyIndex >= searchHistory.length) {
+					// Reached end of history, restore temp input
+					historyIndex = -1;
+					setFindText(tempInput);
+				} else {
+					setFindText(searchHistory[historyIndex].text);
+				}
+			}
+			return;
+		}
+
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (enableInputHotkeys && isEnterPress) {
 			// 这里本来打算监听enter shift+enter ctrl+enter 但是加上修饰键 会和默认的快捷键有冲突.所以除了enter都用命令的快捷键算了
 			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
 				e.preventDefault();
+
+				if (enableHistory) {
+					// Add to history
+					const searchText = cache.search.trim();
+					if (
+						searchText &&
+						(searchHistory.length === 0 ||
+							searchHistory[searchHistory.length - 1].text !==
+								searchText)
+					) {
+						searchHistory.push({
+							text: searchText,
+							timestamp: Date.now(),
+						});
+						// Limit history size
+						while (searchHistory.length > historyMaxCount) {
+							searchHistory.shift();
+						}
+						// Save settings
+						await editorSearch.plugin.saveSettings();
+					}
+					// Reset history index
+					historyIndex = -1;
+					tempInput = "";
+				}
+
 				toNextMatch();
 			}
 		}
@@ -456,7 +544,7 @@
 				autocapitalize="off"
 				spellcheck="false"
 				on:input={onSearchChanged}
-				on:keydown={enterOnFinder}
+				on:keydown={onFinderKeyDown}
 				rows="1"
 				class="nya-input"
 				bind:this={searchEl}
