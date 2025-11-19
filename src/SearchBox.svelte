@@ -38,6 +38,8 @@
 	let historyIndex = -1;
 	// Temporary storage for the current input when navigating history
 	let tempInput = "";
+	// Track the last recorded search term to avoid duplicate count increments
+	let lastRecordedSearch = "";
 
 	// Get sorted history based on user preference
 	const getSortedHistory = () => {
@@ -54,6 +56,60 @@
 					return b.lastUsedAt - a.lastUsedAt;
 			}
 		});
+	};
+
+	// Record search to history
+	// If it's the first time for this search term in current session, increment count
+	// Otherwise, only update lastUsedAt
+	const recordSearchToHistory = async (searchText: string) => {
+		const { enableHistory, historyMaxCount } = editorSearch.plugin.settings;
+		if (!enableHistory || !searchText.trim()) {
+			return;
+		}
+
+		const searchHistory = editorSearch.plugin.settings.searchHistory;
+		const trimmedText = searchText.trim();
+
+		// Check if this search term was already recorded in current session
+		const isAlreadyRecorded = lastRecordedSearch === trimmedText;
+
+		// Find existing entry
+		const existingIndex = searchHistory.findIndex(
+			(item) => item.text === trimmedText,
+		);
+
+		if (existingIndex !== -1) {
+			// Update existing entry
+			const existing = searchHistory[existingIndex];
+			searchHistory.splice(existingIndex, 1);
+			searchHistory.push({
+				text: trimmedText,
+				lastUsedAt: Date.now(),
+				createdAt: existing.createdAt || Date.now(),
+				count: isAlreadyRecorded
+					? existing.count
+					: (existing.count || 0) + 1,
+			});
+		} else {
+			// Add new entry
+			searchHistory.push({
+				text: trimmedText,
+				lastUsedAt: Date.now(),
+				createdAt: Date.now(),
+				count: 1,
+			});
+		}
+
+		// Limit history size
+		while (searchHistory.length > historyMaxCount) {
+			searchHistory.shift();
+		}
+
+		// Mark as recorded
+		lastRecordedSearch = trimmedText;
+
+		// Save settings
+		await editorSearch.plugin.saveSettings();
 	};
 
 	$: isCollapsed = cache.collapse;
@@ -196,6 +252,12 @@
 		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editor } = activeEditor;
+
+			// Reset recorded state when search text changes
+			if (cache.search !== text) {
+				lastRecordedSearch = "";
+			}
+
 			cache.search = text;
 			if (text) {
 				const content = editor.getValue();
@@ -223,23 +285,35 @@
 		}
 	};
 
-	export const toNextMatch = () => {
+	export const toNextMatch = async () => {
 		const matchSize = cache.matches.length;
 		if (matchSize == 0) {
 			cache.index = 0;
 		} else {
 			cache.index = (cache.index + 1) % matchSize;
 		}
+
+		// Record to history when navigating matches
+		if (cache.search) {
+			await recordSearchToHistory(cache.search);
+		}
+
 		scrollToMatch();
 	};
 
-	export const toPreviousMatch = () => {
+	export const toPreviousMatch = async () => {
 		const matchSize = cache.matches.length;
 		if (matchSize == 0) {
 			cache.index = 0;
 		} else {
 			cache.index = (cache.index - 1 + matchSize) % matchSize;
 		}
+
+		// Record to history when navigating matches
+		if (cache.search) {
+			await recordSearchToHistory(cache.search);
+		}
+
 		scrollToMatch();
 	};
 
@@ -481,42 +555,9 @@
 			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
 				e.preventDefault();
 
-				if (enableHistory) {
-					// Add to history (first time only, update lastUsedAt for existing)
-					const searchText = cache.search.trim();
-					if (searchText) {
-						// Check if exists
-						const existingIndex = searchHistory.findIndex(
-							(item) => item.text === searchText,
-						);
-
-						if (existingIndex !== -1) {
-							// Update lastUsedAt without incrementing count
-							const existing = searchHistory[existingIndex];
-							searchHistory.splice(existingIndex, 1);
-							searchHistory.push({
-								text: searchText,
-								lastUsedAt: Date.now(),
-								createdAt: existing.createdAt || Date.now(),
-								count: existing.count || 1,
-							});
-						} else {
-							// First time adding to history
-							searchHistory.push({
-								text: searchText,
-								lastUsedAt: Date.now(),
-								createdAt: Date.now(),
-								count: 1,
-							});
-						}
-
-						// Limit history size
-						while (searchHistory.length > historyMaxCount) {
-							searchHistory.shift();
-						}
-						// Save settings
-						await editorSearch.plugin.saveSettings();
-					}
+				// Record to history
+				if (cache.search) {
+					await recordSearchToHistory(cache.search);
 					// Reset history index
 					historyIndex = -1;
 					tempInput = "";
