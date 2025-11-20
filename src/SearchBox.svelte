@@ -50,7 +50,13 @@
 				case "createdAt":
 					return b.createdAt - a.createdAt;
 				case "count":
-					return (b.count || 0) - (a.count || 0);
+					// Primary sort: by count (descending)
+					const countDiff = (b.count || 0) - (a.count || 0);
+					// Secondary sort: if count is same, sort by lastUsedAt (descending)
+					if (countDiff === 0) {
+						return b.lastUsedAt - a.lastUsedAt;
+					}
+					return countDiff;
 				case "lastUsedAt":
 				default:
 					return b.lastUsedAt - a.lastUsedAt;
@@ -91,6 +97,23 @@
 					: (existing.count || 0) + 1,
 			});
 		} else {
+			// Before adding new entry, check if we need to make room
+			// Remove lowest priority item if we're at capacity
+			if (searchHistory.length >= historyMaxCount) {
+				const sorted = getSortedHistory();
+				if (sorted.length > 0) {
+					// Get the last item (lowest priority) after sorting
+					const itemToRemove = sorted[sorted.length - 1];
+					// Find and remove it from the original array
+					const indexToRemove = searchHistory.findIndex(
+						(item) => item.text === itemToRemove.text,
+					);
+					if (indexToRemove !== -1) {
+						searchHistory.splice(indexToRemove, 1);
+					}
+				}
+			}
+
 			// Add new entry
 			searchHistory.push({
 				text: trimmedText,
@@ -98,11 +121,6 @@
 				createdAt: Date.now(),
 				count: 1,
 			});
-		}
-
-		// Limit history size
-		while (searchHistory.length > historyMaxCount) {
-			searchHistory.shift();
 		}
 
 		// Mark as recorded
