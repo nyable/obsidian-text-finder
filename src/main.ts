@@ -1,6 +1,7 @@
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { i18n } from "./i18n";
 import { editorExtensionProvider, EditorSearch } from "./editor-extension";
+import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 
 export interface SearchHistoryItem {
 	text: string;
@@ -49,7 +50,7 @@ interface PluginSettings {
 	/**
 	 * 历史记录排序方式
 	 */
-	historySortOrder: 'createdAt' | 'count' | 'lastUsedAt';
+	historySortOrder: HistorySortOrderType;
 	/**
 	 * 搜索历史记录
 	 */
@@ -66,7 +67,7 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	useEscapeCharInReplace: true,
 	enableHistory: true,
 	historyMaxCount: 10,
-	historySortOrder: 'lastUsedAt',
+	historySortOrder: HistorySortOrder.LAST_USED_AT,
 	searchHistory: [],
 };
 
@@ -260,12 +261,12 @@ class SettingTab extends PluginSettingTab {
 			.setDesc(i18n.t("settings.HistorySortOrder.desc"))
 			.addDropdown((dropdown) => {
 				dropdown
-					.addOption("createdAt", i18n.t("settings.HistorySortOrder.options.createdAt"))
-					.addOption("count", i18n.t("settings.HistorySortOrder.options.count"))
-					.addOption("lastUsedAt", i18n.t("settings.HistorySortOrder.options.lastUsedAt"))
+					.addOption(HistorySortOrder.CREATED_AT, i18n.t("settings.HistorySortOrder.options.createdAt"))
+					.addOption(HistorySortOrder.COUNT, i18n.t("settings.HistorySortOrder.options.count"))
+					.addOption(HistorySortOrder.LAST_USED_AT, i18n.t("settings.HistorySortOrder.options.lastUsedAt"))
 					.setValue(pluginSetting.historySortOrder)
 					.onChange(async (value) => {
-						pluginSetting.historySortOrder = value as 'createdAt' | 'count' | 'lastUsedAt';
+						pluginSetting.historySortOrder = value as HistorySortOrderType;
 						await this.plugin.saveSettings();
 					});
 			});

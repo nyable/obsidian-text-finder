@@ -5,6 +5,7 @@
 	import type { SearchHistoryItem } from "./main";
 	import { moment } from "obsidian";
 	import { createEventDispatcher } from "svelte";
+	import { HistorySortOrder } from "./constants";
 
 	export let history: SearchHistoryItem[] = [];
 	export let plugin: TextFinderPlugin;
@@ -164,7 +165,7 @@
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-time-combined">
-							{#if plugin.settings.historySortOrder === "createdAt"}
+							{#if plugin.settings.historySortOrder === HistorySortOrder.CREATED_AT}
 								{formatTime(item.createdAt || item.lastUsedAt)} ({formatRelative(
 									item.createdAt || item.lastUsedAt,
 								)})

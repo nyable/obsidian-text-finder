@@ -16,6 +16,7 @@
 	import type { EditorView } from "@codemirror/view";
 	import { findTextOffsets } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
+	import { HistorySortOrder } from "./constants";
 
 	export let editorSearch: EditorSearch;
 	export let cid: string;
@@ -47,9 +48,9 @@
 		const sortOrder = editorSearch.plugin.settings.historySortOrder;
 		return [...searchHistory].sort((a, b) => {
 			switch (sortOrder) {
-				case "createdAt":
+				case HistorySortOrder.CREATED_AT:
 					return b.createdAt - a.createdAt;
-				case "count":
+				case HistorySortOrder.COUNT:
 					// Primary sort: by count (descending)
 					const countDiff = (b.count || 0) - (a.count || 0);
 					// Secondary sort: if count is same, sort by lastUsedAt (descending)
@@ -57,7 +58,7 @@
 						return b.lastUsedAt - a.lastUsedAt;
 					}
 					return countDiff;
-				case "lastUsedAt":
+				case HistorySortOrder.LAST_USED_AT:
 				default:
 					return b.lastUsedAt - a.lastUsedAt;
 			}

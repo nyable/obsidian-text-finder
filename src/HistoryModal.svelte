@@ -4,6 +4,7 @@
 	import type { Modal } from "obsidian";
 	import HistoryList from "./HistoryList.svelte";
 	import HistoryDetail from "./HistoryDetail.svelte";
+	import { HistorySortOrder } from "./constants";
 
 	export let plugin: TextFinderPlugin;
 	export let modal: Modal;
@@ -24,11 +25,17 @@
 		const sortOrder = plugin.settings.historySortOrder;
 		history = [...plugin.settings.searchHistory].sort((a, b) => {
 			switch (sortOrder) {
-				case "createdAt":
+				case HistorySortOrder.CREATED_AT:
 					return b.createdAt - a.createdAt;
-				case "count":
-					return (b.count || 0) - (a.count || 0);
-				case "lastUsedAt":
+				case HistorySortOrder.COUNT:
+					// Primary sort: by count (descending)
+					const countDiff = (b.count || 0) - (a.count || 0);
+					// Secondary sort: if count is same, sort by lastUsedAt (descending)
+					if (countDiff === 0) {
+						return b.lastUsedAt - a.lastUsedAt;
+					}
+					return countDiff;
+				case HistorySortOrder.LAST_USED_AT:
 				default:
 					return b.lastUsedAt - a.lastUsedAt;
 			}
