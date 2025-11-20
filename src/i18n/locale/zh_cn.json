@@ -108,6 +108,8 @@
     "UnselectAll": "取消全选",
     "Created": "创建时间",
     "LastUsed": "最后使用",
-    "Count": "使用次数"
+    "Count": "使用次数",
+    "Details": "详情",
+    "Back": "返回"
   }
 }

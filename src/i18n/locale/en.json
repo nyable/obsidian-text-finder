@@ -108,6 +108,8 @@
     "UnselectAll": "Unselect All",
     "Created": "Created",
     "LastUsed": "Last Used",
-    "Count": "Count"
+    "Count": "Count",
+    "Details": "Details",
+    "Back": "Back"
   }
 }
