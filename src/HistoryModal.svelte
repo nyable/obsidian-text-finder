@@ -48,6 +48,12 @@
 			plugin.settings.searchHistory.splice(index, 1);
 			plugin.settings.searchHistory.push(updatedItem);
 			plugin.settings.searchHistory = plugin.settings.searchHistory; // Trigger update
+
+			// Update viewingItem if it matches
+			if (viewingItem && viewingItem.text === item.text) {
+				viewingItem = updatedItem;
+			}
+
 			await plugin.saveSettings();
 		}
 	};
