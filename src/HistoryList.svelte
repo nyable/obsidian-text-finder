@@ -14,7 +14,12 @@
 
 	const formatTime = (timestamp: number) => {
 		// @ts-ignore
-		return `${moment(timestamp).format("YYYY-MM-DD HH:mm:ss")} (${moment(timestamp).fromNow()})`;
+		return moment(timestamp).format("YY-MM-DD HH:mm:ss");
+	};
+
+	const formatRelative = (timestamp: number) => {
+		// @ts-ignore
+		return moment(timestamp).fromNow();
 	};
 
 	const getTooltip = (item: SearchHistoryItem) => {
@@ -122,8 +127,34 @@
 					on:keydown={(e) => e.key === "Enter" && select(item)}
 					title={getTooltip(item)}
 				>
-					<div class="nya-history-text">{item.text}</div>
-					<div class="nya-history-time">
+					<div class="nya-history-top">
+						<div class="nya-history-text">{item.text}</div>
+						<div class="nya-history-actions">
+							<button
+								class="nya-icon-btn"
+								on:click|stopPropagation={() =>
+									viewDetails(item)}
+								title={i18n.t("history.Details")}
+							>
+								<Info size={14} />
+							</button>
+							<button
+								class="nya-icon-btn"
+								on:click|stopPropagation={() => copy(item)}
+								title={i18n.t("history.Copy")}
+							>
+								<Copy size={14} />
+							</button>
+							<button
+								class="nya-icon-btn delete"
+								on:click|stopPropagation={() => remove(item)}
+								title={i18n.t("history.Delete")}
+							>
+								<Trash2 size={14} />
+							</button>
+						</div>
+					</div>
+					<div class="nya-history-bottom">
 						<span class="nya-history-length"
 							>{item.text.length} chars</span
 						>
@@ -132,36 +163,18 @@
 							>Used: {item.count || 1}</span
 						>
 						<span class="nya-history-sep">|</span>
-						{#if plugin.settings.historySortOrder === "createdAt"}
-							<span class="nya-history-label">Created:</span>
-							{formatTime(item.createdAt || item.lastUsedAt)}
-						{:else}
-							{formatTime(item.lastUsedAt)}
-						{/if}
+						<span class="nya-history-time-combined">
+							{#if plugin.settings.historySortOrder === "createdAt"}
+								{formatTime(item.createdAt || item.lastUsedAt)} ({formatRelative(
+									item.createdAt || item.lastUsedAt,
+								)})
+							{:else}
+								{formatTime(item.lastUsedAt)} ({formatRelative(
+									item.lastUsedAt,
+								)})
+							{/if}
+						</span>
 					</div>
-				</div>
-				<div class="nya-history-actions">
-					<button
-						class="nya-icon-btn"
-						on:click|stopPropagation={() => viewDetails(item)}
-						title={i18n.t("history.Details")}
-					>
-						<Info size={14} />
-					</button>
-					<button
-						class="nya-icon-btn"
-						on:click|stopPropagation={() => copy(item)}
-						title={i18n.t("history.Copy")}
-					>
-						<Copy size={14} />
-					</button>
-					<button
-						class="nya-icon-btn delete"
-						on:click|stopPropagation={() => remove(item)}
-						title={i18n.t("history.Delete")}
-					>
-						<Trash2 size={14} />
-					</button>
 				</div>
 			</div>
 		{/each}
@@ -212,10 +225,10 @@
 		font-size: 13px;
 		cursor: pointer;
 		background-color: var(--interactive-normal);
-		border: 1px solid var(--background-modifier-border);
 		border-radius: 4px;
+		border: 1px solid var(--background-modifier-border);
 		color: var(--text-normal);
-		transition: all 0.2s;
+		box-shadow: none;
 		&:hover {
 			background-color: var(--interactive-hover);
 		}
@@ -287,10 +300,17 @@
 		flex-direction: column;
 		gap: 4px;
 	}
+	.nya-history-top {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 8px;
+	}
 	.nya-history-text {
 		font-family: var(--font-monospace);
 		font-size: 14px;
 		color: var(--text-normal);
+		flex: 1;
 
 		/* Multi-line truncation */
 		display: -webkit-box;
@@ -303,21 +323,24 @@
 		word-break: break-all;
 		line-height: 1.4;
 	}
-	.nya-history-time {
+	.nya-history-bottom {
 		font-size: 11px;
 		color: var(--text-muted);
+		display: flex;
+		align-items: center;
+		margin-top: 4px;
 	}
-	.nya-history-label {
+	.nya-history-time-combined {
+		font-size: 10px;
 		color: var(--text-faint);
-		font-weight: 500;
+		font-family: var(--font-monospace);
 	}
 	.nya-history-actions {
 		display: flex;
 		gap: 6px;
 		opacity: 0; /* Hidden by default, shown on hover */
 		transition: opacity 0.2s;
-		margin-left: 12px;
-		margin-top: 2px; /* Align with first line */
+		flex-shrink: 0;
 	}
 	.nya-icon-btn {
 		display: flex;

@@ -241,10 +241,10 @@
 		font-size: 13px;
 		cursor: pointer;
 		background-color: var(--interactive-normal);
-		border: 1px solid var(--background-modifier-border);
 		border-radius: 4px;
+		border: 1px solid var(--background-modifier-border);
 		color: var(--text-normal);
-		transition: all 0.2s;
+		box-shadow: none;
 		&:hover {
 			background-color: var(--interactive-hover);
 		}
