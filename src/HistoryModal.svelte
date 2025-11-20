@@ -115,7 +115,7 @@
 		return `${moment(timestamp).format("YYYY-MM-DD HH:mm:ss")} (${moment(timestamp).fromNow()})`;
 	};
 	const getTooltip = (item: SearchHistoryItem) => {
-		return `${item.text}\n\n${i18n.t("history.Created")}: ${formatTime(item.createdAt || item.lastUsedAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n${i18n.t("history.Count")}: ${item.count || 1}`;
+		return `Length: ${item.text.length} | ${i18n.t("history.Count")}: ${item.count || 1}\n${i18n.t("history.Created")}: ${formatTime(item.createdAt || item.lastUsedAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n\n${item.text}`;
 	};
 </script>
 
@@ -184,6 +184,10 @@
 					>
 						<div class="nya-history-text">{item.text}</div>
 						<div class="nya-history-time">
+							<span class="nya-history-length"
+								>{item.text.length} chars</span
+							>
+							<span class="nya-history-sep">|</span>
 							<span class="nya-history-count"
 								>Used: {item.count || 1}</span
 							>
@@ -219,6 +223,11 @@
 </div>
 
 <style lang="scss">
+	.nya-history-length {
+		color: var(--text-muted);
+		font-weight: 500;
+		font-size: 10px;
+	}
 	.nya-history-count {
 		color: var(--text-accent);
 		font-weight: 600;
