@@ -17,11 +17,12 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 -   Show number of matches
 -   Supports regular expressions
 -   Supports case sensitivity
+-   Input history
 
 ## To Do
 
 -   [ ] Search/Replace in Selection
--   [ ] Input history
+
 
 ## ScreenShot
 
