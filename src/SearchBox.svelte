@@ -410,7 +410,7 @@
 				if (regexMode) {
 					const regex = new RegExp(
 						search,
-						"g" + caseSensitive ? "i" : "",
+						"g" + (caseSensitive ? "i" : ""),
 					);
 					const rangeText = editor.getRange(
 						editor.offsetToPos(current.from),
@@ -459,7 +459,7 @@
 				if (regexMode) {
 					const regex = new RegExp(
 						search,
-						"g" + caseSensitive ? "i" : "",
+						"g" + (caseSensitive ? "i" : ""),
 					);
 					const replacement = adjustReplaceText(inputText);
 					changes = matches.map((item) => {
