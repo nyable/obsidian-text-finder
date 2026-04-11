@@ -427,16 +427,39 @@
 
 				let replaceStr = inputText;
 				if (regexMode) {
-					const regex = new RegExp(
-						search,
-						"g" + (caseSensitive ? "i" : ""),
-					);
 					const rangeText = editor.getRange(
 						editor.offsetToPos(current.from),
 						editor.offsetToPos(current.to),
 					);
 					const replacement = adjustReplaceText(inputText);
-					replaceStr = rangeText.replace(regex, replacement);
+					// 使用原始匹配文本进行替换，支持 $1, $2 等捕获组引用
+					// 需要先找到原始匹配，以支持捕获组
+					const flags = "gm" + (caseSensitive ? "" : "i");
+					const regex = new RegExp(search, flags);
+					// 获取匹配前的上下文，以确保断言能正确工作
+					const fullContent = editor.getValue();
+					// 在完整内容中找到当前匹配的具体位置
+					let matchIndex = 0;
+					let match: RegExpExecArray | null;
+					while ((match = regex.exec(fullContent)) !== null) {
+						if (matchIndex === current.index) {
+							// 找到了对应的匹配
+							const groups = match.slice(1);
+							replaceStr = replacement.replace(/\$(\d+|&)/g, (_, p1: string) => {
+								if (p1 === "&") return match![0];
+								const groupNum = parseInt(p1, 10);
+								if (groupNum > 0 && groupNum <= groups.length) {
+									return groups[groupNum - 1] ?? "";
+								}
+								return "";
+							});
+							break;
+						}
+						matchIndex++;
+						if (match[0] === "") {
+							regex.lastIndex++;
+						}
+					}
 				}
 				editorView.dispatch({
 					changes: {
@@ -476,21 +499,37 @@
 					[];
 				const { regexMode, caseSensitive } = cache.options;
 				if (regexMode) {
-					const regex = new RegExp(
-						search,
-						"g" + (caseSensitive ? "i" : ""),
-					);
 					const replacement = adjustReplaceText(inputText);
+					const flags = "gm" + (caseSensitive ? "" : "i");
+					const regex = new RegExp(search, flags);
+					const fullContent = editor.getValue();
+
+					// 构建匹配索引到替换文本的映射
+					const replaceMap = new Map<number, string>();
+					let matchIndex = 0;
+					let match: RegExpExecArray | null;
+					while ((match = regex.exec(fullContent)) !== null) {
+						const groups = match.slice(1);
+						const replaceStr = replacement.replace(/\$(\d+|&)/g, (_, p1: string) => {
+							if (p1 === "&") return match![0];
+							const groupNum = parseInt(p1, 10);
+							if (groupNum > 0 && groupNum <= groups.length) {
+								return groups[groupNum - 1] ?? "";
+							}
+							return "";
+						});
+						replaceMap.set(matchIndex, replaceStr);
+						matchIndex++;
+						if (match[0] === "") {
+							regex.lastIndex++;
+						}
+					}
+
 					changes = matches.map((item) => {
-						const rangeText = editor.getRange(
-							editor.offsetToPos(item.from),
-							editor.offsetToPos(item.to),
-						);
-						const text = rangeText.replace(regex, replacement);
 						return {
 							from: item.from,
 							to: item.to,
-							insert: text,
+							insert: replaceMap.get(item.index) ?? inputText,
 						};
 					});
 				} else {
