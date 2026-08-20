@@ -27,7 +27,7 @@
 		"esbuild-sass-plugin": "^3.3.1",
 		"esbuild-svelte": "0.8.2",
 		"obsidian": "latest",
-		"postcss": "8.4.47",
+		"postcss": "8.5.26",
 		"sass": "^1.79.4",
 		"svelte": "4.2.19",
 		"svelte-preprocess": "6.0.3",
