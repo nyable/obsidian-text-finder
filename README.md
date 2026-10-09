@@ -47,10 +47,16 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 ### Source Code
 
 -   Clone this repo.
--   `npm i` or `yarn` to install dependencies
--   `npm run build` to build file in `./dist`.
+-   Use Node.js 24.21.0 (see `.node-version`) and pnpm 12.3.4 (see `packageManager` in `package.json`). Install pnpm following its [installation guide](https://pnpm.io/installation).
+-   `pnpm install --frozen-lockfile` to install the committed dependency versions.
+-   `pnpm test` to run the regression tests and `pnpm typecheck` to check TypeScript and Svelte components.
+-   `pnpm build` to build files in `./dist`.
 -   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/text-finder/`.
 -   Enable plugin in Obsidian setting.
+
+Dependency changes must update and commit `pnpm-lock.yaml` using pnpm. CI installs
+with `--frozen-lockfile`, runs tests and TypeScript/Svelte checks, and builds the plugin.
+Do not use npm or Yarn to install dependencies in this repository.
 
 ### Releases
 

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Regression tests
+        run: pnpm test
+      - name: TypeScript and Svelte check
+        run: pnpm typecheck
+      - name: Build plugin
+        run: pnpm build
+      - name: Verify build outputs
+        run: test -s dist/main.js && test -s dist/styles.css
+      - name: Verify install did not change dependency definitions
+        run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml

@@ -1,3 +1,13 @@
+strictPeerDependencies: true
+saveExact: true
+tagVersionPrefix: ''
+
+# CodeMirror classes must come from one version, including transitive imports.
+# Keep these aligned with the pinned Obsidian SDK's peer dependencies.
+overrides:
+  '@codemirror/state': 6.5.0
+  '@codemirror/view': 6.38.6
+
 allowBuilds:
   '@parcel/watcher': true
   esbuild: true

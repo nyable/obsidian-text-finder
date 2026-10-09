@@ -47,10 +47,16 @@
 ### 从源代码安装
 
 -   克隆此仓库。
--   使用 `npm i` 或 `yarn` 安装依赖。
--   使用 `npm run build` 在 `./dist` 中构建文件。
+-   使用 Node.js 24.21.0（见 `.node-version`）和 pnpm 12.3.4（见 `package.json` 的 `packageManager`）。按 pnpm 的[安装指南](https://pnpm.io/installation)安装包管理器。
+-   使用 `pnpm install --frozen-lockfile` 安装锁文件中的依赖版本。
+-   使用 `pnpm test` 执行回归测试，使用 `pnpm typecheck` 检查 TypeScript 和 Svelte 组件。
+-   使用 `pnpm build` 在 `./dist` 中构建文件。
 -   将 `main.js`、`styles.css`、`manifest.json` 复制到你的 vault 的 `VaultFolder/.obsidian/plugins/text-finder/` 中。
 -   在 Obsidian 设置中启用插件。
+
+修改依赖时，必须使用 pnpm 更新并提交 `pnpm-lock.yaml`。CI 使用
+`--frozen-lockfile` 安装依赖，执行测试、TypeScript/Svelte 检查和插件构建。
+本仓库不使用 npm 或 Yarn 安装依赖。
 
 ### 从 Release 安装
 
