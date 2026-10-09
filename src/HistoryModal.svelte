@@ -9,7 +9,8 @@
 	export let plugin: TextFinderPlugin;
 	export let modal: Modal;
 	let history: SearchHistoryItem[] = [];
-	let selectedIndices: Set<number> = new Set();
+	// History is deduplicated by its exact text; display order is not identity.
+	let selectedTexts: Set<string> = new Set();
 	let viewingItem: SearchHistoryItem | null = null;
 
 	const viewDetails = (event: CustomEvent<SearchHistoryItem>) => {
@@ -90,29 +91,17 @@
 			plugin.settings.searchHistory.splice(index, 1);
 			plugin.settings.searchHistory = plugin.settings.searchHistory; // Trigger update
 
-			// Clear selection if needed (simplified logic: just clear all if any remove happens to avoid index mismatch)
-			selectedIndices.clear();
-			selectedIndices = selectedIndices;
+			selectedTexts.delete(item.text);
+			selectedTexts = new Set(selectedTexts);
 
 			await plugin.saveSettings();
 		}
 	};
 	const removeSelected = async () => {
-		// Get items to remove based on current sorted history and selected indices
-		const itemsToRemove = history.filter((_, index) =>
-			selectedIndices.has(index),
+		plugin.settings.searchHistory = plugin.settings.searchHistory.filter(
+			(item) => !selectedTexts.has(item.text),
 		);
-
-		for (const item of itemsToRemove) {
-			const index = plugin.settings.searchHistory.findIndex(
-				(h) => h.text === item.text,
-			);
-			if (index !== -1) {
-				plugin.settings.searchHistory.splice(index, 1);
-			}
-		}
-		plugin.settings.searchHistory = plugin.settings.searchHistory;
-		selectedIndices = new Set();
+		selectedTexts = new Set();
 		await plugin.saveSettings();
 	};
 
@@ -140,7 +129,7 @@
 		<HistoryList
 			{history}
 			{plugin}
-			bind:selectedIndices
+			bind:selectedTexts
 			on:viewDetails={viewDetails}
 			on:select={select}
 			on:copy={copy}

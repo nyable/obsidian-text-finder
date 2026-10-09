@@ -9,7 +9,9 @@
 
 	export let history: SearchHistoryItem[] = [];
 	export let plugin: TextFinderPlugin;
-	export let selectedIndices: Set<number> = new Set();
+	export let selectedTexts: Set<string> = new Set();
+
+	$: allSelected = history.length > 0 && history.every((item) => selectedTexts.has(item.text));
 
 	const dispatch = createEventDispatcher();
 
@@ -27,26 +29,18 @@
 		return `Length: ${item.text.length} | ${i18n.t("history.Count")}: ${item.count || 1}\n${i18n.t("history.Created")}: ${formatTime(item.createdAt || item.lastUsedAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n\n${item.text}`;
 	};
 
-	const toggleSelect = (index: number) => {
-		const newIndices = new Set(selectedIndices);
-		if (newIndices.has(index)) {
-			newIndices.delete(index);
+	const toggleSelect = (text: string) => {
+		const nextSelection = new Set(selectedTexts);
+		if (nextSelection.has(text)) {
+			nextSelection.delete(text);
 		} else {
-			newIndices.add(index);
+			nextSelection.add(text);
 		}
-		selectedIndices = newIndices;
-		dispatch("update:selectedIndices", selectedIndices);
+		selectedTexts = nextSelection;
 	};
 
 	const toggleSelectAll = () => {
-		let newIndices: Set<number>;
-		if (selectedIndices.size === history.length) {
-			newIndices = new Set();
-		} else {
-			newIndices = new Set(history.map((_, i) => i));
-		}
-		selectedIndices = newIndices;
-		dispatch("update:selectedIndices", selectedIndices);
+		selectedTexts = allSelected ? new Set() : new Set(history.map((item) => item.text));
 	};
 
 	const removeSelected = () => {
@@ -79,14 +73,14 @@
 
 <div class="nya-history-toolbar">
 	<div class="nya-history-toolbar-actions">
-		{#if selectedIndices.size > 0}
+		{#if selectedTexts.size > 0}
 			<button class="nya-history-btn delete" on:click={removeSelected}>
 				<Trash2 size={14} />
-				{i18n.t("history.DeleteSelected")} ({selectedIndices.size})
+				{i18n.t("history.DeleteSelected")} ({selectedTexts.size})
 			</button>
 		{/if}
 		<button class="nya-history-btn" on:click={toggleSelectAll}>
-			{#if selectedIndices.size === history.length && history.length > 0}
+			{#if allSelected}
 				<CheckSquare size={14} />
 				{i18n.t("history.UnselectAll")}
 			{:else}
@@ -101,20 +95,20 @@
 	{#if history.length === 0}
 		<div class="nya-history-empty">{i18n.t("history.Empty")}</div>
 	{:else}
-		{#each history as item, index}
+		{#each history as item (item.text)}
 			<div
 				class="nya-history-item"
-				class:selected={selectedIndices.has(index)}
+				class:selected={selectedTexts.has(item.text)}
 			>
 				<div
 					class="nya-history-checkbox"
-					on:click|stopPropagation={() => toggleSelect(index)}
+					on:click|stopPropagation={() => toggleSelect(item.text)}
 					role="checkbox"
-					aria-checked={selectedIndices.has(index)}
+					aria-checked={selectedTexts.has(item.text)}
 					tabindex="0"
-					on:keydown={(e) => e.key === "Enter" && toggleSelect(index)}
+					on:keydown={(e) => e.key === "Enter" && toggleSelect(item.text)}
 				>
-					{#if selectedIndices.has(index)}
+					{#if selectedTexts.has(item.text)}
 						<CheckSquare size={16} />
 					{:else}
 						<Square size={16} />
@@ -125,7 +119,7 @@
 					on:click={() => select(item)}
 					role="button"
 					tabindex="0"
-					on:keydown={(e) => e.key === "Enter" && select(item)}
+					on:keydown|self={(e) => e.key === "Enter" && select(item)}
 					title={getTooltip(item)}
 				>
 					<div class="nya-history-top">
