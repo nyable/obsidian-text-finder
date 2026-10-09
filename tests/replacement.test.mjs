@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
@@ -14,6 +15,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		offsetToPos: (offset) => offset,
 		scrollIntoView: () => {},
 		cm: {
+			state: EditorState.create({ doc: content }),
 			dispatch(spec) {
 				if (!spec.changes) return;
 				const changes = Array.isArray(spec.changes) ? spec.changes : [spec.changes];
@@ -26,6 +28,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 				for (const { from, to, insert } of [...changes].reverse()) {
 					content = content.slice(0, from) + insert + content.slice(to);
 				}
+				this.state = this.state.update({ changes }).state;
 			},
 		},
 	};
@@ -39,12 +42,15 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		app: { workspace: { getActiveViewOfType: () => available ? view : null } },
 	};
 	const finder = loadSource("../src/SearchBox.svelte", {
-		"./editor-extension": { searchCacheEffect: { of: (cache) => cache } },
+		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,
 		"./constants": loadSource("../src/constants.ts"),
 		obsidian: { MarkdownView: class {}, Platform: { isMobile: false } },
 	});
-	finder.editorSearch = { plugin };
+	finder.ownerView = view;
+	finder.editorSearch = { plugin, getEditorContext: () => available ? {
+		view, editor, editorView: editor.cm, file: null, doc: editor.cm.state.doc,
+	} : null };
 	finder.getSearchCache().options.regexMode = regexMode;
 	finder.setFindText(search, false);
 	return {
@@ -52,7 +58,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		plugin,
 		writes,
 		content: () => content,
-		edit: (value) => { content = value; },
+		edit: (value) => { content = value; editor.cm.state = EditorState.create({ doc: value }); },
 		removeEditor: () => { available = false; },
 	};
 }
@@ -248,16 +254,15 @@ for (const commandId of ["text-finder-replace", "text-finder-replace-all"]) {
 		h.plugin.registerEvent = () => {};
 		h.plugin.app.workspace.on = () => {};
 		const { EditorSearch } = loadSource("../src/editor-extension.ts", {
-			"@codemirror/state": { StateEffect: { define: () => ({}) } },
-			"@codemirror/view": {},
-			obsidian: { debounce: (fn) => fn },
+			"./search-highlight": {},
+			obsidian: { MarkdownView: class {} },
 			"./SearchBox.svelte": {},
 			"./i18n": { i18n: { t: (key) => key } },
 			"./util/common-helper": {},
 			"./HistoryModal": {},
 		});
 		const editorSearch = new EditorSearch(h.plugin);
-		editorSearch.getFinder = () => h.finder;
+		editorSearch.getCommandFinder = () => h.finder;
 		h.finder.setVisible(false);
 		h.finder.getSearchCache().replace = "DOG";
 		h.edit("XXX a cat z");

@@ -79,6 +79,13 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 -   In ordinary text mode, replacement text is literal: dollar templates and backslash escapes are not expanded.
 -   Zero-width matches, such as `^` on its own, are currently excluded from search and replacement.
 
+## Editor isolation
+
+-   Each finder operates on the Markdown view where it was opened. Split views, including two views of the same file, keep their own current match.
+-   Opening another file in that view preserves the query but recalculates its matches. Navigation and replacement never reuse offsets from another document.
+-   Editing clears old highlights immediately and recomputes them without scrolling. Search history saving does not delay match navigation.
+-   Replacement commands still work when the finder is hidden; they recalculate matches before changing text. A closed view or a view in reading mode is not a replacement target.
+
 ## Customize Style
 
 Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or [Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings) to customize styles.

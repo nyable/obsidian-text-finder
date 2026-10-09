@@ -1,14 +1,8 @@
 import type TextFinderPlugin from "./main";
+import type { EditorView } from "@codemirror/view";
+import type { EditorContext } from "./editor-context";
+import { CLS, textMatchMarker } from "./search-highlight";
 import {
-	RangeSetBuilder,
-	StateEffect,
-	StateField,
-	Transaction,
-	type Extension,
-} from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
-import {
-	debounce,
 	Editor,
 	MarkdownView,
 	WorkspaceLeaf,
@@ -19,11 +13,8 @@ import { i18n } from "./i18n";
 import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
 
-export const CLS = {
-	FINDER: "nya-finder",
-	MATCH: "nya-text-finder-match",
-	MATCH_CURRENT: "nya-text-finder-match-current",
-};
+export { CLS, searchCacheEffect } from "./search-highlight";
+
 export const CMD = {
 	SHOW_FIND: "text-finder-show-find",
 	SHOW_FIND_AND_REPLACE: "text-finder-show-find-and-replace",
@@ -40,6 +31,8 @@ export class EditorSearch {
 	plugin: TextFinderPlugin;
 	// 用来缓存各个窗口的finder，适配在新窗口打开的情况；暂时没对新窗口打开后关闭进行缓存清理，不过问题应该不大。
 	finderCache: Map<string, SearchBox> = new Map();
+	private finderViews: Map<MarkdownView, SearchBox> = new Map();
+	private disposed = false;
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
@@ -51,15 +44,14 @@ export class EditorSearch {
 	 * 获取Finder组件,如果不存在则创建
 	 * @returns SearchBox
 	 */
-	getFinder(): SearchBox {
-		// const targetEl = this.plugin.app.workspace.containerEl;
-		const view =
-			this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+	getFinder(view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)): SearchBox {
 		if (!view) {
 			throw new Error(
 				"Get Text-Finder Error: plugin.app.workspace.getActiveViewOfType(MarkdownView) is null"
 			);
 		}
+		const existing = this.finderViews.get(view);
+		if (existing) return existing;
 		const targetEl = view.containerEl;
 		const finderEl = targetEl.querySelector(`.${CLS.FINDER}`);
 		if (finderEl) {
@@ -68,6 +60,7 @@ export class EditorSearch {
 			if (cid) {
 				const cachedFinder = this.finderCache.get(cid);
 				if (cachedFinder) {
+					this.finderViews.set(view, cachedFinder);
 					return cachedFinder;
 				} else {
 					finderEl.remove();
@@ -88,21 +81,52 @@ export class EditorSearch {
 				props: {
 					editorSearch: this,
 					cid: cid,
+					ownerView: view,
 				},
 			});
 			this.registerFinderEvent(targetEl, finder);
 			this.finderCache.set(cid, finder);
+			this.finderViews.set(view, finder);
 			return finder;
 		}
+	}
+
+	getEditorContext(view: MarkdownView): EditorContext | null {
+		if (this.disposed) return null;
+		let open = false;
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view === view) open = true;
+		});
+		if (!open || view.getMode() !== "source") return null;
+		const editor = view.editor;
+		// Obsidian's Editor API does not expose its CodeMirror instance publicly.
+		const editorView = (editor as unknown as { cm?: EditorView }).cm;
+		if (!editorView) return null;
+		return { view, editor, editorView, file: view.file, doc: editorView.state.doc };
+	}
+
+	private getCommandFinder(editor: Editor, info: MarkdownView | MarkdownFileInfo) {
+		const view = info instanceof MarkdownView ? info : this.findViewForEditor(editor);
+		return view && view.editor === editor ? this.getFinder(view) : null;
+	}
+
+	private findViewForEditor(editor: Editor): MarkdownView | null {
+		let view: MarkdownView | null = null;
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView && leaf.view.editor === editor) view = leaf.view;
+		});
+		return view;
 	}
 	/**
 	 * 销毁所有finder。在onunload的时候调用
 	 */
 	destoryAll() {
+		this.disposed = true;
 		this.finderCache.forEach((finder) => {
 			finder && finder.$destroy();
 		});
 		this.finderCache.clear();
+		this.finderViews.clear();
 	}
 
 	/**
@@ -124,15 +148,11 @@ export class EditorSearch {
 		this.plugin.registerEvent(
 			workspace.on(
 				"active-leaf-change",
-				debounce(
-					(leaf: WorkspaceLeaf | null) => {
-						if (leaf?.view instanceof MarkdownView) {
-							this.getFinder().matchAgain();
-						}
-					},
-					250,
-					true
-				)
+				(leaf: WorkspaceLeaf | null) => {
+					if (!this.disposed && leaf?.view instanceof MarkdownView) {
+						this.finderViews.get(leaf.view)?.matchAgain(false);
+					}
+				}
 			)
 		);
 
@@ -140,10 +160,17 @@ export class EditorSearch {
 			workspace.on(
 				"editor-change",
 				(edt: Editor, info: MarkdownView | MarkdownFileInfo) => {
-					this.getFinder().matchAgain(false);
+					if (this.disposed) return;
+					const view = info instanceof MarkdownView ? info : this.findViewForEditor(edt);
+					if (view?.editor === edt) this.finderViews.get(view)?.matchAgain(false);
 				}
 			)
 		);
+		// A leaf may open a different file without becoming active again.
+		this.plugin.registerEvent(workspace.on("file-open", () => {
+			if (this.disposed) return;
+			this.finderViews.forEach((finder) => finder.matchAgain(false));
+		}));
 	}
 
 	private openObsidianSearch() {
@@ -176,7 +203,7 @@ export class EditorSearch {
 								const defaultSearchText = useSelectionAsSearch
 									? view.editor.getSelection()
 									: "";
-								this.getFinder().setVisible(
+								this.getFinder(view).setVisible(
 									true,
 									defaultSearchText
 								);
@@ -192,7 +219,8 @@ export class EditorSearch {
 			id: CMD.SHOW_FIND_AND_REPLACE,
 			name: i18n.t("commands.ShowFindAndReplace.name"),
 			editorCallback: (editor, ctx) => {
-				const finder = this.getFinder();
+				const finder = this.getCommandFinder(editor, ctx);
+				if (!finder) return;
 				finder.setCollapse(false);
 				const { useSelectionAsSearch } = plugin.settings;
 				const defaultSearchText = useSelectionAsSearch
@@ -205,7 +233,7 @@ export class EditorSearch {
 			id: CMD.HIDE_FIND,
 			name: i18n.t("commands.HideFind.name"),
 			editorCallback: (editor, ctx) => {
-				this.getFinder().setVisible(false);
+				this.getCommandFinder(editor, ctx)?.setVisible(false);
 			},
 		});
 
@@ -213,7 +241,7 @@ export class EditorSearch {
 			id: CMD.TOGGLE_FIND,
 			name: i18n.t("commands.ToggleFind.name"),
 			editorCallback: (editor, ctx) => {
-				this.getFinder().toggleVisible();
+				this.getCommandFinder(editor, ctx)?.toggleVisible();
 			},
 		});
 
@@ -221,7 +249,7 @@ export class EditorSearch {
 			id: CMD.TOGGLE_REPLACE,
 			name: i18n.t("commands.ToggleReplace.name"),
 			editorCallback: (editor, ctx) => {
-				this.getFinder().toggleCollapse();
+				this.getCommandFinder(editor, ctx)?.toggleCollapse();
 			},
 		});
 
@@ -229,7 +257,7 @@ export class EditorSearch {
 			id: CMD.PREVIOUS_MATCH,
 			name: i18n.t("commands.PreviousMatch.name"),
 			editorCallback: (editor, ctx) => {
-				this.getFinder().toPreviousMatch();
+				this.getCommandFinder(editor, ctx)?.toPreviousMatch();
 			},
 		});
 
@@ -237,14 +265,15 @@ export class EditorSearch {
 			id: CMD.NEXT_MATCH,
 			name: i18n.t("commands.NextMatch.name"),
 			editorCallback: (editor, ctx) => {
-				this.getFinder().toNextMatch();
+				this.getCommandFinder(editor, ctx)?.toNextMatch();
 			},
 		});
 		plugin.addCommand({
 			id: CMD.REPLACE,
 			name: i18n.t("commands.Replace.name"),
 			editorCallback: (editor, ctx) => {
-				const finder = this.getFinder();
+				const finder = this.getCommandFinder(editor, ctx);
+				if (!finder) return;
 				finder.replaceMatchedText(finder.getSearchCache().replace);
 			},
 		});
@@ -252,7 +281,8 @@ export class EditorSearch {
 			id: CMD.REPLACE_ALL,
 			name: i18n.t("commands.ReplaceAll.name"),
 			editorCallback: (editor, ctx) => {
-				const finder = this.getFinder();
+				const finder = this.getCommandFinder(editor, ctx);
+				if (!finder) return;
 				finder.replaceAllMatchedText(finder.getSearchCache().replace);
 			},
 		});
@@ -265,57 +295,12 @@ export class EditorSearch {
 		});
 	}
 }
-export const searchCacheEffect = StateEffect.define<SearchCache>();
 
 export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
 
 	workspace.onLayoutReady(() => {
 		plugin.editorSearch = new EditorSearch(plugin);
-
-		const textMatchMarker = StateField.define<DecorationSet>({
-			create(state): DecorationSet {
-				return Decoration.none;
-			},
-			update(
-				oldState: DecorationSet,
-				transaction: Transaction
-			): DecorationSet {
-				for (const effect of transaction.effects) {
-					if (effect.is(searchCacheEffect)) {
-						const cache = effect.value;
-						const builder = new RangeSetBuilder<Decoration>();
-						if (cache.visible) {
-							const length = transaction.state.doc.length;
-							cache.matches.forEach(
-								(item: MatchOffset, index: number) => {
-									const from = item.from;
-									const to = item.to;
-									if (to <= length) {
-										const classStr = `
-										${CLS.MATCH} 
-										${cache.index == index ? CLS.MATCH_CURRENT : ""} 
-										`;
-										builder.add(
-											from,
-											to,
-											Decoration.mark({
-												class: classStr,
-											})
-										);
-									}
-								}
-							);
-						}
-						return builder.finish();
-					}
-				}
-				return oldState;
-			},
-			provide(field: StateField<DecorationSet>): Extension {
-				return EditorView.decorations.from(field);
-			},
-		});
 
 		plugin.registerEditorExtension([textMatchMarker]);
 	});

@@ -10,16 +10,20 @@
 		ChevronDown,
 		ChevronRight,
 	} from "lucide-svelte";
-	import { searchCacheEffect, type EditorSearch } from "./editor-extension";
+	import type { EditorSearch } from "./editor-extension";
+	import { searchCacheEffect } from "./search-highlight";
+	import type { EditorContext } from "./editor-context";
 	import { i18n } from "./i18n";
-	import { MarkdownView, Platform } from "obsidian";
-	import type { EditorView } from "@codemirror/view";
+	import { Platform, type MarkdownView } from "obsidian";
 	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
 	import { HistorySortOrder } from "./constants";
 
 	export let editorSearch: EditorSearch;
 	export let cid: string;
+	export let ownerView: MarkdownView;
+	let matchedContext: EditorContext | null = null;
+	let matchedQuery = "";
 
 	const cache: SearchCache = {
 		search: "",
@@ -228,7 +232,7 @@
 	};
 
 	export const closeFinder = () => {
-		const activeEditor = getActiveEditor();
+		const activeEditor = getEditorContext();
 		if (activeEditor) {
 			const state = activeEditor.view.getState();
 			const { sourceModeWhenSearch } = editorSearch.plugin.settings;
@@ -251,30 +255,50 @@
 		setFindText(cache.search);
 	};
 
-	export const getActiveEditor = () => {
-		const view =
-			editorSearch.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-		if (view) {
-			const editor = view.editor;
-			return {
-				view: view,
-				editor: editor,
-				// eslint-disable-next-line
-				editorView: (editor as any).cm as EditorView,
-			};
+	const queryKey = () => JSON.stringify([cache.search, cache.options.regexMode, cache.options.caseSensitive]);
+
+	export const getEditorContext = () => {
+		const context = editorSearch.getEditorContext(ownerView);
+		if (!context) {
+			cache.matches = [];
+			cache.index = 0;
+			matchedContext = null;
 		}
-		return null;
+		return context;
+	};
+
+	const isCurrentContext = (context: EditorContext) => {
+		const current = getEditorContext();
+		return current !== null && current.view === context.view && current.editorView === context.editorView
+			&& current.editor === context.editor && current.file === context.file
+			&& current.doc === context.doc;
+	};
+
+	const rememberMatches = (context: EditorContext) => {
+		if (matchedContext && (matchedContext.file !== context.file
+			|| matchedContext.editorView !== context.editorView)) cache.index = 0;
+		matchedContext = context;
+		matchedQuery = queryKey();
+		if (cache.index < 0 || cache.index >= cache.matches.length) cache.index = 0;
 	};
 
 	export const emitChange = (
 		withCache: boolean = true,
 		extraSpec?: TransactionSpec,
+		context: EditorContext | null = getEditorContext(),
 	) => {
-		const activeEditor = getActiveEditor();
-		if (activeEditor) {
-			const { editorView } = activeEditor;
+		if (context && isCurrentContext(context)) {
+			const { editorView } = context;
+			const validMatches = matchedContext?.doc === context.doc
+				&& matchedContext.file === context.file && matchedContext.editorView === context.editorView
+				&& matchedQuery === queryKey();
 			let spec: TransactionSpec = {
-				effects: withCache ? [searchCacheEffect.of(cache)] : [],
+				effects: withCache ? [searchCacheEffect.of({
+					doc: context.doc,
+					visible: cache.visible,
+					index: cache.index,
+					matches: validMatches ? cache.matches.map((match) => ({ ...match })) : [],
+				})] : [],
 			};
 			if (extraSpec) {
 				spec = Object.assign(spec, extraSpec);
@@ -283,17 +307,12 @@
 		}
 	};
 
-	export const setFindText = (text: string, scroll: boolean = true) => {
-		const activeEditor = getActiveEditor();
-		if (activeEditor) {
+	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext()) => {
+		if (cache.search !== text) lastRecordedSearch = "";
+		cache.search = text;
+		if (activeEditor && isCurrentContext(activeEditor)) {
 			const { editor } = activeEditor;
 
-			// Reset recorded state when search text changes
-			if (cache.search !== text) {
-				lastRecordedSearch = "";
-			}
-
-			cache.search = text;
 			if (text) {
 				const content = editor.getValue();
 				cache.matches = findTextOffsets(
@@ -302,14 +321,12 @@
 					cache.options.regexMode,
 					cache.options.caseSensitive,
 				);
-				if (cache.index > cache.matches.length - 1) {
-					cache.index = 0;
-				}
+				rememberMatches(activeEditor);
 				if (cache.matches.length > 0) {
 					if (scroll) {
-						scrollToMatch();
+						scrollToMatch(activeEditor);
 					} else {
-						emitChange();
+						emitChange(true, undefined, activeEditor);
 					}
 				} else {
 					resetMatches();
@@ -317,48 +334,44 @@
 			} else {
 				resetMatches(true);
 			}
-		}
-	};
-
-	export const toNextMatch = async () => {
-		const matchSize = cache.matches.length;
-		if (matchSize == 0) {
-			cache.index = 0;
 		} else {
-			cache.index = (cache.index + 1) % matchSize;
-		}
-
-		// Record to history when navigating matches
-		if (cache.search) {
-			await recordSearchToHistory(cache.search);
-		}
-
-		scrollToMatch();
-	};
-
-	export const toPreviousMatch = async () => {
-		const matchSize = cache.matches.length;
-		if (matchSize == 0) {
+			cache.matches = [];
 			cache.index = 0;
-		} else {
-			cache.index = (cache.index - 1 + matchSize) % matchSize;
+			matchedContext = null;
 		}
-
-		// Record to history when navigating matches
-		if (cache.search) {
-			await recordSearchToHistory(cache.search);
-		}
-
-		scrollToMatch();
 	};
 
-	export const scrollToMatch = () => {
-		const activeEditor = getActiveEditor();
-		if (activeEditor) {
+	const navigateMatch = (direction: number) => {
+		const context = getEditorContext();
+		if (!context) return;
+		if (matchedContext?.doc !== context.doc || matchedContext.file !== context.file
+			|| matchedContext.editorView !== context.editorView || matchedQuery !== queryKey()) {
+			setFindText(cache.search, false, context);
+		}
+		if (cache.index < 0 || cache.index >= cache.matches.length) cache.index = 0;
+		const matchSize = cache.matches.length;
+		cache.index = matchSize === 0 ? 0 : (cache.index + direction + matchSize) % matchSize;
+		scrollToMatch(context);
+		// Saving is not part of editor navigation and must not delay it.
+		if (cache.search) {
+			void recordSearchToHistory(cache.search).catch((error) => {
+				console.error("Text Finder: failed to save search history", error);
+			});
+		}
+	};
+	export const toNextMatch = () => navigateMatch(1);
+	export const toPreviousMatch = () => navigateMatch(-1);
+
+	export const scrollToMatch = (activeEditor = getEditorContext()) => {
+		if (activeEditor && isCurrentContext(activeEditor)) {
+			if (matchedContext?.doc !== activeEditor.doc || matchedQuery !== queryKey()
+				|| matchedContext.file !== activeEditor.file || matchedContext.editorView !== activeEditor.editorView) {
+				setFindText(cache.search, false, activeEditor);
+			}
 			const { editor } = activeEditor;
 
 			const { matches, index } = cache;
-			if (matches.length > 0) {
+			if (matches.length > 0 && index >= 0 && index < matches.length) {
 				const matched = matches[index];
 				const { from, to } = matched;
 
@@ -377,11 +390,15 @@
 					state.source = true;
 				}
 				view.setState(state, { history: false });
+				if (!isCurrentContext(activeEditor)) {
+					matchAgain(false);
+					return;
+				}
 				emitChange(true, {
 					selection: moveCursorToMatch
 						? { anchor: from, head: to }
 						: undefined,
-				});
+				}, activeEditor);
 			}
 		}
 	};
@@ -407,7 +424,7 @@
 	};
 
 	const prepareReplacement = (inputText: string) => {
-		const activeEditor = getActiveEditor();
+		const activeEditor = getEditorContext();
 		if (!activeEditor) {
 			cache.matches = [];
 			cache.index = 0;
@@ -424,13 +441,9 @@
 			cache.options.caseSensitive,
 		);
 		cache.matches = changes.map(({ from, to }, index) => ({ from, to, index }));
-		if (cache.index < 0 || cache.index >= cache.matches.length) {
-			cache.index = 0;
-		}
+		rememberMatches(activeEditor);
 		if (cache.matches.length === 0) {
-			activeEditor.editorView.dispatch({
-				effects: [searchCacheEffect.of(cache)],
-			});
+			emitChange(true, undefined, activeEditor);
 		}
 		return { activeEditor, changes };
 	};
@@ -448,10 +461,17 @@
 			afterCount: matchSize,
 		};
 
-		if (prepared && matchSize > 0) {
+		if (prepared && matchSize > 0 && isCurrentContext(prepared.activeEditor)) {
 			const changes = all ? prepared.changes : [prepared.changes[index]];
 			prepared.activeEditor.editorView.dispatch({ changes });
-			setFindText(search);
+			const current = getEditorContext();
+			if (current && current.file === prepared.activeEditor.file
+				&& current.editorView === prepared.activeEditor.editorView) setFindText(search, true, current);
+			else {
+				cache.matches = [];
+				cache.index = 0;
+				matchedContext = null;
+			}
 			result.changed = true;
 			result.changeCount = changes.length;
 			result.afterCount = cache.matches.length;
@@ -464,10 +484,9 @@
 
 	export const replaceAllMatchedText = (inputText: string): ReplaceResult =>
 		replaceText(inputText, true);
-	const onFinderKeyDown = async (e: KeyboardEvent) => {
-		const { enableInputHotkeys, enableHistory, historyMaxCount } =
+	const onFinderKeyDown = (e: KeyboardEvent) => {
+		const { enableInputHotkeys, enableHistory } =
 			editorSearch.plugin.settings;
-		const searchHistory = editorSearch.plugin.settings.searchHistory;
 		// Use sorted history for navigation
 		const sortedHistory = getSortedHistory();
 
@@ -538,14 +557,8 @@
 			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
 				e.preventDefault();
 
-				// Record to history
-				if (cache.search) {
-					await recordSearchToHistory(cache.search);
-					// Reset history index
-					historyIndex = -1;
-					tempInput = "";
-				}
-
+				historyIndex = -1;
+				tempInput = "";
 				toNextMatch();
 			}
 		}
@@ -577,8 +590,12 @@
 
 	export const matchAgain = (scroll = true) => {
 		const { search } = cache;
-		if (cache.visible && search != "") {
+		if (cache.visible) {
 			setFindText(search, scroll);
+		} else {
+			cache.matches = [];
+			cache.index = 0;
+			matchedContext = null;
 		}
 	};
 </script>
