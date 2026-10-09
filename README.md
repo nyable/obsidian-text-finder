@@ -62,6 +62,17 @@ Search or replace the text of the current MarkDown file **in editor mode**.
 
 -   Assign a hotkeys for the plugin's command.
 
+## Regular expression replacement
+
+Enable regular expression mode to use capture groups in replacements: for example,
+find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
+
+-   Search and replacement share the case-sensitivity option and multiline anchors (`^` and `$`). Lookarounds use the complete current document.
+-   Replacement templates follow JavaScript rules: `$1`–`$99`, `$<name>`, `$&` (the match), `$$` (a literal dollar sign), `` $` `` (text before the match), and `$'` (text after the match).
+-   When the escape-character setting is enabled, `\n` and `\t` in regex replacements become a newline and a tab; `\\` inserts a literal backslash.
+-   In ordinary text mode, replacement text is literal: dollar templates and backslash escapes are not expanded.
+-   Zero-width matches, such as `^` on its own, are currently excluded from search and replacement.
+
 ## Customize Style
 
 Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or [Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings) to customize styles.

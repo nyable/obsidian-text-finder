@@ -58,6 +58,59 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 }
 
 for (const action of ["replaceMatchedText", "replaceAllMatchedText"]) {
+	for (const { source, search, replacement, expected, caseSensitive = false } of [
+		{ source: "ABC abc", search: "abc", replacement: "X", expected: "X abc" },
+		{ source: "ABC abc", search: "abc", replacement: "X", expected: "ABC X", caseSensitive: true },
+		{ source: "foobar", search: "(?<=foo)bar", replacement: "X", expected: "fooX" },
+		{ source: "foobar", search: "foo(?=bar)", replacement: "X", expected: "Xbar" },
+		{ source: "foo\nbar", search: "^foo$\\nbar", replacement: "X", expected: "X" },
+		{ source: "abc", search: "(a)(b)c", replacement: "$2$1", expected: "ba" },
+		{ source: "abc", search: "(?<first>a)bc", replacement: "$<first>!", expected: "a!" },
+		{ source: "abc", search: "b", replacement: "$`X$'", expected: "aaXcc" },
+		{ source: "abc", search: "b", replacement: "$$$&", expected: "a$bc" },
+	]) {
+		test(`${action}: regex ${search} → ${replacement} (case-sensitive: ${caseSensitive})`, () => {
+			const h = createFinder(source, search, true);
+			h.finder.getSearchCache().options.caseSensitive = caseSensitive;
+			const result = h.finder[action](replacement);
+			assert.equal(h.content(), action === "replaceAllMatchedText" && source === "ABC abc" && !caseSensitive
+				? "X X" : expected);
+			assert.equal(result.changeCount, action === "replaceAllMatchedText" && source === "ABC abc" && !caseSensitive ? 2 : 1);
+			assert.equal(h.writes.length, 1);
+		});
+	}
+
+	test(`${action}: regex replacement escapes remain controlled by the setting`, () => {
+		for (const enabled of [true, false]) {
+			const h = createFinder("a", "(a)", true);
+			h.plugin.settings.useEscapeCharInReplace = enabled;
+			h.finder[action]("$1\\n\\t\\\\n");
+			assert.equal(h.content(), enabled ? "a\n\t\\n" : "a\\n\\t\\\\n");
+		}
+	});
+
+	test(`${action}: literal replacement stays literal`, () => {
+		const h = createFinder("a", "a");
+		h.finder[action]("$&\\n");
+		assert.equal(h.content(), "$&\\n");
+	});
+
+	test(`${action}: regex replacement revalidates changed context`, () => {
+		const h = createFinder("foobar", "(?<=foo)bar", true);
+		h.finder.setVisible(false);
+		h.edit("xxxbar");
+		assert.equal(h.finder[action]("X").changed, false);
+		assert.equal(h.content(), "xxxbar");
+		assert.equal(h.writes.length, 0);
+	});
+
+	test(`${action}: zero-width regex does not insert text`, () => {
+		const h = createFinder("a", "^", true);
+		assert.equal(h.finder[action]("X").changed, false);
+		assert.equal(h.content(), "a");
+		assert.equal(h.writes.length, 0);
+	});
+
 	test(`${action}: Unicode search changes only the original matching character`, () => {
 		const h = createFinder("İxa", "x");
 		const result = h.finder[action]("Z");
@@ -157,6 +210,33 @@ test("replace all includes newly added matches in one transaction", () => {
 	assert.equal(h.content(), "DOG plus DOG plus DOG");
 	assert.equal(result.beforeCount, 3);
 	assert.equal(result.changeCount, 3);
+	assert.equal(h.writes.length, 1);
+});
+
+test("single replacement expands templates using the selected original match", () => {
+	const h = createFinder("ab ab", "(a)b", true);
+	h.finder.getSearchCache().index = 1;
+	h.finder.replaceMatchedText("$`-$1-$'");
+	assert.equal(h.content(), "ab ab -a-");
+});
+
+test("navigation can advance when the replacement still matches the query", async () => {
+	const h = createFinder("a a", "a", true);
+	h.plugin.settings.enableHistory = false;
+	h.finder.replaceMatchedText("$&!");
+	assert.equal(h.content(), "a! a");
+	await h.finder.toNextMatch();
+	assert.equal(h.finder.getSearchCache().index, 1);
+	h.finder.replaceMatchedText("$&!");
+	assert.equal(h.content(), "a! a!");
+});
+
+test("replace all calculates templates from one snapshot and does not reprocess inserts", () => {
+	const h = createFinder("a a", "a", true);
+	const result = h.finder.replaceAllMatchedText("$&a");
+	assert.equal(h.content(), "aa aa");
+	assert.equal(result.changeCount, 2);
+	assert.equal(result.afterCount, 4);
 	assert.equal(h.writes.length, 1);
 });
 

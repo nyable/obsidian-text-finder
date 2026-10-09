@@ -14,7 +14,7 @@
 	import { i18n } from "./i18n";
 	import { MarkdownView, Platform } from "obsidian";
 	import type { EditorView } from "@codemirror/view";
-	import { findTextOffsets } from "./util/text-helper";
+	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
 	import { HistorySortOrder } from "./constants";
 
@@ -406,7 +406,7 @@
 		return text;
 	};
 
-	const prepareReplacement = () => {
+	const prepareReplacement = (inputText: string) => {
 		const activeEditor = getActiveEditor();
 		if (!activeEditor) {
 			cache.matches = [];
@@ -416,12 +416,14 @@
 
 		// Hidden finders do not track editor changes. Never use cached offsets
 		// for a write: recalculate against the editor captured for this action.
-		cache.matches = findTextOffsets(
+		const changes = findReplacementChanges(
 			activeEditor.editor.getValue(),
 			cache.search,
+			cache.options.regexMode ? adjustReplaceText(inputText) : inputText,
 			cache.options.regexMode,
 			cache.options.caseSensitive,
 		);
+		cache.matches = changes.map(({ from, to }, index) => ({ from, to, index }));
 		if (cache.index < 0 || cache.index >= cache.matches.length) {
 			cache.index = 0;
 		}
@@ -430,11 +432,11 @@
 				effects: [searchCacheEffect.of(cache)],
 			});
 		}
-		return activeEditor;
+		return { activeEditor, changes };
 	};
 
-	export const replaceMatchedText = (inputText: string): ReplaceResult => {
-		const activeEditor = prepareReplacement();
+	const replaceText = (inputText: string, all: boolean): ReplaceResult => {
+		const prepared = prepareReplacement(inputText);
 		const { matches, search, replace, index } = cache;
 		const matchSize = matches.length;
 		const result: ReplaceResult = {
@@ -446,103 +448,22 @@
 			afterCount: matchSize,
 		};
 
-		if (activeEditor) {
-			if (matchSize > 0) {
-				const { regexMode, caseSensitive } = cache.options;
-				const { editor, editorView } = activeEditor;
-				const current = matches[index];
-
-				let replaceStr = inputText;
-				if (regexMode) {
-					const regex = new RegExp(
-						search,
-						"g" + (caseSensitive ? "i" : ""),
-					);
-					const rangeText = editor.getRange(
-						editor.offsetToPos(current.from),
-						editor.offsetToPos(current.to),
-					);
-					const replacement = adjustReplaceText(inputText);
-					replaceStr = rangeText.replace(regex, replacement);
-				}
-				editorView.dispatch({
-					changes: {
-						from: current.from,
-						to: current.to,
-						insert: replaceStr,
-					},
-				});
-
-				setFindText(search);
-				result.changeCount = 1;
-				result.changed = true;
-				result.afterCount = cache.matches.length;
-			}
+		if (prepared && matchSize > 0) {
+			const changes = all ? prepared.changes : [prepared.changes[index]];
+			prepared.activeEditor.editorView.dispatch({ changes });
+			setFindText(search);
+			result.changed = true;
+			result.changeCount = changes.length;
+			result.afterCount = cache.matches.length;
 		}
 		return result;
 	};
 
-	export const replaceAllMatchedText = (inputText: string): ReplaceResult => {
-		const activeEditor = prepareReplacement();
-		const { matches, search, replace } = cache;
-		const matchSize = matches.length;
-		const result: ReplaceResult = {
-			changeCount: 0,
-			changed: false,
-			search: search,
-			replace: replace,
-			beforeCount: matchSize,
-			afterCount: matchSize,
-		};
+	export const replaceMatchedText = (inputText: string): ReplaceResult =>
+		replaceText(inputText, false);
 
-		if (activeEditor) {
-			const { editor, editorView } = activeEditor;
-
-			if (matchSize > 0) {
-				let changes: { from: number; to: number; insert: string }[] =
-					[];
-				const { regexMode, caseSensitive } = cache.options;
-				if (regexMode) {
-					const regex = new RegExp(
-						search,
-						"g" + (caseSensitive ? "i" : ""),
-					);
-					const replacement = adjustReplaceText(inputText);
-					changes = matches.map((item) => {
-						const rangeText = editor.getRange(
-							editor.offsetToPos(item.from),
-							editor.offsetToPos(item.to),
-						);
-						const text = rangeText.replace(regex, replacement);
-						return {
-							from: item.from,
-							to: item.to,
-							insert: text,
-						};
-					});
-				} else {
-					changes = matches.map((item) => {
-						return {
-							from: item.from,
-							to: item.to,
-							insert: inputText,
-						};
-					});
-				}
-
-				editorView.dispatch({
-					changes: changes,
-				});
-
-				setFindText(search);
-
-				result.changed = true;
-				result.changeCount = changes.length;
-				result.afterCount = cache.matches.length;
-			}
-		}
-		return result;
-	};
+	export const replaceAllMatchedText = (inputText: string): ReplaceResult =>
+		replaceText(inputText, true);
 	const onFinderKeyDown = async (e: KeyboardEvent) => {
 		const { enableInputHotkeys, enableHistory, historyMaxCount } =
 			editorSearch.plugin.settings;
