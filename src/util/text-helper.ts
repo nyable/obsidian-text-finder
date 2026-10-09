@@ -45,24 +45,20 @@ export function findTextOffsets(
 				return [];
 			}
 		} else {
-			const targetStr = enableCaseSensitive
-				? target
-				: target.toLowerCase();
-			const sourceStr = enableCaseSensitive
-				? source
-				: source.toLowerCase();
-
-			let startIndex = 0;
-			while (
-				(startIndex = sourceStr.indexOf(targetStr, startIndex)) !== -1
-			) {
-				const endIndex = startIndex + targetStr.length;
+			// Match the original text: Unicode lowercasing can change its length
+			// and make offsets point at unrelated characters in the editor.
+			const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+			const regex = new RegExp(
+				escapedTarget,
+				"g" + (enableCaseSensitive ? "" : "i")
+			);
+			let match;
+			while ((match = regex.exec(source)) !== null) {
 				matches.push({
-					from: startIndex,
-					to: endIndex,
+					from: match.index,
+					to: match.index + match[0].length,
 					index: index++,
 				});
-				startIndex += targetStr.length;
 			}
 		}
 	}

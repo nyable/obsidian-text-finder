@@ -406,7 +406,35 @@
 		return text;
 	};
 
+	const prepareReplacement = () => {
+		const activeEditor = getActiveEditor();
+		if (!activeEditor) {
+			cache.matches = [];
+			cache.index = 0;
+			return null;
+		}
+
+		// Hidden finders do not track editor changes. Never use cached offsets
+		// for a write: recalculate against the editor captured for this action.
+		cache.matches = findTextOffsets(
+			activeEditor.editor.getValue(),
+			cache.search,
+			cache.options.regexMode,
+			cache.options.caseSensitive,
+		);
+		if (cache.index < 0 || cache.index >= cache.matches.length) {
+			cache.index = 0;
+		}
+		if (cache.matches.length === 0) {
+			activeEditor.editorView.dispatch({
+				effects: [searchCacheEffect.of(cache)],
+			});
+		}
+		return activeEditor;
+	};
+
 	export const replaceMatchedText = (inputText: string): ReplaceResult => {
+		const activeEditor = prepareReplacement();
 		const { matches, search, replace, index } = cache;
 		const matchSize = matches.length;
 		const result: ReplaceResult = {
@@ -418,7 +446,6 @@
 			afterCount: matchSize,
 		};
 
-		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			if (matchSize > 0) {
 				const { regexMode, caseSensitive } = cache.options;
@@ -456,6 +483,7 @@
 	};
 
 	export const replaceAllMatchedText = (inputText: string): ReplaceResult => {
+		const activeEditor = prepareReplacement();
 		const { matches, search, replace } = cache;
 		const matchSize = matches.length;
 		const result: ReplaceResult = {
@@ -467,7 +495,6 @@
 			afterCount: matchSize,
 		};
 
-		const activeEditor = getActiveEditor();
 		if (activeEditor) {
 			const { editor, editorView } = activeEditor;
 
