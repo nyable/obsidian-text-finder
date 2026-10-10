@@ -6,6 +6,7 @@ import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { build } from "esbuild";
 import { compile } from "svelte/compiler";
+import { compileString } from "sass";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { attachHistory } from "./history-source.mjs";
@@ -17,6 +18,7 @@ const { ReadingSearch } = loadSource("../src/reading-search.ts", {
 });
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const componentStyles = [];
 const bundle = await build({
 	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {tick} from 'svelte';`, resolveDir: root },
 	bundle: true, write: false, format: "cjs", platform: "browser",
@@ -36,13 +38,18 @@ const bundle = await build({
 					.replace(/<script lang="ts">([\s\S]*?)<\/script>/, (_, script) => `<script>${ts.transpileModule(script, {
 						compilerOptions: { target: ts.ScriptTarget.ES2018, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true },
 					}).outputText}</script>`)
-					.replace(/<style[\s\S]*?<\/style>/g, "");
-				return { contents: compile(source, { filename, generate: "dom", css: "external" }).js.code, resolveDir: path.dirname(filename) };
+					.replace(/<style lang="scss">([\s\S]*?)<\/style>/g, (_, styles) => `<style>${compileString(styles).css}</style>`);
+				const compiled = compile(source, { filename, generate: "dom", css: "external" });
+				componentStyles.push(compiled.css.code);
+				return { contents: compiled.js.code, resolveDir: path.dirname(filename) };
 			});
 		},
 	}],
 });
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
+const style = dom.window.document.createElement("style");
+style.textContent = componentStyles.join("\n");
+dom.window.document.head.append(style);
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
@@ -128,6 +135,8 @@ test("reading SearchBox uses the same case/regex controls and navigates detached
 	const h = mountReading(t);
 	await tick();
 	assert.equal(h.component.getSearchCache().matches.length, 3);
+	assert.ok(h.target.querySelector(".nya-finder--reading"));
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).paddingLeft, "8px");
 	assert.equal(h.target.querySelector('[aria-label="search.tip.ToggleReplace"]'), null);
 	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
 	await tick();
@@ -162,10 +171,15 @@ test("reading history reuse counts once; hidden and replacement actions are safe
 test("mode changes preserve the reading query/options, discard old results and clear highlights", async (t) => {
 	const h = mountReading(t);
 	await tick();
+	assert.ok(h.target.querySelector(".nya-finder--reading"));
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).paddingLeft, "8px");
 	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
 	h.view.getMode = () => "source";
 	h.component.matchAgain(false);
 	await tick();
+	assert.equal(h.target.querySelector(".nya-finder--reading"), null);
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).paddingLeft, "0px");
+	assert.ok(h.target.querySelector('[aria-label="search.tip.ToggleReplace"]'));
 	assert.equal(h.component.getSearchCache().search, "cat");
 	assert.equal(h.component.getSearchCache().options.caseSensitive, true);
 	assert.equal(h.component.getSearchCache().matches.length, 0);
@@ -173,6 +187,9 @@ test("mode changes preserve the reading query/options, discard old results and c
 	h.view.getMode = () => "preview";
 	h.component.matchAgain(false);
 	await tick();
+	assert.ok(h.target.querySelector(".nya-finder--reading"));
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).paddingLeft, "8px");
+	assert.equal(h.target.querySelector('[aria-label="search.tip.ToggleReplace"]'), null);
 	assert.equal(h.component.getSearchCache().matches.length, 2);
 	assert.equal(h.component.getSearchCache().index, 0);
 	assert.equal(h.scrolls.length, 1, "background mode refresh adds no scroll beyond the case-toggle action");

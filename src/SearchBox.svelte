@@ -587,6 +587,7 @@
 	data-cid={cid}
 	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"}`}
 	class:nya-finder--collapsed={isCollapsed}
+	class:nya-finder--reading={readingMode}
 	class:nya-mobile={isMobile}
 >
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
@@ -866,6 +867,10 @@
 				padding-right: 184px;
 				margin-left: 4px;
 			}
+		}
+
+		&.nya-finder--reading .main-part {
+			padding-left: 8px;
 		}
 	}
 	.nya-tip {
