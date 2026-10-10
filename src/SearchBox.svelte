@@ -27,6 +27,7 @@
 	let readingMode = false;
 	let readingPending = false;
 	let readingUnsupported = false;
+	let readingError: "failed" | "timeout" | undefined;
 	let readingRequest = 0;
 	let searchMode = "source";
 	const isReading = () => ownerView.getMode?.() === "preview";
@@ -63,9 +64,9 @@
 	};
 
 	$: isCollapsed = readingMode || cache.collapse;
-	$: finderTabIndex = cache.collapse ? 0 : 1;
-	$: commonTabIndex = cache.collapse ? 0 : 2;
-	$: replacerTabIndex = cache.collapse ? -1 : 1;
+	$: finderTabIndex = isCollapsed ? 0 : 1;
+	$: commonTabIndex = isCollapsed ? 0 : 2;
+	$: replacerTabIndex = isCollapsed ? -1 : 1;
 	const isMobile = Platform.isMobile;
 	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
@@ -246,7 +247,7 @@
 		}
 	};
 
-	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext()) => {
+	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0) => {
 		// Svelte's bind:value may update cache.search before the input handler.
 		if (currentSearch !== text) lastRecordedSearch = null;
 		currentSearch = text;
@@ -255,6 +256,7 @@
 		const mode = readingMode ? "preview" : "source";
 		if (searchMode !== mode) { cache.matches = []; cache.index = 0; matchedContext = null; searchMode = mode; }
 		readingUnsupported = false;
+		readingError = undefined;
 		if (readingMode) {
 			if (!cache.visible) {
 				readingRequest++;
@@ -271,7 +273,8 @@
 				cache.index = result.index;
 				readingPending = result.pending;
 				readingUnsupported = result.unsupported;
-			});
+				readingError = result.error;
+			}, direction);
 			return;
 		}
 		readingRequest++;
@@ -310,13 +313,8 @@
 
 	const navigateMatch = (direction: number) => {
 		if (isReading()) {
-			setFindText(cache.search, false);
-			if (!readingPending && !readingUnsupported) {
-				const size = cache.matches.length;
-				cache.index = size ? (cache.index + direction + size) % size : 0;
-				setFindText(cache.search, true);
-				if (cache.search) recordSearchToHistory(cache.search);
-			}
+			setFindText(cache.search, true, null, direction);
+			if (cache.visible && !readingUnsupported && !readingError && cache.search) recordSearchToHistory(cache.search);
 			return;
 		}
 		const context = getEditorContext();
@@ -629,8 +627,11 @@
 			{#if isMobile}
 				<div class="nya-float-act">
 					<div class="nya-float-tip">
-						{#if readingPending || readingUnsupported}
-							<div>{i18n.t(readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+						{#if readingPending || readingUnsupported || readingError}
+							<div>{i18n.t(readingError ? (readingError === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed") : readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+							{#if readingError || readingUnsupported}
+								<button on:click={() => editorSearch.openNativeSearch(ownerView)}>{i18n.t("search.UseNativeFind")}</button>
+							{/if}
 						{:else if cache.matches.length > 0}
 							<div>
 								{i18n.t("search.tip.HasResults", {
@@ -657,8 +658,11 @@
 				</div>
 			{:else}
 				<div class="nya-tip">
-					{#if readingPending || readingUnsupported}
-						<div>{i18n.t(readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+					{#if readingPending || readingUnsupported || readingError}
+						<div>{i18n.t(readingError ? (readingError === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed") : readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+						{#if readingError || readingUnsupported}
+							<button on:click={() => editorSearch.openNativeSearch(ownerView)}>{i18n.t("search.UseNativeFind")}</button>
+						{/if}
 					{:else if cache.matches.length > 0}
 						<div>
 							{i18n.t("search.tip.HasResults", {

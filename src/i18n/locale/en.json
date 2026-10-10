@@ -4,6 +4,9 @@
   },
   "search": {
 	"ReadingPending": "Waiting for reading text to render…",
+	"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
+	"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
+	"UseNativeFind": "Use native find",
 	"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
     "tip": {
       "NoResults": "No results",

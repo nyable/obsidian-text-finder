@@ -121,7 +121,7 @@ function mountReading(t) {
 	t.after(() => { search.destroy(); component.$destroy(); target.remove(); });
 	component.setVisible(true, "cat");
 	scrolls.length = 0;
-	return { component, target, preview, view, sections, plugin, scrolls };
+	return { component, target, preview, view, sections, plugin, scrolls, renderer, search };
 }
 
 test("reading SearchBox uses the same case/regex controls and navigates detached results", async (t) => {
@@ -176,6 +176,33 @@ test("mode changes preserve the reading query/options, discard old results and c
 	assert.equal(h.component.getSearchCache().matches.length, 2);
 	assert.equal(h.component.getSearchCache().index, 0);
 	assert.equal(h.scrolls.length, 1, "background mode refresh adds no scroll beyond the case-toggle action");
+});
+
+test("reading navigation keeps its direction while a background refresh waits for rendering", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	h.renderer.rendered = [];
+	const callbacks = [];
+	h.renderer.onRendered = (callback) => callbacks.push(callback);
+	h.component.toNextMatch();
+	h.component.matchAgain(false);
+	h.renderer.rendered = null;
+	callbacks.forEach((callback) => callback());
+	await Promise.resolve();
+	await tick();
+	assert.equal(h.component.getSearchCache().index, 1);
+	assert.equal(h.scrolls.length, 1);
+});
+
+test("reading failures show an error and offer native fallback instead of no-results", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	h.renderer.showSection = () => { throw new Error("broken bridge"); };
+	h.component.toNextMatch();
+	await tick();
+	assert.ok(h.target.textContent.includes("search.ReadingFailed"));
+	assert.ok(h.target.textContent.includes("search.UseNativeFind"));
+	assert.equal(window.CSS.highlights.has("nya-reading-matches"), false);
 });
 
 test("actual SearchBox Enter binding navigates immediately and records exactly once", async (t) => {

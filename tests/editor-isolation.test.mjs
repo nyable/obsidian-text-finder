@@ -345,7 +345,7 @@ test("creating a Finder passes its explicit owner even if another view is active
 		"./reading-search": readingSearch,
 	});
 	h.plugin.registerDomEvent = () => {};
-	h.a.containerEl = { querySelector: () => null };
+	h.a.containerEl = { querySelector: () => null, addEventListener() {}, removeEventListener() {} };
 	h.activate(h.b);
 	const search = new EditorSearch(h.plugin);
 	const finder = search.getFinder(h.a);

@@ -31,11 +31,12 @@ export const CMD = {
 
 export class EditorSearch {
 	plugin: TextFinderPlugin;
-	// 用来缓存各个窗口的finder，适配在新窗口打开的情况；暂时没对新窗口打开后关闭进行缓存清理，不过问题应该不大。
+	// Finder resources are owned by their Markdown view and released on leaf close.
 	finderCache: Map<string, SearchBox> = new Map();
 	private finderViews: Map<MarkdownView, SearchBox> = new Map();
 	private readingSearches = new Map<MarkdownView, ReadingSearch>();
 	private modeObservers = new Map<MarkdownView, MutationObserver>();
+	private finderEvents = new Map<MarkdownView, () => void>();
 	private disposed = false;
 
 	constructor(plugin: TextFinderPlugin) {
@@ -88,7 +89,7 @@ export class EditorSearch {
 					ownerView: view,
 				},
 			});
-			this.registerFinderEvent(targetEl, finder);
+			this.registerFinderEvent(view, finder);
 			this.finderCache.set(cid, finder);
 			this.finderViews.set(view, finder);
 			const win = targetEl.ownerDocument?.defaultView;
@@ -135,6 +136,11 @@ export class EditorSearch {
 		return search;
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
+	openNativeSearch(view: MarkdownView) {
+		if (!this.isViewOpen(view)) return;
+		this.finderViews.get(view)?.setVisible(false);
+		view.showSearch();
+	}
 
 	private getCommandFinder(editor: Editor, info: MarkdownView | MarkdownFileInfo) {
 		const view = info instanceof MarkdownView ? info : this.findViewForEditor(editor);
@@ -157,6 +163,8 @@ export class EditorSearch {
 		this.readingSearches.clear();
 		this.modeObservers.forEach((observer) => observer.disconnect());
 		this.modeObservers.clear();
+		this.finderEvents.forEach((cleanup) => cleanup());
+		this.finderEvents.clear();
 		this.finderCache.forEach((finder) => {
 			finder && finder.$destroy();
 		});
@@ -169,13 +177,16 @@ export class EditorSearch {
 	 * @param mountEl 挂载的元素
 	 * @param finder finder
 	 */
-	private registerFinderEvent(mountEl: HTMLElement, finder: SearchBox) {
-		this.plugin.registerDomEvent(mountEl, "keydown", (e) => {
+	private registerFinderEvent(view: MarkdownView, finder: SearchBox) {
+		const mountEl = view.containerEl;
+		const listener = (e: KeyboardEvent) => {
 			// press esc
 			if (e.key == "Escape" && finder) {
 				finder.closeFinder();
 			}
-		});
+		};
+		mountEl.addEventListener("keydown", listener);
+		this.finderEvents.set(view, () => mountEl.removeEventListener("keydown", listener));
 	}
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
@@ -206,6 +217,9 @@ export class EditorSearch {
 			if (this.disposed) return;
 			this.finderViews.forEach((finder) => finder.matchAgain(false));
 		}));
+		this.plugin.registerEvent(workspace.on("css-change", () => {
+			if (!this.disposed) this.readingSearches.forEach((search) => search.invalidate());
+		}));
 		this.plugin.registerEvent(workspace.on("layout-change", () => {
 			if (this.disposed) return;
 			this.finderViews.forEach((finder, view) => {
@@ -215,6 +229,8 @@ export class EditorSearch {
 					this.readingSearches.delete(view);
 					this.modeObservers.get(view)?.disconnect();
 					this.modeObservers.delete(view);
+					this.finderEvents.get(view)?.();
+					this.finderEvents.delete(view);
 					finder.$destroy();
 					this.finderViews.delete(view);
 					this.finderCache.forEach((cached, cid) => { if (cached === finder) this.finderCache.delete(cid); });
@@ -236,6 +252,7 @@ export class EditorSearch {
 	private showFinder(view: MarkdownView) {
 		const native = this.plugin.settings.useObsidianSearchInRead;
 		if (view.getMode() === "preview" && (native || !this.canSearchReading(view))) {
+			this.finderViews.get(view)?.setVisible(false);
 			if (!native) new Notice(i18n.t("search.ReadingUnsupported"));
 			view.showSearch();
 			return;

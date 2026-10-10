@@ -1,0 +1,41 @@
+# 测试与性能诊断
+
+命令均在仓库根目录执行。
+
+## 自动检查
+
+```sh
+pnpm test
+pnpm typecheck
+pnpm build
+git diff --check
+```
+
+测试使用 Node.js test runner；部分 TypeScript/Svelte 操作经 `tests/source-loader.mjs` 加载，DOM 交互使用 jsdom，部分测试编译实际 Svelte 组件。测试中的 Obsidian 渲染器与 Highlight API 使用替身，不等同于真实宿主。
+
+## 主要覆盖
+
+- 阅读文本、跨格式匹配、离屏计数、大小写、正则和高亮端点。
+- 虚拟化移出／挂回、离屏挂载后定位、跨块结果。
+- 渲染等待、保留用户导航意图、超时、异常及重试。
+- 隐藏文本、折叠正文、行尾空白和空表格单元格。
+- 视图隔离、模式／文件切换、窗口迁移及资源释放。
+- 编辑模式查找与替换、正则模板、历史统计、迁移和保存队列回归。
+
+相关测试保留在 [`tests/`](../tests/)，例如 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 `search-box-dom.test.mjs`。当前覆盖情况以测试文件和运行结果为准，不在文档中固定测试总数。
+
+## 逻辑性能诊断
+
+```sh
+node tests/reading-benchmark.mjs
+```
+
+脚本用 100／1,000／5,000 个分块与递增匹配数量，输出首次索引时间、导航中位时间及绘制 Range 数量。它不属于自动正确性测试套件，也不提供固定性能门槛。
+
+jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘制、滚动或移动端性能。避免和完整测试／构建同时运行以减少测量噪声。不要使用可能发生灾难性回溯的正则进行日常库压力测试。
+
+## 实际应用验收
+
+使用 [阅读验收清单](reading-acceptance.md) 和 [测试笔记](../tests/fixtures/reading-search.md)。需在真实 Obsidian 验证高亮显示、滚动、主题、分屏、弹出窗口和目标移动平台。
+
+未执行项目保留未勾选状态；记录平台、Obsidian 版本、主题及重现步骤。自动测试通过不能代替这些发布门槛。

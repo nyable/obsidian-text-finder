@@ -165,7 +165,9 @@ test("window migration releases the old registry and recreates ranges in the own
 	next.window.CSS = { highlights: new Map() };
 	next.window.Highlight = class extends Set { priority = 0; };
 	next.window.document.body.append(next.window.document.adoptNode(h.root));
-	for (const section of h.sections) next.window.document.adoptNode(section.el);
+	for (const section of h.sections) {
+		if (section.el.ownerDocument !== next.window.document) next.window.document.adoptNode(section.el);
+	}
 	h.run("cat");
 	assert.equal(h.dom.window.CSS.highlights.has("nya-reading-matches"), false);
 	assert.ok(next.window.CSS.highlights.get("nya-reading-matches").size > 0);
@@ -294,5 +296,233 @@ test("reading offsets preserve Unicode and exact whitespace rather than lowercas
 	const ranges = [...h.dom.window.CSS.highlights.get("nya-reading-matches")];
 	assert.deepEqual(ranges.map((range) => range.toString()), ["CAT", "cat"]);
 	assert.equal(h.run(" ").matches.length, 3);
+	h.search.destroy();
+});
+
+test("virtualization rebuilds highlights from stable endpoints after detach and reattach", async () => {
+	const h = environment();
+	h.run("cat");
+	h.sections[0].el.remove();
+	h.root.append(h.sections[0].el);
+	await Promise.resolve();
+	await Promise.resolve();
+	const ranges = [...h.dom.window.CSS.highlights.get("nya-reading-matches")];
+	assert.ok(ranges.length > 0);
+	assert.ok(ranges.every((range) => range.toString().toLowerCase() === "cat"));
+	assert.equal(h.run("cat").matches.length, 3);
+	h.search.destroy();
+});
+
+test("navigation constructs its target range only after virtual section mounting", () => {
+	const h = environment();
+	h.run("cat");
+	h.run("cat", options, 2, true);
+	const ranges = [...h.dom.window.CSS.highlights.get("nya-reading-current")];
+	assert.equal(ranges.map((range) => range.toString()).join(""), "cat");
+	assert.ok(ranges.every((range) => h.sections[1].el.contains(range.startContainer)));
+	h.search.destroy();
+});
+
+test("same-query background refresh preserves the pending user scroll and current index", async () => {
+	const h = environment();
+	h.run("cat", options, 1);
+	h.renderer.rendered = [];
+	const results = [];
+	h.search.search("cat", options, 1, true, (result) => results.push(result));
+	h.search.search("cat", options, 0, false, (result) => results.push(result));
+	h.callbacks.forEach((callback) => callback());
+	h.renderer.rendered = null;
+	await Promise.resolve();
+	assert.equal(results.at(-1).index, 1);
+	assert.ok(h.calls.some(([action]) => action === "show"));
+	h.search.destroy();
+});
+
+test("CSS hidden text is excluded while folded list and callout bodies remain searchable", () => {
+	const h = environment([`<p>visible <span style="display:none">secret</span><span style="visibility:hidden">invisible</span></p>
+		<ul><li class="is-collapsed"><ul style="display:none"><li>folded-list</li></ul></li></ul>
+		<div class="callout is-collapsed"><div class="callout-content" style="display:none"><p>folded-callout</p></div></div>`]);
+	assert.equal(h.run("secret").matches.length, 0);
+	assert.equal(h.run("invisible").matches.length, 0);
+	assert.equal(h.run("folded-list").matches.length, 1);
+	assert.equal(h.run("folded-callout").matches.length, 1);
+	h.search.destroy();
+});
+
+test("CSS style changes invalidate matches before the next action", () => {
+	const h = environment(["<p><span>cat</span></p>"]);
+	h.run("cat");
+	h.root.querySelector("span").style.display = "none";
+	assert.equal(h.run("cat").matches.length, 0);
+	h.search.destroy();
+});
+
+test("trailing collapsible spaces and empty cells retain correct logical boundaries", () => {
+	const h = environment(["<p>cat <em> </em></p><table><tr><td>one</td><td></td><td>two</td></tr></table>"]);
+	const index = textSource.indexReadingText([h.sections[0].el]);
+	assert.ok(index.text.startsWith("cat\n"));
+	assert.ok(index.text.includes("one\t\ttwo"));
+	assert.equal(h.run("cat$", { ...options, regexMode: true }).matches.length, 1);
+	h.search.destroy();
+});
+
+test("private renderer exceptions are caught and clear highlights before reporting failure", () => {
+	const h = environment();
+	h.renderer.showSection = () => { throw new Error("private bridge changed"); };
+	let result;
+	assert.doesNotThrow(() => { result = h.run("cat", options, 0, true); });
+	assert.equal(result.error, "failed");
+	assert.equal(h.dom.window.CSS.highlights.has("nya-reading-matches"), false);
+	h.search.destroy();
+});
+
+test("failed virtual mounting is reported rather than publishing successful navigation", () => {
+	const h = environment();
+	h.run("cat");
+	h.renderer.applyScrollSection = () => false;
+	const result = h.run("cat", options, 2, true);
+	assert.equal(result.error, "failed");
+	h.search.destroy();
+});
+
+test("render readiness is retried without DOM changes, preserving the requested scroll", async () => {
+	const h = environment();
+	h.renderer.rendered = [];
+	const results = [];
+	h.search.search("cat", options, 0, true, (result) => results.push(result));
+	h.callbacks[0]();
+	await Promise.resolve();
+	h.renderer.rendered = null;
+	await new Promise((resolve) => h.dom.window.setTimeout(resolve, 130));
+	assert.equal(results.at(-1).pending, false);
+	assert.equal(results.at(-1).matches.length, 3);
+	assert.equal(h.calls.filter(([action]) => action === "show").length, 1);
+	h.search.destroy();
+});
+
+test("render waiting has a bounded timeout and can be retried after recovery", async () => {
+	const h = environment();
+	h.search.destroy();
+	const search = new ReadingSearch(h.view, () => true, () => {}, 25);
+	h.renderer.rendered = [];
+	const results = [];
+	search.search("cat", options, 0, false, (result) => results.push(result));
+	await new Promise((resolve) => h.dom.window.setTimeout(resolve, 65));
+	assert.equal(results.at(-1).error, "timeout");
+	assert.equal(results.at(-1).pending, false);
+	assert.equal(search.waitTimer, null);
+	assert.equal(search.observer, null);
+	h.renderer.rendered = null;
+	search.search("cat", options, 0, false, (result) => results.push(result));
+	assert.equal(results.at(-1).matches.length, 3);
+	search.destroy();
+});
+
+test("clear cancels readiness retries and prevents late painting or callbacks", async () => {
+	const h = environment();
+	h.renderer.rendered = [];
+	let calls = 0;
+	h.search.search("cat", options, 0, true, () => calls++);
+	h.search.clear();
+	h.renderer.rendered = null;
+	h.callbacks[0]();
+	await new Promise((resolve) => h.dom.window.setTimeout(resolve, 130));
+	assert.equal(calls, 1);
+	assert.equal(h.search.waitTimer, null);
+	assert.equal(h.search.observer, null);
+	assert.equal(h.calls.length, 0);
+	h.search.destroy();
+});
+
+test("asynchronous renderer failures are contained and publish an actionable error", async () => {
+	const h = environment();
+	h.renderer.rendered = [];
+	h.renderer.showSection = () => { throw new Error("broken navigation"); };
+	const results = [];
+	h.search.search("cat", options, 0, true, (result) => results.push(result));
+	h.renderer.rendered = null;
+	h.callbacks[0]();
+	await Promise.resolve();
+	assert.equal(results.at(-1).error, "failed");
+	assert.equal(h.search.observer, null);
+	h.search.destroy();
+});
+
+test("a throwing Highlight constructor fails closed and releases registry ownership", () => {
+	const h = environment();
+	h.run("cat");
+	h.dom.window.Highlight = class { constructor() { throw new Error("host highlight failed"); } };
+	const result = h.run("cat");
+	assert.equal(result.error, "failed");
+	assert.equal(h.dom.window.CSS.highlights.has("nya-reading-matches"), false);
+	assert.equal(h.search.observer, null);
+	h.search.destroy();
+});
+
+test("cross-section matches navigate to their first endpoint and paint mounted portions only", () => {
+	const h = environment(["<p>hello</p>", "<p>world</p>"]);
+	const result = h.run("hello\\s+world", { ...options, regexMode: true }, 0, true);
+	assert.equal(result.matches.length, 1);
+	assert.equal(h.calls.filter(([action]) => action === "show").length, 2);
+	const ranges = [...h.dom.window.CSS.highlights.get("nya-reading-current")];
+	assert.equal(ranges.map((range) => range.toString()).join(""), "hello");
+	h.search.destroy();
+});
+
+test("CSS class rules hide text in attached and detached sections", () => {
+	const h = environment(["<p>cat</p>", "<p><span class='concealed'>secret</span></p>"]);
+	const style = h.doc.createElement("style"); style.textContent = ".concealed { display: none }"; h.doc.head.append(style);
+	assert.equal(h.run("secret").matches.length, 0);
+	assert.equal(h.run("cat").matches.length, 1);
+	h.search.destroy();
+});
+
+test("repeated open/search/clear cycles release endpoints, observers, timers and highlights", () => {
+	const h = environment();
+	for (let i = 0; i < 30; i++) {
+		h.run("cat");
+		assert.ok(h.search.observer);
+		assert.ok(h.search.sectionEndpoints.size > 0);
+		h.search.clear();
+		assert.equal(h.search.observer, null);
+		assert.equal(h.search.request, null);
+		assert.equal(h.search.textIndex, null);
+		assert.equal(h.search.sectionEndpoints.size, 0);
+		assert.equal(h.search.timer, null);
+		assert.equal(h.search.waitTimer, null);
+		assert.equal(h.dom.window.CSS.highlights.size, 0);
+	}
+	h.search.destroy();
+});
+
+test("painting only creates ranges for attached sections, without discarding offscreen matches", () => {
+	const h = environment(Array.from({ length: 200 }, () => "<p>cat cat</p>"));
+	const result = h.run("cat");
+	assert.equal(result.matches.length, 400);
+	assert.equal(h.dom.window.CSS.highlights.get("nya-reading-matches").size, 2);
+	assert.equal(h.search.sectionEndpoints.size, 200);
+	h.search.destroy();
+});
+
+test("owner invalidation during readiness retry stops all timers and observers", async () => {
+	const h = environment();
+	h.renderer.rendered = [];
+	h.run("cat", options, 0, true);
+	h.close();
+	await new Promise((resolve) => h.dom.window.setTimeout(resolve, 130));
+	assert.equal(h.search.observer, null);
+	assert.equal(h.search.waitTimer, null);
+	assert.equal(h.search.request, null);
+	assert.equal(h.calls.length, 0);
+	h.search.destroy();
+});
+
+test("private mounting callbacks that change owner cannot continue navigation or publish results", () => {
+	const h = environment();
+	h.run("cat");
+	h.renderer.applyScrollSection = () => { h.view.file = { path: "other.md" }; return true; };
+	let completed = false;
+	h.search.search("cat", options, 2, true, () => { completed = true; });
+	assert.equal(completed, false);
 	h.search.destroy();
 });

@@ -158,3 +158,39 @@ test("closing a reading leaf destroys its search, finder and cache references", 
 	assert.equal(h.dom.window.CSS.highlights.has("nya-reading-matches"), false);
 	h.search.destoryAll();
 });
+
+test("view-scoped Escape listener is removed when its leaf closes", () => {
+	const h = environment();
+	h.view.containerEl = h.root;
+	let escapes = 0;
+	const finder = { closeFinder: () => escapes++, $destroy() {} };
+	h.search.registerFinderEvent(h.view, finder);
+	h.search.finderViews.set(h.view, finder);
+	h.root.dispatchEvent(new h.dom.window.KeyboardEvent("keydown", { key: "Escape" }));
+	assert.equal(escapes, 1);
+	h.close(); h.events.get("layout-change")();
+	h.root.dispatchEvent(new h.dom.window.KeyboardEvent("keydown", { key: "Escape" }));
+	assert.equal(escapes, 1);
+	assert.equal(h.search.finderEvents.size, 0);
+	h.search.destoryAll();
+});
+
+test("theme changes invalidate only existing reading adapters without creating finders", () => {
+	const h = environment();
+	let invalidations = 0;
+	h.search.readingSearches.set(h.view, { invalidate: () => invalidations++, destroy() {} });
+	h.events.get("css-change")();
+	assert.equal(invalidations, 1);
+	assert.equal(h.created(), 0);
+	h.search.destoryAll();
+});
+
+test("native fallback closes the plugin finder and remains bound to its open owner", () => {
+	const h = environment();
+	h.search.finderViews.set(h.view, { setVisible: (visible) => h.calls.push(["visible", visible]) });
+	h.search.openNativeSearch(h.view);
+	assert.deepEqual(h.calls, [["visible", false], ["native"]]);
+	h.close(); h.search.openNativeSearch(h.view);
+	assert.equal(h.calls.length, 2);
+	h.search.finderViews.clear(); h.search.destoryAll();
+});

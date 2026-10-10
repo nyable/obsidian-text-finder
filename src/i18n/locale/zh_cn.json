@@ -4,6 +4,9 @@
   },
   "search": {
 	"ReadingPending": "正在等待阅读正文渲染…",
+	"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
+	"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
+	"UseNativeFind": "使用原生查找",
 	"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
     "tip": {
       "NoResults": "无结果",

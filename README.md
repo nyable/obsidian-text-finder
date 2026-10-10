@@ -6,8 +6,6 @@
 This plugin for Obsidian(https://obsidian.md).  
 Provides a VSCode-like finder: search/replace in editing mode and rendered-text search in reading mode.
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
-
 ## Feature
 
 Search or replace the current Markdown file **in editing mode**, or search its rendered body **in reading mode**.
@@ -44,67 +42,47 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Paste the URL of this repository and confirm
 -   Enable plugin in Obsidian setting.
 
-### Source Code
-
--   Clone this repo.
--   Use Node.js 24.21.0 (see `.node-version`) and pnpm 12.3.4 (see `packageManager` in `package.json`). Install pnpm following its [installation guide](https://pnpm.io/installation).
--   `pnpm install --frozen-lockfile` to install the committed dependency versions.
--   `pnpm test` to run the regression tests and `pnpm typecheck` to check TypeScript and Svelte components.
--   `pnpm build` to build files in `./dist`.
--   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/text-finder/`.
--   Enable plugin in Obsidian setting.
-
-Dependency changes must update and commit `pnpm-lock.yaml` using pnpm. CI installs
-with `--frozen-lockfile`, runs tests and TypeScript/Svelte checks, and builds the plugin.
-Do not use npm or Yarn to install dependencies in this repository.
-
 ### Releases
 
 -   Download `main.js`, `styles.css`, `manifest.json` in the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest)
 -   Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/text-finder/`.
 -   Enable plugin in Obsidian setting.
 
-## Settings
+## Basic usage
 
--   Assign a hotkeys for the plugin's command.
+-   Assign shortcuts to Text Finder commands in Obsidian's hotkey settings.
+-   Run “Open search in current file”, enter a query, and use the previous/next buttons or Enter to navigate matches.
+-   In editing mode, use “Open search & replace in current file” for replacements. Press Escape or the close button to hide the finder.
 
 ## Reading-mode search
 
--   Run “Open search in current file” for the same finder, match-case/regex controls, history and match navigation. Reading search is read-only: it does not replace text, write files or switch modes.
--   **After upgrading, disable “Using Obsidian's native search in reading” to try plugin search.** Existing preferences are preserved; new installations default to plugin search. Enabling it keeps Open/Toggle search on native find.
--   Searches headings, paragraphs, lists, quotations, callouts, tables, ordinary code blocks and displayed link text. Inline formatting does not interrupt a match: `hello **world**` can match `hello world`. Hidden URLs and Markdown markers are not searched, so editing/reading counts can differ.
--   Block boundaries and `<br>` become newlines; table cells use tabs. Ordinary HTML whitespace collapses to a space; code blocks preserve whitespace. Visual line wrapping does not add newlines. Matches consisting only of synthetic separators, with no actual body characters, are not counted. Zero-width regex matches remain excluded.
--   Counts are published only after the complete reading render is ready, including cached sections detached by virtualization. A pending-render message replaces partial counts. Folded text participates; navigation expands the necessary target ancestors without restoring folds afterward.
--   The initial scope excludes embedded notes, the properties UI, formulas, diagrams, Dataview/DataviewJS results and reading controls. Other third-party dynamic output is not guaranteed. CSS-generated text, images, and Canvas/iframe contents are not searched.
--   Requires CSS Custom Highlight API support and a shape-checked private Obsidian reading-section bridge (compared with the 1.14.4 implementation; real-app acceptance remains necessary). Unsupported Open/Toggle search reports the limitation and falls back to native find. Older releases and mobile environments have not all been verified.
--   Reading highlights reuse the `--nya-match-*` color variables. Customize `::highlight(nya-reading-matches)` and `::highlight(nya-reading-current)` for colors; editor class snippets do not automatically apply, and highlight pseudo-elements have limited styling support.
+-   Run “Open search in current file” in reading mode for case-sensitive search, regex, highlights and match navigation. Replacement is not available.
+-   Searches rendered body text, not hidden Markdown markers. Embedded notes and some plugin-generated content are not supported.
+-   If native find still opens after upgrading, disable “Using Obsidian's native search in reading” in settings.
 
 ## Regular expression replacement
 
 Enable regular expression mode to use capture groups in replacements: for example,
 find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 
--   Search and replacement share the case-sensitivity option and multiline anchors (`^` and `$`). Lookarounds use the complete current document.
--   Replacement templates follow JavaScript rules: `$1`–`$99`, `$<name>`, `$&` (the match), `$$` (a literal dollar sign), `` $` `` (text before the match), and `$'` (text after the match).
+-   Use `$1`, `$2`, etc. for capture groups, `$<name>` for named groups, `$&` for the matched text, and `$$` for a literal dollar sign.
 -   When the escape-character setting is enabled, `\n` and `\t` in regex replacements become a newline and a tab; `\\` inserts a literal backslash.
 -   In ordinary text mode, replacement text is literal: dollar templates and backslash escapes are not expanded.
 -   Zero-width matches, such as `^` on its own, are currently excluded from search and replacement.
 
-## Editor isolation
+## Split views
 
 -   Each finder operates on the Markdown view where it was opened. Split views, including two views of the same file, keep their own current match.
--   Opening another file in that view preserves the query but recalculates its matches. Navigation and replacement never reuse offsets from another document.
--   Editing clears old highlights immediately and recomputes them without scrolling. Search history saving does not delay match navigation.
--   Replacement commands still work when the finder is hidden; they recalculate matches before changing text. A closed view or a view in reading mode is not a replacement target.
+-   Opening another file in that view preserves the query and updates the results.
+-   Editing updates matches without automatically changing your reading position. Replacement is available only in editing mode.
 
 ## Search history
 
--   History stores exact queries, including leading/trailing spaces, newlines and tabs. Whitespace-only queries are valid; empty queries are not recorded. Older trimmed entries cannot recover whitespace that was already lost.
--   Continuous navigation with the same query increments usage once and then only refreshes its last-used time. Changing from A to B and back to A starts a new usage cycle. Reusing a history entry counts once; the next navigation does not count it again.
--   Copying counts as usage only after the clipboard operation succeeds. Disabling history preserves existing entries for viewing, copying and deleting, but stops recording and usage statistics (and Up/Down history navigation).
--   The capacity is 1–200. Confirm a new limit with Enter or by leaving the field. Lowering it immediately keeps the highest-priority entries under the selected sort order; ties use last-used time, creation time and exact text for stable ordering.
--   Settings and history saves are serialized using independent snapshots. Save failures retain in-memory changes, show a throttled notice, and allow the next change to save the latest state. There is no automatic background retry or guarantee against forced application shutdown.
--   Legacy and mixed-format history is validated entry by entry. Duplicate exact texts keep the earliest creation time, latest use time and highest count. If saved data cannot be read, writes are blocked to avoid overwriting it: fix the storage problem and reload the plugin. Temporary changes from that failed-load session are not merged on reload.
+-   Run “Show search history” to view, reuse, copy or delete queries. Use Up/Down in the search field to browse history.
+-   Leading/trailing spaces, newlines and tabs are preserved. Continuous navigation with the same query counts as one use.
+-   Keep 1–200 entries and sort by creation time, last use or usage count. Lowering the limit removes lower-priority entries.
+-   Disabling history preserves existing entries but stops recording new queries, updating usage and Up/Down history navigation.
+-   Read/save failures display a notice. Follow its instructions; unsaved changes may be lost on exit.
 
 ## Customize Style
 
@@ -114,7 +92,18 @@ Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or 
 
 Here are some CSS snippets examples.
 
-### Match Highlight and Current Item
+### Match colors (editing and reading modes)
+
+```css
+body {
+	--nya-match-bgColor: #ea5c0054;
+	--nya-match-color: inherit;
+	--nya-match-curbgColor: #ffcc00;
+	--nya-match-curColor: #000000;
+}
+```
+
+### Match Highlight and Current Item (editing mode)
 
 ```css
 .nya-text-finder-match {
@@ -177,3 +166,7 @@ body {
 	border-left: 3px solid red !important;
 }
 ```
+
+## Developer documentation
+
+For source builds, design notes, testing and acceptance, see the [developer documentation](docs/README.md).

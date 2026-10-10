@@ -1,16 +1,10 @@
 import type { MarkdownView, TFile } from "obsidian";
-import { indexReadingText, readingMatchRanges, type ReadingTextIndex } from "./reading-text";
+import { indexReadingText, readingMatchEndpoints, endpointRange, type ReadingEndpoint, type ReadingTextIndex } from "./reading-text";
 import { findTextOffsets } from "./util/text-helper";
 
-/**
- * Obsidian's public preview API cannot enumerate detached virtual sections.
- * Keep this private bridge in one place and fail closed if its shape changes.
- * Interface shape checked against the renderer shipped in Obsidian 1.14.4.
- */
-interface PreviewSection {
-	el: HTMLElement;
-	rendered: boolean;
-}
+/** Private bridge: public preview APIs cannot enumerate detached sections.
+ * Shape checked against Obsidian 1.14.4; runtime failures must also fail closed. */
+interface PreviewSection { el: HTMLElement; rendered: boolean; }
 interface PreviewRenderer {
 	sections: PreviewSection[];
 	header?: PreviewSection | null;
@@ -25,31 +19,41 @@ interface PreviewRenderer {
 	updateVirtualDisplay(): void;
 	onRendered(callback: () => void): void;
 }
-interface HighlightValue {
-	priority: number;
-	add(range: Range): void;
-}
+interface HighlightValue { priority: number; add(range: Range): void; }
 interface HighlightWindow {
 	CSS?: { highlights?: Map<string, HighlightValue> };
-	Highlight?: new (...ranges: Range[]) => HighlightValue;
+	Highlight?: new () => HighlightValue;
+}
+interface ReadingMatch { match: MatchOffset; endpoints: ReadingEndpoint[]; sections: PreviewSection[]; }
+interface Request {
+	renderer: PreviewRenderer;
+	file: TFile | null;
+	key: string;
+	text: string;
+	options: SearchOptions;
+	index: number;
+	scroll: boolean;
+	direction: number;
+	deadline: number;
+	waiting: boolean;
+	registered: boolean;
+	done: (result: ReadingResult) => void;
 }
 
 const ALL = "nya-reading-matches";
 const CURRENT = "nya-reading-current";
 const documents = new WeakMap<Document, Map<ReadingSearch, { all: Range[]; current: Range[] }>>();
-
-function highlightWindow(doc: Document) { return doc.defaultView as unknown as HighlightWindow | null; }
+const highlightWindow = (doc: Document) => doc.defaultView as unknown as HighlightWindow | null;
 
 function rendererFor(view: MarkdownView): PreviewRenderer | null {
-	const renderer = (view.previewMode as unknown as { renderer?: Partial<PreviewRenderer> } | undefined)?.renderer;
-	if (!renderer || !Array.isArray(renderer.sections)
-		|| typeof renderer.text !== "string" || !(renderer.lastText === null || typeof renderer.lastText === "string")
-		|| !(renderer.rendered === null || Array.isArray(renderer.rendered))
-		|| typeof renderer.parsing !== "boolean" || !renderer.previewEl?.ownerDocument
-		|| typeof renderer.showSection !== "function" || typeof renderer.applyScrollSection !== "function"
-		|| typeof renderer.updateVirtualDisplay !== "function" || typeof renderer.onRendered !== "function"
-		|| renderer.sections.some((section) => !section?.el?.ownerDocument || typeof section.rendered !== "boolean")) return null;
-	return renderer as PreviewRenderer;
+	const r = (view.previewMode as unknown as { renderer?: Partial<PreviewRenderer> } | undefined)?.renderer;
+	if (!r || !Array.isArray(r.sections) || typeof r.text !== "string"
+		|| !(r.lastText === null || typeof r.lastText === "string")
+		|| !(r.rendered === null || Array.isArray(r.rendered)) || typeof r.parsing !== "boolean"
+		|| !r.previewEl?.ownerDocument?.defaultView || typeof r.showSection !== "function"
+		|| typeof r.applyScrollSection !== "function" || typeof r.updateVirtualDisplay !== "function"
+		|| typeof r.onRendered !== "function") return null;
+	return r as PreviewRenderer;
 }
 
 export interface ReadingResult {
@@ -57,225 +61,296 @@ export interface ReadingResult {
 	index: number;
 	pending: boolean;
 	unsupported: boolean;
+	error?: "failed" | "timeout";
 }
 
 export class ReadingSearch {
 	private disposed = false;
-	private generation = 0;
 	private dirty = true;
 	private renderer: PreviewRenderer | null = null;
 	private file: TFile | null = null;
 	private sections: PreviewSection[] | null = null;
 	private source: string | null = null;
 	private textIndex: ReadingTextIndex | null = null;
-	private observers: MutationObserver[] = [];
+	private observer: MutationObserver | null = null;
+	private watchedRenderer: PreviewRenderer | null = null;
+	private watchedSections: PreviewSection[] | null = null;
 	private timer: number | null = null;
+	private waitTimer: number | null = null;
 	private doc: Document | null = null;
-	private results: { match: MatchOffset; ranges: Range[]; section: PreviewSection }[] = [];
+	private results: ReadingMatch[] = [];
 	private queryKey = "";
 	private nodeSections = new WeakMap<Node, PreviewSection>();
+	private sectionElements = new Set<Node>();
+	private sectionEndpoints = new Map<PreviewSection, { endpoint: ReadingEndpoint; index: number }[]>();
+	private request: Request | null = null;
+	private currentIndex = 0;
+	private paintScheduled = false;
+	private lifecycle = 0;
 
-	constructor(private view: MarkdownView, private isOpen: () => boolean, private changed: () => void) {}
+	constructor(private view: MarkdownView, private isOpen: () => boolean, private changed: () => void,
+		private waitTimeoutMs = 5000) {}
 
 	static supported(view: MarkdownView): boolean {
-		const renderer = rendererFor(view);
-		const win = renderer && highlightWindow(renderer.previewEl.ownerDocument);
-		return !!renderer && !!win?.CSS?.highlights && typeof win.Highlight === "function";
+		try {
+			const r = rendererFor(view);
+			const win = r && highlightWindow(r.previewEl.ownerDocument);
+			return !!r && !!win?.CSS?.highlights && typeof win.Highlight === "function"
+				&& r.sections.every((s) => !!s?.el?.ownerDocument && typeof s.rendered === "boolean");
+		} catch { return false; }
 	}
 
-	private current(renderer: PreviewRenderer, file: TFile | null) {
-		return !this.disposed && this.isOpen() && this.view.getMode() === "preview"
-			&& this.view.file === file && rendererFor(this.view) === renderer;
+	private current(request: Request) {
+		return this.request === request && !this.disposed && this.isOpen() && this.view.getMode() === "preview"
+			&& this.view.file === request.file && rendererFor(this.view) === request.renderer;
+	}
+	private ready(r: PreviewRenderer) {
+		return r.text === r.lastText && !r.parsing && r.rendered === null
+			&& (typeof this.view.getViewData !== "function" || this.view.getViewData() === r.text)
+			&& r.sections.every((s) => s.rendered);
 	}
 
-	private ready(renderer: PreviewRenderer) {
-		return renderer.text === renderer.lastText && !renderer.parsing && renderer.rendered === null
-			&& (typeof this.view.getViewData !== "function" || this.view.getViewData() === renderer.text)
-			&& renderer.sections.every((section) => section.rendered);
+	/** Background refreshes of the same query may replace the listener, but not
+	 * an outstanding user scroll/index. A new query, file or owner cancels it. */
+	search(text: string, options: SearchOptions, index: number, scroll: boolean,
+		done: (result: ReadingResult) => void, direction = 0) {
+		try {
+			const r = rendererFor(this.view);
+			if (this.disposed || !this.isOpen() || this.view.getMode() !== "preview") {
+				this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return;
+			}
+			if (!r || !ReadingSearch.supported(this.view)) {
+				this.clear(); done({ matches: [], index: 0, pending: false, unsupported: true }); return;
+			}
+			if (!text) { this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return; }
+			const key = JSON.stringify([text, options.regexMode, options.caseSensitive]);
+			let request = this.request;
+			if (!request || request.key !== key || request.renderer !== r || request.file !== this.view.file) {
+				this.cancelWait();
+				request = { renderer: r, file: this.view.file, key, text, options: { ...options }, index, scroll, direction,
+					deadline: Date.now() + this.waitTimeoutMs, waiting: false, registered: false, done };
+				this.request = request;
+			} else {
+				request.done = done;
+				if (!request.waiting || scroll) { request.index = index; request.scroll = scroll; request.direction = direction; }
+				if (!request.waiting) request.deadline = Date.now() + this.waitTimeoutMs;
+			}
+			this.run(request);
+		} catch { this.fail("failed", done); }
 	}
 
-	search(text: string, options: SearchOptions, index: number, scroll: boolean, done: (result: ReadingResult) => void) {
-		const generation = ++this.generation;
-		const renderer = rendererFor(this.view);
-		const file = this.view.file;
-		if (!renderer || !ReadingSearch.supported(this.view) || !this.current(renderer, file)) {
-			this.clear();
-			done({ matches: [], index: 0, pending: false, unsupported: !!this.isOpen() && this.view.getMode() === "preview" });
-			return;
-		}
-		if (!text) { this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return; }
-		const run = () => {
-			if (generation !== this.generation || !this.current(renderer, file)) return;
-			if (!this.ready(renderer)) {
-				// A newer render pass will notify us through section/root mutations.
-				done({ matches: [], index: 0, pending: true, unsupported: false });
+	private run(request: Request) {
+		try {
+			if (!this.current(request)) {
+				if (this.request === request) this.clear();
 				return;
 			}
-			const key = JSON.stringify([text, options.regexMode, options.caseSensitive]);
-			if (this.observers.some((observer) => observer.takeRecords().some((record) => this.contentMutation(record)))) this.dirty = true;
-			const newDocument = this.file !== file || this.renderer !== renderer;
-			if (this.dirty || newDocument || this.sections !== renderer.sections || this.source !== renderer.lastText
-				|| this.doc !== renderer.previewEl.ownerDocument) {
+			const r = request.renderer;
+			this.watch(r);
+			if (!this.ready(r)) {
 				this.removeHighlights();
-				this.renderer = renderer;
-				this.file = file;
-				this.sections = renderer.sections;
-				this.source = renderer.lastText;
-				const roots = renderer.sections.filter((section) => section !== renderer.header && section !== renderer.footer
-					&& !section.el.matches(".mod-header, .mod-footer")).map((section) => section.el);
+				this.dirty = true;
+				request.waiting = true;
+				if (Date.now() >= request.deadline) { this.fail("timeout", request.done); return; }
+				request.done({ matches: [], index: request.index, pending: true, unsupported: false });
+				if (!request.registered) {
+					request.registered = true;
+					// The renderer clears its pending flag after invoking callbacks.
+					r.onRendered(() => { void Promise.resolve().then(() => this.run(request)); });
+				}
+				if (this.waitTimer === null) this.waitTimer = this.doc!.defaultView!.setTimeout(() => {
+					this.waitTimer = null; this.run(request);
+				}, Math.min(100, Math.max(1, request.deadline - Date.now())));
+				return;
+			}
+			this.cancelWait();
+			request.waiting = false;
+			request.registered = false;
+			if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) this.dirty = true;
+			const newDocument = this.file !== request.file || this.renderer !== r;
+			if (this.dirty || newDocument || this.sections !== r.sections || this.source !== r.lastText) {
+				this.renderer = r; this.file = request.file; this.sections = r.sections; this.source = r.lastText;
+				const roots = r.sections.filter((s) => s !== r.header && s !== r.footer
+					&& !s.el.matches(".mod-header, .mod-footer")).map((s) => s.el);
 				this.textIndex = indexReadingText(roots);
-				const rootSections = new Map(renderer.sections.map((section) => [section.el, section]));
+				const rootSections = new Map(r.sections.map((s) => [s.el, s]));
 				this.nodeSections = new WeakMap();
 				for (const span of this.textIndex.spans) {
 					let el = span.node.parentElement;
 					while (el && !rootSections.has(el)) el = el.parentElement;
 					if (el) this.nodeSections.set(span.node, rootSections.get(el)!);
 				}
-				this.watch(renderer, roots);
-				this.dirty = false;
-				this.queryKey = "";
+				this.dirty = false; this.queryKey = "";
 			}
-			if (newDocument) index = 0;
-			if (key !== this.queryKey) {
-				const textIndex = this.textIndex!;
-				this.results = findTextOffsets(textIndex.text, text, options.regexMode, options.caseSensitive)
+			if (request.key !== this.queryKey) {
+				this.results = findTextOffsets(this.textIndex!.text, request.text, request.options.regexMode, request.options.caseSensitive)
 					.map((match) => {
-						const ranges = readingMatchRanges(textIndex, match.from, match.to);
-						const section = ranges[0] && this.nodeSections.get(ranges[0].startContainer);
-						return section ? { match, ranges, section } : null;
-					}).filter((result): result is NonNullable<typeof result> => result !== null);
-				this.queryKey = key;
+						const endpoints = readingMatchEndpoints(this.textIndex!, match.from, match.to);
+						const sections = [...new Set(endpoints.map(({ node }) => this.nodeSections.get(node)).filter((s): s is PreviewSection => !!s))];
+						return sections.length ? { match, endpoints, sections } : null;
+					}).filter((result): result is ReadingMatch => result !== null);
+				this.queryKey = request.key;
+				this.sectionEndpoints.clear();
+				this.results.forEach((result, index) => {
+					for (const endpoint of result.endpoints) {
+						const section = this.nodeSections.get(endpoint.node)!;
+						let entries = this.sectionEndpoints.get(section);
+						if (!entries) { entries = []; this.sectionEndpoints.set(section, entries); }
+						entries.push({ endpoint, index });
+					}
+				});
 			}
+			let index = newDocument ? 0 : request.index;
 			index = index >= 0 && index < this.results.length ? index : 0;
-			this.paint(index);
-			if (scroll) this.scroll(index);
-			done({ matches: this.results.map(({ match }, i) => ({ ...match, index: i })), index, pending: false, unsupported: false });
-		};
-		if (this.ready(renderer)) run();
-		else {
-			this.removeHighlights();
-			this.dirty = true;
-			this.renderer = renderer;
-			this.watch(renderer, renderer.sections.map((section) => section.el));
-			done({ matches: [], index: 0, pending: true, unsupported: false });
-			// Obsidian calls render callbacks before clearing its pending-render flag.
-			renderer.onRendered(() => { void Promise.resolve().then(run); });
-		}
+			if (this.results.length && request.direction) index = (index + request.direction + this.results.length) % this.results.length;
+			this.currentIndex = index;
+			if (request.scroll) this.scroll(index, request);
+			if (!this.current(request)) return;
+			// Navigation can move sections. Construct live ranges only after it completes.
+			this.paint();
+			request.index = index; request.scroll = false; request.direction = 0;
+			request.done({ matches: this.results.map(({ match }, i) => ({ ...match, index: i })), index, pending: false, unsupported: false });
+		} catch { if (this.request === request) this.fail("failed", request.done); }
 	}
 
 	private contentMutation(record: MutationRecord): boolean {
 		if (record.type !== "childList") return true;
 		const nodes = [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)];
-		// Moving cached sections in/out of the sizer is virtualization, not a text edit.
-		return !nodes.length || !nodes.every((node) => this.renderer?.sections.some((section) => section.el === node));
+		return !nodes.length || !nodes.every((node) => this.sectionElements.has(node));
 	}
 
-	private watch(renderer: PreviewRenderer, roots: HTMLElement[]) {
-		this.disconnect();
-		const doc = renderer.previewEl.ownerDocument;
-		const win = doc.defaultView!;
-		this.doc = doc;
-		const observe = (root: HTMLElement) => {
-			const observer = new win.MutationObserver((records) => {
-				if (!records.some((record) => this.contentMutation(record))) return;
-				this.dirty = true;
-				this.removeHighlights();
-				if (this.timer === null) this.timer = win.setTimeout(() => {
-					this.timer = null;
-					if (!this.disposed) this.changed();
-				}, 50);
-			});
-			observer.observe(root, { childList: true, subtree: true, characterData: true,
-				attributes: true, attributeFilter: ["class", "hidden", "aria-hidden"] });
-			this.observers.push(observer);
-		};
-		// Detached sections need their own observers; the preview root alone misses them.
-		observe(renderer.previewEl);
-		for (const root of roots) observe(root);
+	private watch(r: PreviewRenderer) {
+		const doc = r.previewEl.ownerDocument;
+		if (this.watchedRenderer === r && this.watchedSections === r.sections && this.doc === doc) return;
+		this.removeHighlights(); this.disconnect(); this.dirty = true;
+		this.doc = doc; this.watchedRenderer = r; this.watchedSections = r.sections;
+		this.sectionElements = new Set(r.sections.map((s) => s.el));
+		// One observer can watch multiple detached roots without duplicate callbacks.
+		this.observer = new doc.defaultView!.MutationObserver((records) => {
+			if (!this.request || !this.current(this.request)) return;
+			if (records.some((record) => this.contentMutation(record))) this.invalidate();
+			else this.schedulePaint();
+		});
+		const config = { childList: true, subtree: true, characterData: true, attributes: true,
+			attributeFilter: ["class", "style", "hidden", "aria-hidden", "open"] };
+		this.observer.observe(r.previewEl, config);
+		for (const s of r.sections) this.observer.observe(s.el, config);
 	}
 
-	private paint(index: number) {
-		const doc = this.renderer?.previewEl.ownerDocument;
-		if (!doc) return;
-		if (this.doc && this.doc !== doc) this.removeHighlights();
-		this.doc = doc;
-		let owners = documents.get(doc);
-		if (!owners) { owners = new Map(); documents.set(doc, owners); }
-		owners.set(this, { all: this.results.flatMap(({ ranges }) => ranges), current: this.results[index]?.ranges ?? [] });
-		this.updateRegistry(doc);
+	invalidate() {
+		if (!this.request || this.disposed) return;
+		this.dirty = true; this.removeHighlights();
+		if (this.timer === null) this.timer = this.doc!.defaultView!.setTimeout(() => {
+			this.timer = null;
+			if (this.request && this.current(this.request)) this.changed();
+		}, 50);
+	}
+	private schedulePaint() {
+		if (this.paintScheduled || this.dirty || this.request?.waiting) return;
+		this.paintScheduled = true;
+		const lifecycle = this.lifecycle;
+		void Promise.resolve().then(() => {
+			if (lifecycle !== this.lifecycle) return;
+			this.paintScheduled = false;
+			try { if (this.request && this.current(this.request) && !this.dirty) this.paint(); }
+			catch { if (this.request) this.fail("failed", this.request.done); }
+		});
 	}
 
+	private paint() {
+		const r = this.renderer;
+		if (!r || !this.doc) return;
+		const all: Range[] = [];
+		const current: Range[] = [];
+		for (const section of r.sections) {
+			if (!r.previewEl.contains(section.el)) continue;
+			for (const { endpoint, index } of this.sectionEndpoints.get(section) ?? []) {
+				if (!section.el.contains(endpoint.node)) continue;
+				const range = endpointRange(endpoint);
+				all.push(range); if (index === this.currentIndex) current.push(range);
+			}
+		}
+		let owners = documents.get(this.doc);
+		if (!owners) { owners = new Map(); documents.set(this.doc, owners); }
+		owners.set(this, { all, current });
+		this.updateRegistry(this.doc);
+	}
 	private updateRegistry(doc: Document) {
 		const win = highlightWindow(doc);
 		if (!win?.CSS?.highlights || !win.Highlight) return;
 		const owners = documents.get(doc);
-		if (!owners?.size) {
-			win.CSS.highlights.delete(ALL);
-			win.CSS.highlights.delete(CURRENT);
-			return;
-		}
-		const all = new win.Highlight();
-		const current = new win.Highlight();
-		// Avoid spreading arbitrarily many ranges as constructor arguments.
+		if (!owners?.size) { win.CSS.highlights.delete(ALL); win.CSS.highlights.delete(CURRENT); return; }
+		const all = new win.Highlight(); const current = new win.Highlight();
 		owners.forEach((entry) => {
-			entry.all.forEach((range) => all.add(range));
-			entry.current.forEach((range) => current.add(range));
+			entry.all.forEach((range) => all.add(range)); entry.current.forEach((range) => current.add(range));
 		});
-		all.priority = 0;
-		current.priority = 1;
-		win.CSS.highlights.set(ALL, all);
-		win.CSS.highlights.set(CURRENT, current);
+		all.priority = 0; current.priority = 1;
+		win.CSS.highlights.set(ALL, all); win.CSS.highlights.set(CURRENT, current);
 	}
 
-	private scroll(index: number) {
+	private scroll(index: number, request: Request) {
 		const result = this.results[index];
-		const renderer = this.renderer;
-		if (!result || !renderer || !this.current(renderer, this.file)) return;
-		renderer.showSection(result.section);
-		if (!renderer.previewEl.contains(result.section.el)) {
-			renderer.applyScrollSection(result.section);
-			renderer.updateVirtualDisplay();
+		if (!result) return;
+		const r = request.renderer;
+		for (const section of result.sections) {
+			r.showSection(section);
+			if (!this.current(request)) return;
 		}
-		const first = result.ranges[0];
-		const target = first.startContainer.parentElement;
-		// Expand only folded ancestors of the target, not the entire document.
-		for (let el = target; el && el !== renderer.previewEl; el = el.parentElement) {
+		const section = result.sections[0];
+		if (!r.previewEl.contains(section.el)) {
+			if (!r.applyScrollSection(section)) throw new Error("Reading section could not be located");
+			if (!this.current(request)) return;
+			r.updateVirtualDisplay();
+		}
+		if (!this.current(request)) return;
+		const endpoint = result.endpoints[0];
+		const target = endpoint.node.parentElement;
+		for (let el = target; el && el !== r.previewEl; el = el.parentElement) {
 			if (el.matches("li.is-collapsed, .callout.is-collapsed, details:not([open])")) {
 				if (el.tagName === "DETAILS") el.setAttribute("open", "");
 				else el.querySelector<HTMLElement>(":scope > .list-collapse-indicator, :scope > .callout-title")?.click();
 			}
 		}
-		if (!renderer.previewEl.contains(first.startContainer)) return;
-		const rect = typeof first.getBoundingClientRect === "function" ? first.getBoundingClientRect() : null;
-		const parentRect = renderer.previewEl.getBoundingClientRect();
+		if (!this.current(request)) return;
+		if (!r.previewEl.contains(endpoint.node)) throw new Error("Reading target is not mounted");
+		const range = endpointRange(endpoint);
+		const rect = typeof range.getBoundingClientRect === "function" ? range.getBoundingClientRect() : null;
 		if (rect && rect.height > 0) {
-			renderer.previewEl.scrollTop += rect.top - parentRect.top - (renderer.previewEl.clientHeight - rect.height) / 2;
+			r.previewEl.scrollTop += rect.top - r.previewEl.getBoundingClientRect().top - (r.previewEl.clientHeight - rect.height) / 2;
 		} else target?.scrollIntoView?.({ block: "center", inline: "nearest", behavior: "auto" });
-		renderer.updateVirtualDisplay();
+		r.updateVirtualDisplay();
 	}
 
+	private fail(error: "failed" | "timeout", done: (result: ReadingResult) => void) {
+		this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false, error });
+	}
 	private removeHighlights() {
 		if (!this.doc) return;
 		documents.get(this.doc)?.delete(this);
-		this.updateRegistry(this.doc);
+		try { this.updateRegistry(this.doc); }
+		catch {
+			// A broken registry must not prevent observer/timer cleanup.
+			try { const registry = highlightWindow(this.doc)?.CSS?.highlights;
+				registry?.delete(ALL); registry?.delete(CURRENT); } catch { /* unavailable host */ }
+		}
+	}
+	private cancelWait() {
+		if (this.waitTimer !== null) this.doc?.defaultView?.clearTimeout(this.waitTimer);
+		this.waitTimer = null;
 	}
 	private disconnect() {
-		this.observers.forEach((observer) => observer.disconnect());
-		this.observers = [];
+		this.observer?.disconnect(); this.observer = null;
 		if (this.timer !== null) this.doc?.defaultView?.clearTimeout(this.timer);
-		this.timer = null;
+		this.timer = null; this.cancelWait();
+		this.watchedRenderer = null; this.watchedSections = null;
 	}
 	clear() {
-		this.generation++;
-		this.removeHighlights();
-		this.disconnect();
-		this.dirty = true;
-		this.results = [];
-		this.queryKey = "";
-		this.textIndex = null;
-		this.nodeSections = new WeakMap();
-		this.sections = null;
-		this.source = null;
+		this.lifecycle++; this.request = null; this.paintScheduled = false;
+		this.removeHighlights(); this.disconnect(); this.dirty = true;
+		this.results = []; this.queryKey = ""; this.textIndex = null;
+		this.sectionEndpoints.clear();
+		this.nodeSections = new WeakMap(); this.sectionElements.clear();
+		this.sections = null; this.source = null; this.renderer = null; this.file = null;
 	}
-	destroy() { this.clear(); this.disposed = true; this.renderer = null; this.sections = null; this.doc = null; }
+	destroy() { this.clear(); this.disposed = true; this.doc = null; }
 }

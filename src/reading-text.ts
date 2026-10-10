@@ -12,6 +12,13 @@ export interface ReadingTextIndex {
 	spans: TextSpan[];
 }
 
+/** Stable numeric endpoints; unlike live DOM Ranges these survive node moves. */
+export interface ReadingEndpoint {
+	node: Text;
+	start: number;
+	end: number;
+}
+
 const excluded = [
 	"script", "style", "noscript", "template", "svg", "canvas", "iframe",
 	"input", "textarea", "button", "select", "mjx-container",
@@ -35,13 +42,16 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 	const spans: TextSpan[] = [];
 	let length = 0;
 	let last = "";
+	let pendingSpace: ReadingEndpoint | null = null;
 	const separator = (value: string) => {
+		pendingSpace = null;
 		if (!length || last === "\n" || last === value) return;
 		pieces.push(value);
 		length += value.length;
 		last = value;
 	};
 	const lineBreak = () => {
+		pendingSpace = null;
 		pieces.push("\n");
 		length++;
 		last = "\n";
@@ -73,16 +83,24 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 			while ((chunk = chunks.exec(text))) {
 				const value = chunk[0];
 				if (/^[\t\n\r\f ]/.test(value)) {
-					if (length && last !== " " && last !== "\n" && last !== "\t") {
-						append(textNode, chunk.index, chunk.index + value.length, " ");
+					if (!pendingSpace) pendingSpace = { node: textNode, start: chunk.index, end: chunk.index + value.length };
+				} else {
+					if (pendingSpace && length && last !== " " && last !== "\n" && last !== "\t") {
+						append(pendingSpace.node, pendingSpace.start, pendingSpace.end, " ");
 					}
-				} else append(textNode, chunk.index, chunk.index + value.length, value);
+					pendingSpace = null;
+					append(textNode, chunk.index, chunk.index + value.length, value);
+				}
 			}
 			return;
 		}
 		if (node.nodeType !== 1) return;
 		const el = node as HTMLElement;
-		if (el.matches(excluded)) {
+		const style = el.ownerDocument.defaultView?.getComputedStyle(el);
+		const foldBody = el.matches("li.is-collapsed > ul, li.is-collapsed > ol, .callout.is-collapsed > .callout-content");
+		const cssHidden = style && ((style.display === "none" && !foldBody)
+			|| style.visibility === "hidden" || style.visibility === "collapse");
+		if (el.matches(excluded) || cssHidden) {
 			if (blocks.has(el.tagName) || el.matches(".internal-embed, .markdown-embed, mjx-container, .math, svg, canvas, iframe")) separator("\n");
 			return;
 		}
@@ -91,10 +109,16 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 		const block = blocks.has(tag);
 		const cell = tag === "TD" || tag === "TH";
 		if (block) separator("\n");
-		if (cell) separator("\t");
+		if (cell) {
+			pendingSpace = null;
+			// Exactly one tab per cell boundary, including consecutive empty cells.
+			if (el.previousElementSibling?.matches("td, th")) {
+				pieces.push("\t"); length++; last = "\t";
+			}
+		}
 		for (const child of Array.from(el.childNodes)) visit(child, preformatted || tag === "PRE");
 		if (block) separator("\n");
-		if (cell) separator("\t");
+		if (cell) pendingSpace = null;
 	};
 	for (const root of roots) {
 		visit(root, false);
@@ -104,9 +128,9 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 }
 
 /** Separate ranges avoid painting excluded content between accepted nodes. */
-export function readingMatchRanges(index: ReadingTextIndex, from: number, to: number): Range[] {
-	const ranges: Range[] = [];
-	if (from < 0 || from >= to || to > index.text.length) return ranges;
+export function readingMatchEndpoints(index: ReadingTextIndex, from: number, to: number): ReadingEndpoint[] {
+	const endpoints: ReadingEndpoint[] = [];
+	if (from < 0 || from >= to || to > index.text.length) return endpoints;
 	// Binary search the first intersecting span.
 	let low = 0;
 	let high = index.spans.length;
@@ -122,10 +146,18 @@ export function readingMatchRanges(index: ReadingTextIndex, from: number, to: nu
 		const start = direct ? span.start + Math.max(0, from - span.from) : span.start;
 		const end = direct ? span.start + Math.min(span.to, to) - span.from : span.end;
 		if (end > span.node.length || start >= end) continue;
-		const range = span.node.ownerDocument.createRange();
-		range.setStart(span.node, start);
-		range.setEnd(span.node, end);
-		ranges.push(range);
+		endpoints.push({ node: span.node, start, end });
 	}
-	return ranges;
+	return endpoints;
+}
+
+export function endpointRange(endpoint: ReadingEndpoint): Range {
+	const range = endpoint.node.ownerDocument.createRange();
+	range.setStart(endpoint.node, endpoint.start);
+	range.setEnd(endpoint.node, endpoint.end);
+	return range;
+}
+
+export function readingMatchRanges(index: ReadingTextIndex, from: number, to: number): Range[] {
+	return readingMatchEndpoints(index, from, to).map(endpointRange);
 }
