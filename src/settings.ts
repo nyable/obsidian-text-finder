@@ -18,7 +18,7 @@ export interface PluginSettings {
 export function defaultSettings(): PluginSettings {
 	return {
 		clearAfterHidden: false, enableInputHotkeys: true, sourceModeWhenSearch: true,
-		moveCursorToMatch: true, useSelectionAsSearch: true, useObsidianSearchInRead: true,
+		moveCursorToMatch: true, useSelectionAsSearch: true, useObsidianSearchInRead: false,
 		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
 	};

@@ -3,6 +3,8 @@
     "name": "Text Finder"
   },
   "search": {
+	"ReadingPending": "正在等待阅读正文渲染…",
+	"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
     "tip": {
       "NoResults": "无结果",
       "HasResults": "第{{current}}项，共{{total}}项",
@@ -73,7 +75,7 @@
     },
     "UseObsidianSearchInRead": {
       "name": "阅读模式下使用Obsidian搜索",
-      "desc": "在阅读模式下，使用命令 \"{{name}}\" 将会调用Obsidian原生的搜索功能(插件提供的搜索与替换仅适用于编辑模式)"
+      "desc": "开启后，阅读模式的“打开查找”命令使用 Obsidian 原生查找。关闭后使用插件查找，支持大小写和正则；不兼容的环境会提示并回退原生查找。已有设置会保留。"
     },
     "UseEscapeCharInReplace": {
       "name": "支持替换输入框中使用转义字符",
@@ -114,6 +116,6 @@
     "LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
     "SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
     "CopyFailed": "Text Finder 无法复制历史文本，使用次数未更新。",
-    "ReuseFailed": "请先打开可编辑的 Markdown 视图，再复用搜索历史。"
+    "ReuseFailed": "请先打开支持查找的 Markdown 编辑或阅读视图，再复用搜索历史。"
   }
 }

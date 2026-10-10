@@ -24,6 +24,12 @@
 	export let ownerView: MarkdownView;
 	let matchedContext: EditorContext | null = null;
 	let matchedQuery = "";
+	let readingMode = false;
+	let readingPending = false;
+	let readingUnsupported = false;
+	let readingRequest = 0;
+	let searchMode = "source";
+	const isReading = () => ownerView.getMode?.() === "preview";
 
 	const cache: SearchCache = {
 		search: "",
@@ -56,7 +62,7 @@
 		}
 	};
 
-	$: isCollapsed = cache.collapse;
+	$: isCollapsed = readingMode || cache.collapse;
 	$: finderTabIndex = cache.collapse ? 0 : 1;
 	$: commonTabIndex = cache.collapse ? 0 : 2;
 	$: replacerTabIndex = cache.collapse ? -1 : 1;
@@ -83,6 +89,9 @@
 				historyIndexOverride !== undefined ? historyIndexOverride : -1;
 			tempInput = "";
 		} else {
+			readingRequest++;
+			readingPending = false;
+			editorSearch.clearReadingSearch?.(ownerView);
 			cache.collapse = true;
 			if (settings.clearAfterHidden) {
 				resetMatches(true, true);
@@ -95,7 +104,7 @@
 	// Set visible from history selection
 	// This function finds the position of the selected item in the sorted history
 	export function setVisibleFromHistory(searchText: string) {
-		if (!getEditorContext()) return false;
+		if (isReading() ? !editorSearch.canSearchReading(ownerView) : !getEditorContext()) return false;
 		const sortedHistory = getSortedHistory();
 		const index = sortedHistory.findIndex(
 			(item) => item.text === searchText,
@@ -109,10 +118,12 @@
 	}
 
 	export function setCollapse(flag: boolean) {
-		cache.collapse = flag;
+		cache.collapse = isReading() ? true : flag;
 	}
 
 	export function resetAll() {
+		readingRequest++;
+		editorSearch.clearReadingSearch?.(ownerView);
 		currentSearch = "";
 		lastRecordedSearch = null;
 		cache.search = "";
@@ -187,7 +198,7 @@
 
 	export const getEditorContext = () => {
 		const context = editorSearch.getEditorContext(ownerView);
-		if (!context) {
+		if (!context && !isReading()) {
 			cache.matches = [];
 			cache.index = 0;
 			matchedContext = null;
@@ -240,6 +251,32 @@
 		if (currentSearch !== text) lastRecordedSearch = null;
 		currentSearch = text;
 		cache.search = text;
+		readingMode = isReading();
+		const mode = readingMode ? "preview" : "source";
+		if (searchMode !== mode) { cache.matches = []; cache.index = 0; matchedContext = null; searchMode = mode; }
+		readingUnsupported = false;
+		if (readingMode) {
+			if (!cache.visible) {
+				readingRequest++;
+				editorSearch.clearReadingSearch?.(ownerView);
+				cache.matches = [];
+				cache.index = 0;
+				readingPending = false;
+				return;
+			}
+			const request = ++readingRequest;
+			editorSearch.getReadingSearch(ownerView).search(text, cache.options, cache.index, scroll, (result) => {
+				if (request !== readingRequest || !cache.visible || !isReading()) return;
+				cache.matches = result.matches;
+				cache.index = result.index;
+				readingPending = result.pending;
+				readingUnsupported = result.unsupported;
+			});
+			return;
+		}
+		readingRequest++;
+		readingPending = false;
+		editorSearch.clearReadingSearch?.(ownerView);
 		if (activeEditor && isCurrentContext(activeEditor)) {
 			const { editor } = activeEditor;
 
@@ -272,6 +309,16 @@
 	};
 
 	const navigateMatch = (direction: number) => {
+		if (isReading()) {
+			setFindText(cache.search, false);
+			if (!readingPending && !readingUnsupported) {
+				const size = cache.matches.length;
+				cache.index = size ? (cache.index + direction + size) % size : 0;
+				setFindText(cache.search, true);
+				if (cache.search) recordSearchToHistory(cache.search);
+			}
+			return;
+		}
 		const context = getEditorContext();
 		if (!context) return;
 		if (matchedContext?.doc !== context.doc || matchedContext.file !== context.file
@@ -291,6 +338,7 @@
 	export const toPreviousMatch = () => navigateMatch(-1);
 
 	export const scrollToMatch = (activeEditor = getEditorContext()) => {
+		if (isReading()) { setFindText(cache.search, true); return; }
 		if (activeEditor && isCurrentContext(activeEditor)) {
 			if (matchedContext?.doc !== activeEditor.doc || matchedQuery !== queryKey()
 				|| matchedContext.file !== activeEditor.file || matchedContext.editorView !== activeEditor.editorView) {
@@ -332,6 +380,8 @@
 	};
 
 	export const resetMatches = (clearSearch = false, clearReplace = false) => {
+		readingRequest++;
+		editorSearch.clearReadingSearch?.(ownerView);
 		cache.matches = [];
 		cache.index = 0;
 		if (clearSearch) {
@@ -354,6 +404,7 @@
 	};
 
 	const prepareReplacement = (inputText: string) => {
+		if (isReading()) return null;
 		const activeEditor = getEditorContext();
 		if (!activeEditor) {
 			cache.matches = [];
@@ -523,6 +574,10 @@
 		if (cache.visible) {
 			setFindText(search, scroll);
 		} else {
+			readingRequest++;
+			readingMode = isReading();
+			readingPending = false;
+			editorSearch.clearReadingSearch?.(ownerView);
 			cache.matches = [];
 			cache.index = 0;
 			matchedContext = null;
@@ -538,6 +593,7 @@
 >
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
 	<div class="nya-dragger"></div>
+	{#if !readingMode}
 	<div
 		class={`nya-toggle nya-focus`}
 		on:click={toggleCollapse}
@@ -552,6 +608,7 @@
 			<ChevronDown size={iconSize} />
 		{/if}
 	</div>
+	{/if}
 	<div class="main-part">
 		<div class="finder">
 			<textarea
@@ -572,7 +629,9 @@
 			{#if isMobile}
 				<div class="nya-float-act">
 					<div class="nya-float-tip">
-						{#if cache.matches.length > 0}
+						{#if readingPending || readingUnsupported}
+							<div>{i18n.t(readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+						{:else if cache.matches.length > 0}
 							<div>
 								{i18n.t("search.tip.HasResults", {
 									current: cache.index + 1,
@@ -598,7 +657,9 @@
 				</div>
 			{:else}
 				<div class="nya-tip">
-					{#if cache.matches.length > 0}
+					{#if readingPending || readingUnsupported}
+						<div>{i18n.t(readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
+					{:else if cache.matches.length > 0}
 						<div>
 							{i18n.t("search.tip.HasResults", {
 								current: cache.index + 1,

@@ -17,10 +17,12 @@ body {
 	color: var(--nya-match-curColor);
 }
 
-.workspace-leaf-content[data-mode="preview"] {
-	.nya-finder {
-		visibility: hidden;
-		user-select: none;
-		pointer-events: none;
-	}
+::highlight(nya-reading-matches) {
+	background-color: var(--nya-match-bgColor);
+	color: var(--nya-match-color);
+}
+
+::highlight(nya-reading-current) {
+	background-color: var(--nya-match-curbgColor);
+	color: var(--nya-match-curColor);
 }

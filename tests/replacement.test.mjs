@@ -263,6 +263,7 @@ for (const commandId of ["text-finder-replace", "text-finder-replace-all"]) {
 			"./i18n": { i18n: { t: (key) => key } },
 			"./util/common-helper": {},
 			"./HistoryModal": {},
+			"./reading-search": {},
 		});
 		const editorSearch = new EditorSearch(h.plugin);
 		editorSearch.getCommandFinder = () => h.finder;

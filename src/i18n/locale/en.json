@@ -3,6 +3,8 @@
     "name": "Text Finder"
   },
   "search": {
+	"ReadingPending": "Waiting for reading text to render…",
+	"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
     "tip": {
       "NoResults": "No results",
       "HasResults": "{{current}} of {{total}}",
@@ -73,7 +75,7 @@
     },
     "UseObsidianSearchInRead": {
       "name": "Using Obsidian's native search in reading",
-      "desc": "In reading mode, using the command  \"{{name}}\"  will invoke Obsidian's native search function(The search and replace provided by the plugin are only applicable to editing mode)"
+      "desc": "When enabled, Open search uses Obsidian's native find in reading mode. Disable for plugin search with match case and regex; unsupported environments are notified and fall back to native find. Existing preferences are preserved."
     },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
@@ -114,6 +116,6 @@
     "LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
     "SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
     "CopyFailed": "Text Finder could not copy the history text. Usage was not updated.",
-    "ReuseFailed": "Open an editable Markdown view before reusing search history."
+    "ReuseFailed": "Open a supported Markdown editing or reading view before reusing search history."
   }
 }

@@ -1,7 +1,7 @@
 {
 	"name": "obsidian-text-finder",
 	"version": "0.4.0",
-	"description": "Provides a find/replace window in edit mode similar to VSCode (supports regular expressions and case sensitivity).",
+	"description": "VSCode-like find/replace in editing mode and rendered-text search in reading mode, with regular expressions and case sensitivity.",
 	"main": "main.js",
 	"packageManager": "pnpm@12.3.4",
 	"engines": {

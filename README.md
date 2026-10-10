@@ -4,13 +4,13 @@
 [中文说明](README-zh_CN.md)
 
 This plugin for Obsidian(https://obsidian.md).  
-Provides a search/replace window similar to VSCode in editing mode.
+Provides a VSCode-like finder: search/replace in editing mode and rendered-text search in reading mode.
 
 **Note:** The Obsidian API is still in early alpha and is subject to change at any time!
 
 ## Feature
 
-Search or replace the text of the current MarkDown file **in editor mode**.
+Search or replace the current Markdown file **in editing mode**, or search its rendered body **in reading mode**.
 
 -   Search/Replace in current file
 -   Highlight matching text
@@ -67,6 +67,17 @@ Do not use npm or Yarn to install dependencies in this repository.
 ## Settings
 
 -   Assign a hotkeys for the plugin's command.
+
+## Reading-mode search
+
+-   Run “Open search in current file” for the same finder, match-case/regex controls, history and match navigation. Reading search is read-only: it does not replace text, write files or switch modes.
+-   **After upgrading, disable “Using Obsidian's native search in reading” to try plugin search.** Existing preferences are preserved; new installations default to plugin search. Enabling it keeps Open/Toggle search on native find.
+-   Searches headings, paragraphs, lists, quotations, callouts, tables, ordinary code blocks and displayed link text. Inline formatting does not interrupt a match: `hello **world**` can match `hello world`. Hidden URLs and Markdown markers are not searched, so editing/reading counts can differ.
+-   Block boundaries and `<br>` become newlines; table cells use tabs. Ordinary HTML whitespace collapses to a space; code blocks preserve whitespace. Visual line wrapping does not add newlines. Matches consisting only of synthetic separators, with no actual body characters, are not counted. Zero-width regex matches remain excluded.
+-   Counts are published only after the complete reading render is ready, including cached sections detached by virtualization. A pending-render message replaces partial counts. Folded text participates; navigation expands the necessary target ancestors without restoring folds afterward.
+-   The initial scope excludes embedded notes, the properties UI, formulas, diagrams, Dataview/DataviewJS results and reading controls. Other third-party dynamic output is not guaranteed. CSS-generated text, images, and Canvas/iframe contents are not searched.
+-   Requires CSS Custom Highlight API support and a shape-checked private Obsidian reading-section bridge (compared with the 1.14.4 implementation; real-app acceptance remains necessary). Unsupported Open/Toggle search reports the limitation and falls back to native find. Older releases and mobile environments have not all been verified.
+-   Reading highlights reuse the `--nya-match-*` color variables. Customize `::highlight(nya-reading-matches)` and `::highlight(nya-reading-current)` for colors; editor class snippets do not automatically apply, and highlight pseudo-elements have limited styling support.
 
 ## Regular expression replacement
 

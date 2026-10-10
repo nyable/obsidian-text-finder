@@ -3,6 +3,12 @@ import test from "node:test";
 import { historySource as h, settingsSource as s } from "./history-source.mjs";
 
 const item = (text, count = 1, createdAt = 10, lastUsedAt = 20) => ({ text, count, createdAt, lastUsedAt });
+
+test("new installations default to reading plugin search while explicit native preferences survive normalization", () => {
+	assert.equal(s.defaultSettings().useObsidianSearchInRead, false);
+	assert.equal(s.normalizeSettings({ useObsidianSearchInRead: true }).settings.useObsidianSearchInRead, true);
+	assert.equal(s.normalizeSettings({ useObsidianSearchInRead: false }).settings.useObsidianSearchInRead, false);
+});
 function controller(overrides = {}) {
 	const settings = { ...s.defaultSettings(), ...overrides };
 	let saves = 0;

@@ -5,6 +5,7 @@ import { CLS, textMatchMarker } from "./search-highlight";
 import {
 	Editor,
 	MarkdownView,
+	Notice,
 	WorkspaceLeaf,
 	type MarkdownFileInfo,
 } from "obsidian";
@@ -12,6 +13,7 @@ import SearchBox from "./SearchBox.svelte";
 import { i18n } from "./i18n";
 import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
+import { ReadingSearch } from "./reading-search";
 
 export { CLS, searchCacheEffect } from "./search-highlight";
 
@@ -32,6 +34,8 @@ export class EditorSearch {
 	// 用来缓存各个窗口的finder，适配在新窗口打开的情况；暂时没对新窗口打开后关闭进行缓存清理，不过问题应该不大。
 	finderCache: Map<string, SearchBox> = new Map();
 	private finderViews: Map<MarkdownView, SearchBox> = new Map();
+	private readingSearches = new Map<MarkdownView, ReadingSearch>();
+	private modeObservers = new Map<MarkdownView, MutationObserver>();
 	private disposed = false;
 
 	constructor(plugin: TextFinderPlugin) {
@@ -87,6 +91,12 @@ export class EditorSearch {
 			this.registerFinderEvent(targetEl, finder);
 			this.finderCache.set(cid, finder);
 			this.finderViews.set(view, finder);
+			const win = targetEl.ownerDocument?.defaultView;
+			if (win) {
+				const observer = new win.MutationObserver(() => finder.matchAgain(false));
+				observer.observe(targetEl, { attributes: true, attributeFilter: ["data-mode"] });
+				this.modeObservers.set(view, observer);
+			}
 			return finder;
 		}
 	}
@@ -105,9 +115,30 @@ export class EditorSearch {
 		return { view, editor, editorView, file: view.file, doc: editorView.state.doc };
 	}
 
+	isViewOpen(view: MarkdownView): boolean {
+		if (this.disposed) return false;
+		let open = false;
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => { if (leaf.view === view) open = true; });
+		return open;
+	}
+
+	canSearchReading(view: MarkdownView) {
+		return this.isViewOpen(view) && view.getMode() === "preview" && ReadingSearch.supported(view);
+	}
+
+	getReadingSearch(view: MarkdownView) {
+		let search = this.readingSearches.get(view);
+		if (!search) {
+			search = new ReadingSearch(view, () => this.isViewOpen(view), () => this.finderViews.get(view)?.matchAgain(false));
+			this.readingSearches.set(view, search);
+		}
+		return search;
+	}
+	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
+
 	private getCommandFinder(editor: Editor, info: MarkdownView | MarkdownFileInfo) {
 		const view = info instanceof MarkdownView ? info : this.findViewForEditor(editor);
-		return view && view.editor === editor ? this.getFinder(view) : null;
+		return view && view.editor === editor && this.getEditorContext(view) ? this.getFinder(view) : null;
 	}
 
 	private findViewForEditor(editor: Editor): MarkdownView | null {
@@ -122,6 +153,10 @@ export class EditorSearch {
 	 */
 	destoryAll() {
 		this.disposed = true;
+		this.readingSearches.forEach((search) => search.destroy());
+		this.readingSearches.clear();
+		this.modeObservers.forEach((observer) => observer.disconnect());
+		this.modeObservers.clear();
 		this.finderCache.forEach((finder) => {
 			finder && finder.$destroy();
 		});
@@ -171,6 +206,41 @@ export class EditorSearch {
 			if (this.disposed) return;
 			this.finderViews.forEach((finder) => finder.matchAgain(false));
 		}));
+		this.plugin.registerEvent(workspace.on("layout-change", () => {
+			if (this.disposed) return;
+			this.finderViews.forEach((finder, view) => {
+				if (this.isViewOpen(view)) finder.matchAgain(false);
+				else {
+					this.readingSearches.get(view)?.destroy();
+					this.readingSearches.delete(view);
+					this.modeObservers.get(view)?.disconnect();
+					this.modeObservers.delete(view);
+					finder.$destroy();
+					this.finderViews.delete(view);
+					this.finderCache.forEach((cached, cid) => { if (cached === finder) this.finderCache.delete(cid); });
+				}
+			});
+		}));
+	}
+
+	private selectionText(view: MarkdownView): string | undefined {
+		if (!this.plugin.settings.useSelectionAsSearch) return undefined;
+		if (view.getMode() === "source") return view.editor.getSelection() || undefined;
+		const root = view.previewMode.containerEl;
+		const selection = root.ownerDocument.defaultView?.getSelection();
+		if (!selection || !selection.rangeCount || !selection.anchorNode || !selection.focusNode
+			|| !root.contains(selection.anchorNode) || !root.contains(selection.focusNode)) return undefined;
+		return selection.toString() || undefined;
+	}
+
+	private showFinder(view: MarkdownView) {
+		const native = this.plugin.settings.useObsidianSearchInRead;
+		if (view.getMode() === "preview" && (native || !this.canSearchReading(view))) {
+			if (!native) new Notice(i18n.t("search.ReadingUnsupported"));
+			view.showSearch();
+			return;
+		}
+		this.getFinder(view).setVisible(true, this.selectionText(view));
 	}
 
 	private registerCommand() {
@@ -183,25 +253,10 @@ export class EditorSearch {
 					plugin.app.workspace.getActiveViewOfType(MarkdownView);
 				if (view) {
 					const mode = view.getMode();
-					const { useObsidianSearchInRead, useSelectionAsSearch } =
-						plugin.settings;
-					const previewCheck =
-						useObsidianSearchInRead && mode === "preview";
+					const previewCheck = mode === "preview";
 					const sourceCheck = mode === "source";
 					if (previewCheck || sourceCheck) {
-						if (!checking) {
-							if (mode === "preview") {
-								view.showSearch();
-							} else if (mode === "source") {
-								const defaultSearchText = useSelectionAsSearch
-									? view.editor.getSelection()
-									: "";
-								this.getFinder(view).setVisible(
-									true,
-									defaultSearchText
-								);
-							}
-						}
+						if (!checking) this.showFinder(view);
 						return true;
 					}
 				}
@@ -225,16 +280,21 @@ export class EditorSearch {
 		plugin.addCommand({
 			id: CMD.HIDE_FIND,
 			name: i18n.t("commands.HideFind.name"),
-			editorCallback: (editor, ctx) => {
-				this.getCommandFinder(editor, ctx)?.setVisible(false);
-			},
+			checkCallback: (checking) => this.finderCommand(checking, (finder) => finder.setVisible(false)),
 		});
 
 		plugin.addCommand({
 			id: CMD.TOGGLE_FIND,
 			name: i18n.t("commands.ToggleFind.name"),
-			editorCallback: (editor, ctx) => {
-				this.getCommandFinder(editor, ctx)?.toggleVisible();
+			checkCallback: (checking) => {
+				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!view || !this.isViewOpen(view)) return false;
+				if (!checking) {
+					const finder = this.finderViews.get(view);
+					if (finder?.isVisible()) finder.setVisible(false);
+					else this.showFinder(view);
+				}
+				return true;
 			},
 		});
 
@@ -249,17 +309,13 @@ export class EditorSearch {
 		plugin.addCommand({
 			id: CMD.PREVIOUS_MATCH,
 			name: i18n.t("commands.PreviousMatch.name"),
-			editorCallback: (editor, ctx) => {
-				this.getCommandFinder(editor, ctx)?.toPreviousMatch();
-			},
+			checkCallback: (checking) => this.finderCommand(checking, (finder) => finder.toPreviousMatch()),
 		});
 
 		plugin.addCommand({
 			id: CMD.NEXT_MATCH,
 			name: i18n.t("commands.NextMatch.name"),
-			editorCallback: (editor, ctx) => {
-				this.getCommandFinder(editor, ctx)?.toNextMatch();
-			},
+			checkCallback: (checking) => this.finderCommand(checking, (finder) => finder.toNextMatch()),
 		});
 		plugin.addCommand({
 			id: CMD.REPLACE,
@@ -286,6 +342,13 @@ export class EditorSearch {
 				new HistoryModal(plugin.app, plugin).open();
 			},
 		});
+	}
+
+	private finderCommand(checking: boolean, action: (finder: SearchBox) => void): boolean {
+		const view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view || !this.isViewOpen(view)) return false;
+		if (!checking) action(this.getFinder(view));
+		return true;
 	}
 }
 

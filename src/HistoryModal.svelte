@@ -37,7 +37,7 @@
 		try {
 			const finder = plugin.editorSearch?.getFinder();
 			if (!finder || !finder.setVisibleFromHistory(item.text)) {
-				throw new Error("No editable Markdown view for history reuse");
+				throw new Error("No searchable Markdown view for history reuse");
 			}
 			modal.close();
 		} catch (error) { plugin.reportError("history.ReuseFailed", error); }

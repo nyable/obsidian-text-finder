@@ -9,6 +9,12 @@ import { compile } from "svelte/compiler";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { attachHistory } from "./history-source.mjs";
+import { loadSource } from "./source-loader.mjs";
+
+const { ReadingSearch } = loadSource("../src/reading-search.ts", {
+	"./reading-text": loadSource("../src/reading-text.ts"),
+	"./util/text-helper": loadSource("../src/util/text-helper.ts"),
+});
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const bundle = await build({
@@ -79,6 +85,98 @@ function mount(t) {
 	scrolls.length = 0;
 	return { component, target, scrolls, specs, plugin, resolve, saves: () => saves };
 }
+
+function mountReading(t) {
+	window.CSS = { highlights: new Map() };
+	window.Highlight = class extends Set { priority = 0; };
+	const target = document.createElement("div");
+	const preview = document.createElement("div");
+	target.append(preview);
+	document.body.append(target);
+	const sections = ["<p>cat <strong>CAT</strong></p>", "<p>tail cat</p>"].map((html) => {
+		const el = document.createElement("div"); el.innerHTML = html;
+		return { el, rendered: true };
+	});
+	preview.append(sections[0].el);
+	const scrolls = [];
+	const renderer = {
+		sections, previewEl: preview, text: "markdown", lastText: "markdown", parsing: false, rendered: null,
+		showSection(section) { scrolls.push(section); },
+		applyScrollSection(section) { this.target = section; return true; },
+		updateVirtualDisplay() { if (this.target) preview.append(this.target.el); },
+		onRendered() {},
+	};
+	const view = { file: { path: "a.md" }, getMode: () => "preview", previewMode: { renderer, containerEl: preview } };
+	const plugin = {
+		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [] },
+		saveSettings: async () => {},
+	};
+	attachHistory(plugin);
+	let component;
+	const search = new ReadingSearch(view, () => true, () => component.matchAgain(false));
+	component = new SearchBox({ target, props: { cid: "reading", ownerView: view, editorSearch: {
+		plugin, getEditorContext: () => null, canSearchReading: () => true,
+		getReadingSearch: () => search, clearReadingSearch: () => search.clear(),
+	} } });
+	t.after(() => { search.destroy(); component.$destroy(); target.remove(); });
+	component.setVisible(true, "cat");
+	scrolls.length = 0;
+	return { component, target, preview, view, sections, plugin, scrolls };
+}
+
+test("reading SearchBox uses the same case/regex controls and navigates detached results", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 3);
+	assert.equal(h.target.querySelector('[aria-label="search.tip.ToggleReplace"]'), null);
+	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.target.querySelector('[aria-label="search.tip.NextMatch"]').click();
+	await tick();
+	assert.equal(h.component.getSearchCache().index, 1);
+	assert.equal(h.scrolls.at(-1), h.sections[1]);
+	assert.equal(h.sections[1].el.isConnected, true);
+	h.component.setFindText("c.t", false);
+	h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]').click();
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.plugin.settings.searchHistory[0].text, "cat");
+});
+
+test("reading history reuse counts once; hidden and replacement actions are safe", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	assert.equal(h.component.setVisibleFromHistory("CAT"), true);
+	h.component.toNextMatch();
+	assert.equal(h.plugin.settings.searchHistory[0].count, 1);
+	const before = h.preview.innerHTML;
+	const matches = h.component.getSearchCache().matches.length;
+	assert.equal(h.component.replaceAllMatchedText("dog").changed, false);
+	assert.equal(h.component.getSearchCache().matches.length, matches);
+	assert.equal(h.preview.innerHTML, before);
+	h.component.setVisible(false);
+	assert.equal(window.CSS.highlights.has("nya-reading-matches"), false);
+});
+
+test("mode changes preserve the reading query/options, discard old results and clear highlights", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
+	h.view.getMode = () => "source";
+	h.component.matchAgain(false);
+	await tick();
+	assert.equal(h.component.getSearchCache().search, "cat");
+	assert.equal(h.component.getSearchCache().options.caseSensitive, true);
+	assert.equal(h.component.getSearchCache().matches.length, 0);
+	assert.equal(window.CSS.highlights.has("nya-reading-matches"), false);
+	h.view.getMode = () => "preview";
+	h.component.matchAgain(false);
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.component.getSearchCache().index, 0);
+	assert.equal(h.scrolls.length, 1, "background mode refresh adds no scroll beyond the case-toggle action");
+});
 
 test("actual SearchBox Enter binding navigates immediately and records exactly once", async (t) => {
 	const h = mount(t);

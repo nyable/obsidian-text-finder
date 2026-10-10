@@ -5,6 +5,10 @@ import { loadSource } from "./source-loader.mjs";
 import { attachHistory } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
+const readingText = loadSource("../src/reading-text.ts");
+const readingSearch = loadSource("../src/reading-search.ts", {
+	"./reading-text": readingText, "./util/text-helper": helper,
+});
 class MarkdownView {}
 const highlightStub = { CLS: { FINDER: "nya-finder" }, searchCacheEffect: { of: (value) => value } };
 
@@ -62,6 +66,7 @@ function environment() {
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": {}, obsidian: { MarkdownView },
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
+		"./reading-search": readingSearch,
 	});
 	const search = new EditorSearch(plugin);
 	const finder = (view) => {
@@ -291,7 +296,7 @@ test("ordinary navigation reuses valid matches rather than running another searc
 	assert.equal(h.fa.getSearchCache().matches, matches);
 });
 
-for (const id of ["text-finder-next-match", "text-finder-previous-match", "text-finder-replace", "text-finder-replace-all"]) {
+for (const id of ["text-finder-replace", "text-finder-replace-all"]) {
 	test(`${id} uses the supplied command editor, not the global active view`, () => {
 		const h = environment();
 		h.activate(h.b);
@@ -300,6 +305,19 @@ for (const id of ["text-finder-next-match", "text-finder-previous-match", "text-
 		h.commands.get(id).editorCallback(h.a.editor, { file: h.a.file });
 		assert.equal(h.b.transactions.length, count);
 		assert.ok(h.a.scrolls.length > 0 || h.a.editor.getValue().includes("dog"));
+	});
+}
+
+for (const id of ["text-finder-next-match", "text-finder-previous-match"]) {
+	test(`${id} resolves the active Markdown owner without creating a Finder during checks`, () => {
+		const h = environment();
+		h.activate(h.b);
+		const command = h.commands.get(id);
+		assert.equal(command.checkCallback(true), true);
+		assert.equal(h.b.scrolls.length, 0);
+		command.checkCallback(false);
+		assert.equal(h.a.scrolls.length, 0);
+		assert.equal(h.b.scrolls.length, 1);
 	});
 }
 
@@ -324,6 +342,7 @@ test("creating a Finder passes its explicit owner even if another view is active
 		} },
 		obsidian: { MarkdownView }, "./i18n": { i18n: { t: (key) => key } },
 		"./util/common-helper": { generateUniqueId: () => "explicit-owner" }, "./HistoryModal": {},
+		"./reading-search": readingSearch,
 	});
 	h.plugin.registerDomEvent = () => {};
 	h.a.containerEl = { querySelector: () => null };
