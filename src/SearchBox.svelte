@@ -17,7 +17,6 @@
 	import { Platform, type MarkdownView } from "obsidian";
 	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
 	import type { TransactionSpec } from "@codemirror/state";
-	import { HistorySortOrder } from "./constants";
 
 	export let editorSearch: EditorSearch;
 	export let cid: string;
@@ -39,100 +38,21 @@
 	};
 
 	// Search History
-	// let searchHistory: string[] = []; // Use plugin.settings.searchHistory instead
 	let historyIndex = -1;
 	// Temporary storage for the current input when navigating history
 	let tempInput = "";
-	// Track the last recorded search term to avoid duplicate count increments
-	let lastRecordedSearch = "";
+	// Track usage separately from bind:value to identify consecutive query cycles.
+	let lastRecordedSearch: string | null = null;
+	let currentSearch = "";
 
 	// Get sorted history based on user preference
-	const getSortedHistory = () => {
-		const searchHistory = editorSearch.plugin.settings.searchHistory;
-		const sortOrder = editorSearch.plugin.settings.historySortOrder;
-		return [...searchHistory].sort((a, b) => {
-			switch (sortOrder) {
-				case HistorySortOrder.CREATED_AT:
-					return b.createdAt - a.createdAt;
-				case HistorySortOrder.COUNT:
-					// Primary sort: by count (descending)
-					const countDiff = (b.count || 0) - (a.count || 0);
-					// Secondary sort: if count is same, sort by lastUsedAt (descending)
-					if (countDiff === 0) {
-						return b.lastUsedAt - a.lastUsedAt;
-					}
-					return countDiff;
-				case HistorySortOrder.LAST_USED_AT:
-				default:
-					return b.lastUsedAt - a.lastUsedAt;
-			}
-		});
-	};
+	const getSortedHistory = () => editorSearch.plugin.history.sorted();
 
-	// Record search to history
-	// If it's the first time for this search term in current session, increment count
-	// Otherwise, only update lastUsedAt
-	const recordSearchToHistory = async (searchText: string) => {
-		const { enableHistory, historyMaxCount } = editorSearch.plugin.settings;
-		if (!enableHistory || !searchText.trim()) {
-			return;
+	// Continuous navigation counts once; explicit history reuse starts a new use.
+	const recordSearchToHistory = (searchText: string, force = false) => {
+		if (editorSearch.plugin.history.record(searchText, force || lastRecordedSearch !== searchText)) {
+			lastRecordedSearch = searchText;
 		}
-
-		const searchHistory = editorSearch.plugin.settings.searchHistory;
-		const trimmedText = searchText.trim();
-
-		// Check if this search term was already recorded in current session
-		const isAlreadyRecorded = lastRecordedSearch === trimmedText;
-
-		// Find existing entry
-		const existingIndex = searchHistory.findIndex(
-			(item) => item.text === trimmedText,
-		);
-
-		if (existingIndex !== -1) {
-			// Update existing entry
-			const existing = searchHistory[existingIndex];
-			searchHistory.splice(existingIndex, 1);
-			searchHistory.push({
-				text: trimmedText,
-				lastUsedAt: Date.now(),
-				createdAt: existing.createdAt || Date.now(),
-				count: isAlreadyRecorded
-					? existing.count
-					: (existing.count || 0) + 1,
-			});
-		} else {
-			// Before adding new entry, check if we need to make room
-			// Remove lowest priority item if we're at capacity
-			if (searchHistory.length >= historyMaxCount) {
-				const sorted = getSortedHistory();
-				if (sorted.length > 0) {
-					// Get the last item (lowest priority) after sorting
-					const itemToRemove = sorted[sorted.length - 1];
-					// Find and remove it from the original array
-					const indexToRemove = searchHistory.findIndex(
-						(item) => item.text === itemToRemove.text,
-					);
-					if (indexToRemove !== -1) {
-						searchHistory.splice(indexToRemove, 1);
-					}
-				}
-			}
-
-			// Add new entry
-			searchHistory.push({
-				text: trimmedText,
-				lastUsedAt: Date.now(),
-				createdAt: Date.now(),
-				count: 1,
-			});
-		}
-
-		// Mark as recorded
-		lastRecordedSearch = trimmedText;
-
-		// Save settings
-		await editorSearch.plugin.saveSettings();
 	};
 
 	$: isCollapsed = cache.collapse;
@@ -155,10 +75,7 @@
 		cache.visible = flag;
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
-			if (searchText) {
-				cache.search = searchText;
-			}
-			setFindText(cache.search);
+			setFindText(searchText !== undefined ? searchText : cache.search);
 			searchEl.select();
 			// Set history index (either provided or reset to -1)
 			historyIndex =
@@ -177,12 +94,17 @@
 	// Set visible from history selection
 	// This function finds the position of the selected item in the sorted history
 	export function setVisibleFromHistory(searchText: string) {
+		if (!getEditorContext()) return false;
 		const sortedHistory = getSortedHistory();
 		const index = sortedHistory.findIndex(
 			(item) => item.text === searchText,
 		);
 		// Set visible with the history index
 		setVisible(true, searchText, index);
+		recordSearchToHistory(searchText, true);
+		// Usage can reorder the list; preserve the selected entry's new position.
+		historyIndex = getSortedHistory().findIndex((item) => item.text === searchText);
+		return true;
 	}
 
 	export function setCollapse(flag: boolean) {
@@ -190,6 +112,8 @@
 	}
 
 	export function resetAll() {
+		currentSearch = "";
+		lastRecordedSearch = null;
 		cache.search = "";
 		cache.replace = "";
 		cache.index = 0;
@@ -308,7 +232,9 @@
 	};
 
 	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext()) => {
-		if (cache.search !== text) lastRecordedSearch = "";
+		// Svelte's bind:value may update cache.search before the input handler.
+		if (currentSearch !== text) lastRecordedSearch = null;
+		currentSearch = text;
 		cache.search = text;
 		if (activeEditor && isCurrentContext(activeEditor)) {
 			const { editor } = activeEditor;
@@ -354,9 +280,7 @@
 		scrollToMatch(context);
 		// Saving is not part of editor navigation and must not delay it.
 		if (cache.search) {
-			void recordSearchToHistory(cache.search).catch((error) => {
-				console.error("Text Finder: failed to save search history", error);
-			});
+			recordSearchToHistory(cache.search);
 		}
 	};
 	export const toNextMatch = () => navigateMatch(1);
@@ -408,6 +332,8 @@
 		cache.index = 0;
 		if (clearSearch) {
 			cache.search = "";
+			currentSearch = "";
+			lastRecordedSearch = null;
 		}
 		emitChange();
 	};
@@ -530,7 +456,7 @@
 			if (lastLineStart === -1 || cursorPosition > lastLineStart) {
 				if (historyIndex === -1) {
 					// VSCode-like behavior: clear search when pressing down at newest position
-					if (cache.search.trim()) {
+					if (cache.search !== "") {
 						e.preventDefault();
 						setFindText("");
 					}

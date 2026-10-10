@@ -8,6 +8,7 @@ import { build } from "esbuild";
 import { compile } from "svelte/compiler";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
+import { attachHistory } from "./history-source.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const bundle = await build({
@@ -65,6 +66,7 @@ function mount(t) {
 		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], moveCursorToMatch: true },
 		saveSettings: () => { saves++; return pending; },
 	};
+	attachHistory(plugin);
 	const component = new SearchBox({ target, props: {
 		cid: "a", ownerView: view,
 		editorSearch: { plugin, getEditorContext: (owner) => {
@@ -105,4 +107,65 @@ test("actual SearchBox navigation buttons use the owner context and update resul
 	await tick();
 	assert.equal(h.component.getSearchCache().index, 0);
 	assert.equal(h.scrolls.length, 2);
+});
+
+test("exact query and whitespace queries are retained in actual input history", async (t) => {
+	const h = mount(t);
+	for (const query of [" cat ", "cat", " \n\t"]) {
+		h.component.setFindText(query, false);
+		h.component.toNextMatch();
+	}
+	assert.deepEqual(h.plugin.settings.searchHistory.map((i) => i.text).sort(), [" cat ", "cat", " \n\t"].sort());
+});
+
+test("A to B to A input cycle increments again even with Svelte bind:value", async (t) => {
+	const h = mount(t);
+	const input = h.target.querySelector("textarea");
+	const navigate = async (query) => {
+		input.value = query;
+		input.dispatchEvent(new window.Event("input", { bubbles: true }));
+		input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+		await tick();
+	};
+	await navigate("cat");
+	await navigate("cat");
+	assert.equal(h.plugin.settings.searchHistory.find((i) => i.text === "cat").count, 1);
+	await navigate("dog");
+	await navigate("cat");
+	assert.equal(h.plugin.settings.searchHistory.find((i) => i.text === "cat").count, 2);
+});
+
+test("successful history reuse counts once and first navigation only updates time", async (t) => {
+	const h = mount(t);
+	h.plugin.history.record("cat");
+	assert.equal(h.component.setVisibleFromHistory("cat"), true);
+	assert.equal(h.plugin.settings.searchHistory[0].count, 2);
+	h.component.toNextMatch();
+	assert.equal(h.plugin.settings.searchHistory[0].count, 2);
+	h.component.setVisibleFromHistory("cat");
+	assert.equal(h.plugin.settings.searchHistory[0].count, 3);
+});
+
+test("programmatic selection query change resets usage cycle", async (t) => {
+	const h = mount(t);
+	h.component.toNextMatch();
+	h.component.setVisible(true, "dog");
+	h.component.toNextMatch();
+	h.component.setVisible(true, "cat");
+	h.component.toNextMatch();
+	assert.equal(h.plugin.settings.searchHistory.find((i) => i.text === "cat").count, 2);
+});
+
+test("history reuse navigates from its new sorted position after usage reorders", async (t) => {
+	const h = mount(t);
+	h.plugin.settings.searchHistory = [
+		{ text: "cat", count: 1, createdAt: 1, lastUsedAt: 1 },
+		{ text: "dog", count: 1, createdAt: 2, lastUsedAt: 2 },
+	];
+	h.component.setVisibleFromHistory("cat");
+	const input = h.target.querySelector("textarea");
+	input.selectionStart = 0;
+	input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp", bubbles: true }));
+	await tick();
+	assert.equal(h.component.getSearchCache().search, "dog");
 });

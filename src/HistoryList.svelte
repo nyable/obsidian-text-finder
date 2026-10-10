@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { i18n } from "./i18n";
 	import { Trash2, Copy, CheckSquare, Square, Info } from "lucide-svelte";
-	import type TextFinderPlugin from "./main";
+	import type { PluginSettings } from "./settings";
 	import type { SearchHistoryItem } from "./main";
 	import { moment } from "obsidian";
 	import { createEventDispatcher } from "svelte";
 	import { HistorySortOrder } from "./constants";
 
 	export let history: SearchHistoryItem[] = [];
-	export let plugin: TextFinderPlugin;
+	export let settings: PluginSettings;
 	export let selectedTexts: Set<string> = new Set();
 
 	$: allSelected = history.length > 0 && history.every((item) => selectedTexts.has(item.text));
@@ -66,8 +66,7 @@
 
 <div class="nya-history-header">
 	<h2>
-		{i18n.t("history.Title")}({history.length}/{plugin.settings
-			.historyMaxCount})
+		{i18n.t("history.Title")}({history.length}/{settings.historyMaxCount})
 	</h2>
 </div>
 
@@ -159,7 +158,7 @@
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-time-combined">
-							{#if plugin.settings.historySortOrder === HistorySortOrder.CREATED_AT}
+							{#if settings.historySortOrder === HistorySortOrder.CREATED_AT}
 								{formatTime(item.createdAt || item.lastUsedAt)} ({formatRelative(
 									item.createdAt || item.lastUsedAt,
 								)})

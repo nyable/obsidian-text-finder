@@ -81,11 +81,11 @@
     },
     "EnableHistory": {
       "name": "启用搜索历史",
-      "desc": "启用后，可以通过上下键切换搜索历史"
+      "desc": "记录精确查询及使用情况，并通过上下键切换历史。禁用后保留已有历史，但停止记录和使用统计。"
     },
     "HistoryMaxCount": {
       "name": "历史记录最大数量",
-      "desc": "保存的搜索历史记录的最大数量"
+      "desc": "1–200 条。按 Enter 或离开输入框后确认；调低上限会立即按当前排序淘汰低优先级记录。"
     },
     "HistorySortOrder": {
       "name": "历史记录排序方式",
@@ -110,6 +110,10 @@
     "LastUsed": "最后使用",
     "Count": "使用次数",
     "Details": "详情",
-    "Back": "返回"
+    "Back": "返回",
+    "LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
+    "SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
+    "CopyFailed": "Text Finder 无法复制历史文本，使用次数未更新。",
+    "ReuseFailed": "请先打开可编辑的 Markdown 视图，再复用搜索历史。"
   }
 }

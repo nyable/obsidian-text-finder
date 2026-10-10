@@ -1,0 +1,56 @@
+import { HistorySortOrder, type HistorySortOrderType } from "./constants";
+import { normalizeHistory, trimHistory, type SearchHistoryItem } from "./history";
+
+export interface PluginSettings {
+	clearAfterHidden: boolean;
+	enableInputHotkeys: boolean;
+	sourceModeWhenSearch: boolean;
+	moveCursorToMatch: boolean;
+	useSelectionAsSearch: boolean;
+	useObsidianSearchInRead: boolean;
+	useEscapeCharInReplace: boolean;
+	enableHistory: boolean;
+	historyMaxCount: number;
+	historySortOrder: HistorySortOrderType;
+	searchHistory: SearchHistoryItem[];
+}
+
+export function defaultSettings(): PluginSettings {
+	return {
+		clearAfterHidden: false, enableInputHotkeys: true, sourceModeWhenSearch: true,
+		moveCursorToMatch: true, useSelectionAsSearch: true, useObsidianSearchInRead: true,
+		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
+		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
+	};
+}
+
+export function normalizeSettings(raw: unknown, now = Date.now()) {
+	const settings = defaultSettings();
+	const input = raw && typeof raw === "object" && !Array.isArray(raw)
+		? raw as Record<string, unknown> : {};
+	for (const key of [
+		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
+		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
+	] as const) {
+		if (typeof input[key] === "boolean") settings[key] = input[key];
+	}
+	if (typeof input.historyMaxCount === "number" && Number.isInteger(input.historyMaxCount)
+		&& input.historyMaxCount >= 1 && input.historyMaxCount <= 200) settings.historyMaxCount = input.historyMaxCount;
+	if (Object.values(HistorySortOrder).includes(input.historySortOrder as HistorySortOrderType)) {
+		settings.historySortOrder = input.historySortOrder as HistorySortOrderType;
+	}
+	settings.searchHistory = trimHistory(normalizeHistory(input.searchHistory, now), settings.historyMaxCount, settings.historySortOrder);
+	return { settings, changed: raw != null && !sameData(raw, settings) };
+}
+
+// Object property order is not a migration, but array order and values are.
+function sameData(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (!a || !b || typeof a !== "object" || typeof b !== "object"
+		|| Array.isArray(a) !== Array.isArray(b)) return false;
+	const left = a as Record<string, unknown>;
+	const right = b as Record<string, unknown>;
+	const keys = Object.keys(left);
+	return keys.length === Object.keys(right).length
+		&& keys.every((key) => Object.prototype.hasOwnProperty.call(right, key) && sameData(left[key], right[key]));
+}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
+import { attachHistory } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 class MarkdownView {}
@@ -56,6 +57,7 @@ function environment() {
 		registerEvent: () => {}, addCommand: (command) => commands.set(command.id, command),
 		saveSettings: () => { saves++; return Promise.resolve(); },
 	};
+	attachHistory(plugin);
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": {}, obsidian: { MarkdownView },

@@ -86,6 +86,15 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 -   Editing clears old highlights immediately and recomputes them without scrolling. Search history saving does not delay match navigation.
 -   Replacement commands still work when the finder is hidden; they recalculate matches before changing text. A closed view or a view in reading mode is not a replacement target.
 
+## Search history
+
+-   History stores exact queries, including leading/trailing spaces, newlines and tabs. Whitespace-only queries are valid; empty queries are not recorded. Older trimmed entries cannot recover whitespace that was already lost.
+-   Continuous navigation with the same query increments usage once and then only refreshes its last-used time. Changing from A to B and back to A starts a new usage cycle. Reusing a history entry counts once; the next navigation does not count it again.
+-   Copying counts as usage only after the clipboard operation succeeds. Disabling history preserves existing entries for viewing, copying and deleting, but stops recording and usage statistics (and Up/Down history navigation).
+-   The capacity is 1–200. Confirm a new limit with Enter or by leaving the field. Lowering it immediately keeps the highest-priority entries under the selected sort order; ties use last-used time, creation time and exact text for stable ordering.
+-   Settings and history saves are serialized using independent snapshots. Save failures retain in-memory changes, show a throttled notice, and allow the next change to save the latest state. There is no automatic background retry or guarantee against forced application shutdown.
+-   Legacy and mixed-format history is validated entry by entry. Duplicate exact texts keep the earliest creation time, latest use time and highest count. If saved data cannot be read, writes are blocked to avoid overwriting it: fix the storage problem and reload the plugin. Temporary changes from that failed-load session are not merged on reload.
+
 ## Customize Style
 
 Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or [Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings) to customize styles.

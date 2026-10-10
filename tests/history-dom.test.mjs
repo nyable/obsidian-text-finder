@@ -7,6 +7,7 @@ import { build } from "esbuild";
 import { compile } from "svelte/compiler";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
+import { attachHistory } from "./history-source.mjs";
 
 // Compile the actual components, including bindings, reactive sorting and DOM
 // event modifiers. Only host APIs and decorative icons are stubbed.
@@ -51,21 +52,27 @@ const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
 const { HistoryModal, tick } = module.exports;
 
-function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"]) {
+function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlugin) {
 	const copied = [];
 	const searched = [];
 	let saves = 0;
 	let closes = 0;
+	const errors = [];
 	navigator.clipboard = { writeText: async (text) => { copied.push(text); } };
-	const plugin = {
+	const plugin = sharedPlugin ?? {
 		settings: {
+			enableHistory: true,
 			historySortOrder: sortOrder,
 			historyMaxCount: 10,
 			searchHistory: texts.map((text, index) => ({ text, count: 1, createdAt: 100 - index, lastUsedAt: 100 - index })),
 		},
 		saveSettings: async () => { saves++; },
-		editorSearch: { getFinder: () => ({ setVisibleFromHistory: (text) => searched.push(text) }) },
+		reportError: (key, error) => errors.push({ key, error }),
 	};
+	if (!sharedPlugin) attachHistory(plugin);
+	if (!sharedPlugin) plugin.editorSearch = { getFinder: () => ({ setVisibleFromHistory: (text) => {
+		searched.push(text); plugin.history.record(text); return true;
+	} }) };
 	const target = document.createElement("div");
 	document.body.append(target);
 	const component = new HistoryModal({ target, props: { plugin, modal: { close: () => { closes++; } } } });
@@ -81,7 +88,7 @@ function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"]) {
 		return event;
 	};
 	return {
-		target, plugin, component, row, rows, click, key, copied, searched,
+		target, plugin, component, row, rows, click, key, copied, searched, errors,
 		saves: () => saves, closes: () => closes,
 		select: (text) => click(row(text).querySelector('[role="checkbox"]')),
 		action: (text, name) => click(row(text).querySelector(`[title="history.${name}"]`)),
@@ -194,4 +201,101 @@ test("checkbox Enter toggles selection without activating search", async (t) => 
 	await h.bulkDelete();
 	assert.deepEqual(h.texts(), ["A", "C"]);
 	assert.deepEqual(h.searched, []);
+});
+
+test("clipboard rejection reports failure without changing stats or saving", async (t) => {
+	const h = mount(t);
+	navigator.clipboard.writeText = async () => { throw new Error("denied"); };
+	await h.action("B", "Copy");
+	assert.equal(h.plugin.settings.searchHistory.find((i) => i.text === "B").count, 1);
+	assert.equal(h.saves(), 0);
+	assert.equal(h.errors[0].key, "history.CopyFailed");
+});
+
+test("pending clipboard completion cannot recreate deleted history", async (t) => {
+	const h = mount(t);
+	let resolve;
+	navigator.clipboard.writeText = () => new Promise((done) => { resolve = done; });
+	await h.action("B", "Copy");
+	assert.equal(h.saves(), 0);
+	await h.action("B", "Delete");
+	resolve(); await tick();
+	assert.deepEqual(h.texts(), ["A", "C"]);
+	assert.equal(h.saves(), 1);
+});
+
+test("disabled history copy and reuse work without stats, while deletion still saves", async (t) => {
+	const h = mount(t);
+	h.plugin.settings.enableHistory = false;
+	await h.action("B", "Copy");
+	assert.deepEqual(h.copied, ["B"]);
+	assert.equal(h.saves(), 0);
+	await h.click(h.row("A").querySelector(".nya-history-content"));
+	assert.deepEqual(h.searched, ["A"]);
+	assert.equal(h.saves(), 0);
+	await h.action("B", "Delete");
+	assert.equal(h.saves(), 1);
+});
+
+test("two mounted modals synchronize deletions, selection and details", async (t) => {
+	const first = mount(t);
+	const second = mount(t, "lastUsedAt", [], first.plugin);
+	await second.select("A");
+	await first.action("A", "Delete");
+	await tick();
+	assert.equal(second.row("A"), undefined);
+	assert.equal(second.target.querySelector(".nya-history-toolbar button.delete"), null);
+	await second.action("B", "Details");
+	await first.action("B", "Delete");
+	await tick();
+	assert.equal(second.target.querySelector(".nya-history-detail"), null);
+	assert.equal(second.rows().length, 1);
+});
+
+test("external shrink and sort notifications refresh modal capacity and selected identities", async (t) => {
+	const h = mount(t);
+	await h.select("C");
+	h.plugin.history.resize(1);
+	await tick();
+	assert.equal(h.rows().length, 1);
+	assert.match(h.target.querySelector("h2").textContent, /1\/1/);
+	assert.equal(h.target.querySelector(".nya-history-toolbar button.delete"), null);
+});
+
+test("unsuccessful history reuse leaves modal open and does not increment usage", async (t) => {
+	const h = mount(t);
+	h.plugin.editorSearch.getFinder = () => ({ setVisibleFromHistory: () => false });
+	await h.click(h.row("A").querySelector(".nya-history-content"));
+	assert.equal(h.closes(), 0);
+	assert.equal(h.saves(), 0);
+	assert.equal(h.errors[0].key, "history.ReuseFailed");
+});
+
+test("destroyed modal unsubscribes from shared history updates", async (t) => {
+	const h = mount(t);
+	h.component.$destroy();
+	h.plugin.history.record("new");
+	await tick();
+	assert.equal(h.target.childElementCount, 0);
+});
+
+test("failed persistence leaves deletion visible and does not create unhandled rejection", async (t) => {
+	const h = mount(t);
+	t.mock.method(console, "error", () => {});
+	h.plugin.saveSettings = async () => { throw new Error("save failed"); };
+	await h.action("A", "Delete");
+	await tick();
+	assert.deepEqual(h.texts(), ["B", "C"]);
+	assert.equal(h.row("A"), undefined);
+	assert.equal(console.error.mock.calls.length, 1);
+});
+
+test("usage updates in another modal refresh an open detail view", async (t) => {
+	const first = mount(t);
+	const second = mount(t, "lastUsedAt", [], first.plugin);
+	await second.action("B", "Details");
+	await first.action("B", "Copy");
+	await tick();
+	assert.match(second.target.querySelector(".nya-history-detail").textContent, /2/);
+	assert.equal(first.plugin.settings.searchHistory.find((i) => i.text === "B").count, 2);
 });

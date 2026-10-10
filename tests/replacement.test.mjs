@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
+import { attachHistory } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 
@@ -41,6 +42,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		settings: { clearAfterHidden: false, useEscapeCharInReplace: true },
 		app: { workspace: { getActiveViewOfType: () => available ? view : null } },
 	};
+	attachHistory(plugin);
 	const finder = loadSource("../src/SearchBox.svelte", {
 		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,

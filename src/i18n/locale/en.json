@@ -81,11 +81,11 @@
     },
     "EnableHistory": {
       "name": "Enable Search History",
-      "desc": "Enable navigating search history with Up/Down keys"
+      "desc": "Record exact queries and usage, and navigate history with Up/Down. Disabling keeps existing history but stops recording and usage statistics."
     },
     "HistoryMaxCount": {
       "name": "Max History Count",
-      "desc": "Maximum number of search history items to save"
+      "desc": "1–200 items. Confirm with Enter or by leaving the field; lowering the limit immediately removes lower-priority items according to the selected sort order."
     },
     "HistorySortOrder": {
       "name": "History Sort Order",
@@ -110,6 +110,10 @@
     "LastUsed": "Last Used",
     "Count": "Count",
     "Details": "Details",
-    "Back": "Back"
+    "Back": "Back",
+    "LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
+    "SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
+    "CopyFailed": "Text Finder could not copy the history text. Usage was not updated.",
+    "ReuseFailed": "Open an editable Markdown view before reusing search history."
   }
 }
