@@ -90,7 +90,7 @@ function mount(t) {
 	t.after(() => { component.$destroy(); target.remove(); resolve(); });
 	component.setVisible(true, "cat");
 	scrolls.length = 0;
-	return { component, target, scrolls, specs, plugin, resolve, saves: () => saves };
+	return { component, target, scrolls, specs, plugin, view, resolve, saves: () => saves };
 }
 
 function mountReading(t) {
@@ -466,3 +466,22 @@ test("custom toolbar and collapsed layouts do not retain or receive the default 
 	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => ({ ...item, placement: "more" }));
 	h.component.refreshToolbar(); await tick(); observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "");
 });
+
+for (const [name, vault, expected] of [
+	["live preview enabled", { getConfig: () => true }, false],
+	["live preview disabled", { getConfig: () => false }, true],
+	["internal configuration API unavailable", {}, undefined],
+	["internal preference is not a boolean", { getConfig: () => "true" }, undefined],
+]) {
+	test(`closing Finder safely restores the editor preference: ${name}`, async (t) => {
+		const h = mount(t); await tick();
+		const states = [];
+		h.plugin.settings.sourceModeWhenSearch = true;
+		h.plugin.app = { vault };
+		// Keep the real component action and owner context; only observe mode writes.
+		h.view.setState = (state) => states.push({ ...state });
+		h.component.closeFinder(); await tick();
+		assert.equal(h.component.isVisible(), false);
+		assert.deepEqual(states.map((state) => state.source), expected === undefined ? [] : [expected]);
+	});
+}
