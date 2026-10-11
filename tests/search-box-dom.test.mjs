@@ -9,7 +9,7 @@ import { compile } from "svelte/compiler";
 import { compileString } from "sass";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
-import { attachHistory } from "./history-source.mjs";
+import { attachHistory, toolbarSource } from "./history-source.mjs";
 import { loadSource } from "./source-loader.mjs";
 
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
@@ -31,7 +31,7 @@ const bundle = await build({
 				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
 				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value};` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as ChevronDown, Component as ChevronRight};`, resolveDir: root };
+				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
 			});
 			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
 				const source = readFileSync(filename, "utf8")
@@ -310,4 +310,102 @@ test("history reuse navigates from its new sorted position after usage reorders"
 	input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowUp", code: "ArrowUp", bubbles: true }));
 	await tick();
 	assert.equal(h.component.getSearchCache().search, "dog");
+});
+
+test("default toolbar keeps order, button geometry and active styling without More", async (t) => {
+	const h = mount(t); await tick();
+	assert.deepEqual([...h.target.querySelectorAll('.finder-act [role="button"]')].map((el) => el.getAttribute("aria-label")),
+		["search.tip.UseRegularExpression", "search.tip.MatchCase", "search.tip.PreviousMatch", "search.tip.NextMatch", "search.tip.Close"]);
+	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]'), null);
+	const button = h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]');
+	const style = window.getComputedStyle(button);
+	assert.equal(style.width, "24px"); assert.equal(style.height, "24px"); assert.equal(style.margin, "2px"); assert.equal(style.padding, "4px");
+	button.click(); await tick();
+	assert.ok(button.classList.contains("nya-btn--active"));
+	assert.equal(button.getAttribute("aria-pressed"), "true");
+	assert.equal(window.getComputedStyle(button).backgroundColor, "rgba(36, 137, 219, 0.51)");
+	button.click(); await tick(); assert.ok(!button.classList.contains("nya-btn--active"));
+});
+
+test("configured toolbars update immediately, More toggles preserve state and Escape does not close Finder", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = [{ id: "case", placement: "inline" }, { id: "regex", placement: "more" },
+		{ id: "previous", placement: "hidden" }, { id: "next", placement: "inline" }, { id: "history", placement: "more" }];
+	h.plugin.settings.replaceToolbar = toolbarSource.defaultToolbar("replace");
+	h.component.refreshToolbar(); await tick();
+	assert.equal(h.target.querySelector('[aria-label="search.tip.PreviousMatch"]'), null);
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	let regex = h.target.querySelector('[role="menuitemcheckbox"]'); assert.equal(regex.getAttribute("aria-checked"), "false");
+	regex.click(); await tick(); assert.equal(h.component.getSearchCache().options.regexMode, true);
+	more.click(); await tick(); regex = h.target.querySelector('[role="menuitemcheckbox"]'); assert.equal(regex.getAttribute("aria-checked"), "true");
+	regex.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await tick();
+	assert.equal(h.target.querySelector('[role="menu"]'), null); assert.equal(h.component.isVisible(), true);
+	h.plugin.settings.enableHistory = false; h.component.refreshToolbar(); more.click(); await tick();
+	assert.equal(h.target.querySelector('[role="menuitem"]').disabled, true);
+	document.body.dispatchEvent(new window.Event("pointerdown", { bubbles: true })); await tick(); assert.equal(h.target.querySelector('[role="menu"]'), null);
+});
+
+test("render waiting uses a compact count marker and delayed external status, cleared on completion", async (t) => {
+	const h = mountReading(t); await tick();
+	h.renderer.rendered = []; h.component.matchAgain(false); await tick();
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "…");
+	assert.equal(h.target.querySelector(".nya-search-status"), null);
+	await new Promise((resolve) => setTimeout(resolve, 430)); await tick();
+	const status = h.target.querySelector(".nya-search-status"); assert.ok(status);
+	assert.equal(status.parentElement.classList.contains("nya-finder"), true);
+	assert.equal(window.getComputedStyle(status).position, "absolute");
+	assert.equal(window.getComputedStyle(status).pointerEvents, "none");
+	assert.equal(status.textContent.trim(), "search.ReadingPending");
+	h.renderer.rendered = null; h.component.matchAgain(false); await tick();
+	assert.equal(h.target.querySelector(".nya-search-status"), null);
+	assert.equal(h.component.getSearchCache().matches.length, 3);
+});
+
+test("pending status delay resets for new queries and closing cancels it", async (t) => {
+	const h = mountReading(t); await tick();
+	h.renderer.rendered = []; h.component.matchAgain(false); await tick();
+	await new Promise((resolve) => setTimeout(resolve, 250)); h.component.setFindText("tail", false); await tick();
+	await new Promise((resolve) => setTimeout(resolve, 220)); await tick(); assert.equal(h.target.querySelector(".nya-search-status"), null);
+	h.component.setVisible(false); await tick();
+	await new Promise((resolve) => setTimeout(resolve, 220)); await tick(); assert.equal(h.target.querySelector(".nya-search-status"), null);
+});
+
+test("external failures have retry and native actions without putting long text into the counter", async (t) => {
+	const h = mountReading(t); await tick();
+	const original = h.renderer.showSection;
+	h.renderer.showSection = () => { throw new Error("broken"); }; h.component.toNextMatch(); await tick();
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "!");
+	const status = h.target.querySelector(".nya-search-status"); assert.ok(status.textContent.includes("search.ReadingFailed"));
+	h.renderer.showSection = original; status.querySelector("button").click(); await tick();
+	assert.equal(h.target.querySelector(".nya-search-status"), null); assert.equal(h.component.getSearchCache().matches.length, 3);
+});
+
+test("file changes reset a pending status delay even when the query is unchanged", async (t) => {
+	const h = mountReading(t); await tick();
+	h.renderer.rendered = []; h.component.matchAgain(false); await tick();
+	await new Promise((resolve) => setTimeout(resolve, 250));
+	h.view.file = { path: "b.md" }; h.component.matchAgain(false); await tick();
+	await new Promise((resolve) => setTimeout(resolve, 220)); await tick();
+	assert.equal(h.target.querySelector(".nya-search-status"), null);
+});
+
+test("hiding a button does not remove the search or replacement action", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => ({ ...item, placement: "hidden" }));
+	h.plugin.settings.replaceToolbar = toolbarSource.defaultToolbar("replace").map((item) => ({ ...item, placement: "hidden" }));
+	h.component.refreshToolbar(); await tick();
+	assert.equal(h.target.querySelector('[aria-label="search.tip.NextMatch"]'), null);
+	h.component.toNextMatch(); await tick(); assert.equal(h.component.getSearchCache().index, 1);
+	assert.equal(typeof h.component.replaceMatchedText, "function");
+	assert.ok(h.target.querySelector('[aria-label="search.tip.Close"]'));
+	assert.ok(h.target.querySelector('[aria-label="search.tip.ToggleReplace"]'));
+});
+
+test("unsupported reading renderer offers native find outside the match counter", async (t) => {
+	const h = mountReading(t); await tick();
+	delete window.Highlight; h.component.matchAgain(false); await tick();
+	const status = h.target.querySelector(".nya-search-status");
+	assert.ok(status.textContent.includes("search.ReadingUnsupported"));
+	assert.equal(status.querySelectorAll("button").length, 1);
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "!");
 });

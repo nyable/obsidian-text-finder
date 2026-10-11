@@ -3,12 +3,16 @@
     "name": "Text Finder"
   },
   "search": {
-	"ReadingPending": "Waiting for reading text to render…",
+	"ReadingPending": "Preparing search…",
+	"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
+	"StatusError": "Find is temporarily unavailable",
+	"Retry": "Retry",
 	"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
 	"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
 	"UseNativeFind": "Use native find",
 	"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
     "tip": {
+      "More": "More actions",
       "NoResults": "No results",
       "HasResults": "{{current}} of {{total}}",
       "ToggleReplace": "Toggle replace",
@@ -56,6 +60,15 @@
     }
   },
   "settings": {
+    "Tabs": { "label": "Settings categories", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Toolbar" },
+    "Toolbar": {
+      "desc": "Drag the handles to reorder, or use the move buttons or arrow keys on a handle. Keep actions in the toolbar, move them to More, or hide them without changing commands or shortcuts. Close and toggle replace remain fixed.",
+      "search": "Search toolbar", "replace": "Replace toolbar",
+      "inline": "Toolbar", "more": "More", "hidden": "Hidden",
+      "drag": "Drag to reorder: {{name}}", "placement": "Placement: {{name}}",
+      "up": "Move up: {{name}}", "down": "Move down: {{name}}",
+      "moved": "Moved {{name}}", "reset": "Restore this toolbar's defaults"
+    },
     "ClearAfterHidden": {
       "name": "Clear search text",
       "desc": "When closing the search box, the search text will be cleared."

@@ -136,6 +136,8 @@ export class EditorSearch {
 		return search;
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
+	refreshToolbars() { this.finderViews.forEach((finder) => finder.refreshToolbar()); }
+	openHistory() { new HistoryModal(this.plugin.app, this.plugin).open(); }
 	openNativeSearch(view: MarkdownView) {
 		if (!this.isViewOpen(view)) return;
 		this.finderViews.get(view)?.setVisible(false);
@@ -356,7 +358,7 @@ export class EditorSearch {
 			id: "show-search-history",
 			name: i18n.t("commands.ShowSearchHistory.name"),
 			callback: () => {
-				new HistoryModal(plugin.app, plugin).open();
+				this.openHistory();
 			},
 		});
 	}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
-import { attachHistory } from "./history-source.mjs";
+import { attachHistory, toolbarSource } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 const readingText = loadSource("../src/reading-text.ts");
@@ -71,6 +71,7 @@ function environment() {
 	const search = new EditorSearch(plugin);
 	const finder = (view) => {
 		const component = loadSource("../src/SearchBox.svelte", {
+			"./toolbar": toolbarSource,
 			"./search-highlight": highlightStub,
 			"./editor-extension": highlightStub,
 			"./util/text-helper": helper, "./constants": loadSource("../src/constants.ts"),

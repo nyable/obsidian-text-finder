@@ -26,3 +26,47 @@ body {
 	background-color: var(--nya-match-curbgColor);
 	color: var(--nya-match-curColor);
 }
+
+// Settings-only styles: never change the finder or Obsidian's other settings pages.
+.nya-settings {
+	.nya-settings-tabs {
+		display: flex;
+		gap: 4px;
+		overflow-x: auto;
+		padding-bottom: 8px;
+		margin-bottom: 16px;
+		border-bottom: 1px solid var(--background-modifier-border);
+		button {
+			flex-shrink: 0;
+			background: transparent;
+			box-shadow: none;
+			color: var(--text-muted);
+			&[aria-selected="true"] { background: var(--background-modifier-hover); color: var(--text-normal); }
+			&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+		}
+	}
+	.nya-settings-panel:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	.nya-settings-description { color: var(--text-muted); font-size: var(--font-ui-small); }
+	.nya-toolbar-settings { margin-bottom: 24px; }
+	.nya-toolbar-list { margin-bottom: 12px; }
+	.nya-toolbar-row {
+		position: relative;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 0;
+		border-bottom: 1px solid var(--background-modifier-border);
+		button { flex-shrink: 0; }
+		select { max-width: 120px; }
+		&.nya-toolbar-dragging { opacity: 0.5; }
+		&.nya-drop-before::before, &.nya-drop-after::after {
+			content: ""; position: absolute; left: 0; right: 0; height: 2px; background: var(--interactive-accent);
+		}
+		&.nya-drop-before::before { top: -1px; }
+		&.nya-drop-after::after { bottom: -1px; }
+	}
+	.nya-toolbar-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+	.nya-toolbar-handle { touch-action: none; cursor: grab; user-select: none; }
+	.nya-toolbar-handle:active { cursor: grabbing; }
+	.nya-settings-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}

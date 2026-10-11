@@ -1,5 +1,6 @@
 import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { normalizeHistory, trimHistory, type SearchHistoryItem } from "./history";
+import { defaultToolbar, normalizeToolbar, type ToolbarItem } from "./toolbar";
 
 export interface PluginSettings {
 	clearAfterHidden: boolean;
@@ -13,6 +14,8 @@ export interface PluginSettings {
 	historyMaxCount: number;
 	historySortOrder: HistorySortOrderType;
 	searchHistory: SearchHistoryItem[];
+	searchToolbar: ToolbarItem[];
+	replaceToolbar: ToolbarItem[];
 }
 
 export function defaultSettings(): PluginSettings {
@@ -21,6 +24,7 @@ export function defaultSettings(): PluginSettings {
 		moveCursorToMatch: true, useSelectionAsSearch: true, useObsidianSearchInRead: false,
 		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
+		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
 	};
 }
 
@@ -40,6 +44,8 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 		settings.historySortOrder = input.historySortOrder as HistorySortOrderType;
 	}
 	settings.searchHistory = trimHistory(normalizeHistory(input.searchHistory, now), settings.historyMaxCount, settings.historySortOrder);
+	settings.searchToolbar = normalizeToolbar(input.searchToolbar, "search");
+	settings.replaceToolbar = normalizeToolbar(input.replaceToolbar, "replace");
 	return { settings, changed: raw != null && !sameData(raw, settings) };
 }
 

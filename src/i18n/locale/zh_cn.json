@@ -3,12 +3,16 @@
     "name": "Text Finder"
   },
   "search": {
-	"ReadingPending": "正在等待阅读正文渲染…",
+	"ReadingPending": "正在准备搜索…",
+	"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
+	"StatusError": "查找暂不可用",
+	"Retry": "重试",
 	"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
 	"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
 	"UseNativeFind": "使用原生查找",
 	"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
     "tip": {
+      "More": "更多操作",
       "NoResults": "无结果",
       "HasResults": "第{{current}}项，共{{total}}项",
       "ToggleReplace": "切换替换",
@@ -56,6 +60,15 @@
     }
   },
   "settings": {
+    "Tabs": { "label": "设置分类", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "工具栏" },
+    "Toolbar": {
+      "desc": "拖动手柄调整顺序，或使用上下按钮和手柄上的方向键。可将功能设为常驻、收纳到更多或隐藏；隐藏不影响命令和快捷键。关闭和展开替换的入口保持固定。",
+      "search": "搜索栏按钮", "replace": "替换栏按钮",
+      "inline": "常驻", "more": "更多", "hidden": "隐藏",
+      "drag": "拖动排序：{{name}}", "placement": "显示位置：{{name}}",
+      "up": "上移：{{name}}", "down": "下移：{{name}}",
+      "moved": "已调整{{name}}的位置", "reset": "恢复本栏默认布局"
+    },
     "ClearAfterHidden": {
       "name": "清空搜索文本",
       "desc": "在关闭搜索窗口后清空搜索文本"

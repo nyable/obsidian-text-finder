@@ -1,12 +1,6 @@
 <script lang="ts">
 	import {
-		ArrowDown,
-		ArrowUp,
-		ReplaceAll,
 		X,
-		Replace,
-		Regex,
-		CaseSensitive,
 		ChevronDown,
 		ChevronRight,
 	} from "lucide-svelte";
@@ -18,6 +12,9 @@
 	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
 	import { getLivePreviewPreference } from "./util/obsidian-internal";
 	import type { TransactionSpec } from "@codemirror/state";
+	import Toolbar from "./Toolbar.svelte";
+	import SearchStatus from "./SearchStatus.svelte";
+	import { defaultToolbar, type ToolbarAction } from "./toolbar";
 
 	export let editorSearch: EditorSearch;
 	export let cid: string;
@@ -30,6 +27,7 @@
 	let readingError: "failed" | "timeout" | undefined;
 	let readingRequest = 0;
 	let searchMode = "source";
+	let statusContext = ownerView?.file;
 	const isReading = () => ownerView.getMode?.() === "preview";
 
 	const cache: SearchCache = {
@@ -70,6 +68,59 @@
 	const isMobile = Platform.isMobile;
 	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
+	let searchToolbar = defaultToolbar("search");
+	let replaceToolbar = defaultToolbar("replace");
+	let historyEnabled = true;
+	$: if (editorSearch) refreshToolbar();
+	let finderEl: HTMLDivElement;
+	let replaceEl: HTMLTextAreaElement;
+	let replaceActionsEl: HTMLDivElement;
+	let replaceOffset: number | undefined;
+	let searchActionsWidth: number | undefined;
+	$: customToolbar = searchToolbar.some((item, index) => item.id !== defaultToolbar("search")[index]?.id
+		|| item.placement !== defaultToolbar("search")[index]?.placement)
+		|| replaceToolbar.some((item, index) => item.id !== defaultToolbar("replace")[index]?.id
+			|| item.placement !== defaultToolbar("replace")[index]?.placement);
+	$: if (readingMode || isCollapsed || customToolbar) { replaceOffset = undefined; searchActionsWidth = undefined; }
+
+	export function refreshToolbar() {
+		searchToolbar = editorSearch.plugin.settings.searchToolbar ?? defaultToolbar("search");
+		replaceToolbar = editorSearch.plugin.settings.replaceToolbar ?? defaultToolbar("replace");
+		historyEnabled = editorSearch.plugin.settings.enableHistory;
+	}
+
+	// Measure the legacy geometry instead of retaining its hard-coded 184px spacer.
+	// Custom layouts align both text inputs and allow actions to size to their content.
+	function alignRows(node: HTMLElement, _layout: unknown) {
+		const measure = () => {
+			if (isMobile || readingMode || isCollapsed || customToolbar || !replaceEl || !replaceActionsEl || !searchEl || !finderEl) return;
+			const input = searchEl.getBoundingClientRect();
+			const row = finderEl.getBoundingClientRect();
+			const searchActions = finderEl.querySelector<HTMLElement>(".finder-act")!;
+			if (!input.width || !row.width) return;
+			const replaceWidth = replaceActionsEl.querySelector<HTMLElement>(".nya-toolbar")?.getBoundingClientRect().width ?? 0;
+			const offset = Math.max(0, Math.round((row.width - input.width - replaceWidth - 4) * 100) / 100);
+			if (offset !== replaceOffset) replaceOffset = offset;
+			const width = searchActions.getBoundingClientRect().width;
+			if (width !== searchActionsWidth) searchActionsWidth = width;
+		};
+		const win = node.ownerDocument.defaultView;
+		const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
+		observer?.observe(node);
+		if (searchEl) observer?.observe(searchEl);
+		win?.addEventListener("resize", measure);
+		return { update: measure, destroy() { observer?.disconnect(); win?.removeEventListener("resize", measure); } };
+	}
+
+	const runToolbarAction = (action: ToolbarAction) => {
+		if (action === "regex") toggleRegexMode();
+		else if (action === "case") toggleMatchCaseMode();
+		else if (action === "previous") toPreviousMatch();
+		else if (action === "next") toNextMatch();
+		else if (action === "history") editorSearch.openHistory();
+		else if (action === "replace") replaceOnce();
+		else if (action === "replaceAll") replaceAll();
+	};
 
 	export function getSearchCache() {
 		return cache;
@@ -92,6 +143,8 @@
 		} else {
 			readingRequest++;
 			readingPending = false;
+			readingUnsupported = false;
+			readingError = undefined;
 			editorSearch.clearReadingSearch?.(ownerView);
 			cache.collapse = true;
 			if (settings.clearAfterHidden) {
@@ -124,6 +177,9 @@
 
 	export function resetAll() {
 		readingRequest++;
+		readingPending = false;
+		readingUnsupported = false;
+		readingError = undefined;
 		editorSearch.clearReadingSearch?.(ownerView);
 		currentSearch = "";
 		lastRecordedSearch = null;
@@ -183,13 +239,13 @@
 		}
 		setVisible(false);
 	};
-	export const toggleRegexMode = (e: Event) => {
+	export const toggleRegexMode = () => {
 		cache.options.regexMode = !cache.options.regexMode;
 		searchEl.focus();
 		setFindText(cache.search);
 	};
 
-	export const toggleMatchCaseMode = (e: Event) => {
+	export const toggleMatchCaseMode = () => {
 		cache.options.caseSensitive = !cache.options.caseSensitive;
 		searchEl.focus();
 		setFindText(cache.search);
@@ -248,6 +304,7 @@
 	};
 
 	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0) => {
+		statusContext = ownerView.file;
 		// Svelte's bind:value may update cache.search before the input handler.
 		if (currentSearch !== text) lastRecordedSearch = null;
 		currentSearch = text;
@@ -379,6 +436,9 @@
 
 	export const resetMatches = (clearSearch = false, clearReplace = false) => {
 		readingRequest++;
+		readingPending = false;
+		readingUnsupported = false;
+		readingError = undefined;
 		editorSearch.clearReadingSearch?.(ownerView);
 		cache.matches = [];
 		cache.index = 0;
@@ -589,7 +649,12 @@
 	class:nya-finder--collapsed={isCollapsed}
 	class:nya-finder--reading={readingMode}
 	class:nya-mobile={isMobile}
+	class:nya-finder--custom-toolbar={customToolbar}
+	use:alignRows={[isCollapsed, customToolbar, searchToolbar, replaceToolbar]}
 >
+	<SearchStatus visible={cache.visible && readingMode} pending={readingPending} unsupported={readingUnsupported}
+		error={readingError} query={cache.search} context={statusContext} retry={() => setFindText(cache.search)}
+		nativeFind={() => editorSearch.openNativeSearch(ownerView)} />
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
 	<div class="nya-dragger"></div>
 	{#if !readingMode}
@@ -609,7 +674,7 @@
 	</div>
 	{/if}
 	<div class="main-part">
-		<div class="finder">
+		<div class="finder" bind:this={finderEl}>
 			<textarea
 				wrap="off"
 				autocorrect="off"
@@ -624,15 +689,11 @@
 				placeholder={i18n.t("search.tip.FindPlaceholder")}
 				tabindex={finderTabIndex}
 			/>
-			<!-- TODO: 组件化,有空再优化；考虑用svelte5来做 -->
 			{#if isMobile}
 				<div class="nya-float-act">
 					<div class="nya-float-tip">
 						{#if readingPending || readingUnsupported || readingError}
-							<div>{i18n.t(readingError ? (readingError === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed") : readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
-							{#if readingError || readingUnsupported}
-								<button on:click={() => editorSearch.openNativeSearch(ownerView)}>{i18n.t("search.UseNativeFind")}</button>
-							{/if}
+							<div aria-label={i18n.t(readingPending ? "search.ReadingPending" : "search.StatusError")} title={i18n.t(readingPending ? "search.ReadingPendingDetail" : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
 						{:else if cache.matches.length > 0}
 							<div>
 								{i18n.t("search.tip.HasResults", {
@@ -660,10 +721,7 @@
 			{:else}
 				<div class="nya-tip">
 					{#if readingPending || readingUnsupported || readingError}
-						<div>{i18n.t(readingError ? (readingError === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed") : readingPending ? "search.ReadingPending" : "search.ReadingUnsupported")}</div>
-						{#if readingError || readingUnsupported}
-							<button on:click={() => editorSearch.openNativeSearch(ownerView)}>{i18n.t("search.UseNativeFind")}</button>
-						{/if}
+						<div aria-label={i18n.t(readingPending ? "search.ReadingPending" : "search.StatusError")} title={i18n.t(readingPending ? "search.ReadingPendingDetail" : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
 					{:else if cache.matches.length > 0}
 						<div>
 							{i18n.t("search.tip.HasResults", {
@@ -679,48 +737,8 @@
 				</div>
 			{/if}
 			<div class="finder-act">
-				<div
-					class={`nya-btn nya-focus`}
-					class:nya-btn--active={cache.options.regexMode}
-					on:click={toggleRegexMode}
-					role="button"
-					tabindex={commonTabIndex}
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.UseRegularExpression")}
-				>
-					<Regex size={iconSize} />
-				</div>
-				<div
-					class={`nya-btn nya-focus`}
-					class:nya-btn--active={cache.options.caseSensitive}
-					on:click={toggleMatchCaseMode}
-					role="button"
-					tabindex={commonTabIndex}
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.MatchCase")}
-				>
-					<CaseSensitive size={iconSize} />
-				</div>
-				<div
-					class="nya-btn nya-focus"
-					on:click={toPreviousMatch}
-					role="button"
-					tabindex={commonTabIndex}
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.PreviousMatch")}
-				>
-					<ArrowUp size={iconSize} />
-				</div>
-				<div
-					class="nya-btn nya-focus"
-					on:click={toNextMatch}
-					role="button"
-					tabindex={commonTabIndex}
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.NextMatch")}
-				>
-					<ArrowDown size={iconSize} />
-				</div>
+				<Toolbar items={searchToolbar} run={runToolbarAction} regexMode={cache.options.regexMode}
+					caseSensitive={cache.options.caseSensitive} {historyEnabled} tabindex={commonTabIndex} visible={cache.visible} />
 				{#if !isMobile}
 					<div
 						class="nya-btn nya-focus"
@@ -744,31 +762,15 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
+				bind:this={replaceEl}
 				on:keydown={enterOnReplacer}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={replacerTabIndex}
 			/>
-			<div class="replacer-act">
-				<div
-					class="nya-btn nya-focus"
-					on:click={replaceOnce}
-					tabindex={commonTabIndex}
-					role="button"
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.Replace")}
-				>
-					<Replace size={iconSize} />
-				</div>
-				<div
-					class="nya-btn nya-focus"
-					on:click={replaceAll}
-					tabindex={commonTabIndex}
-					role="button"
-					on:keydown={defaultEnterEvent}
-					aria-label={i18n.t("search.tip.ReplaceAll")}
-				>
-					<ReplaceAll xlink:title="Replace All" size={iconSize} />
-				</div>
+			<div class="replacer-act" bind:this={replaceActionsEl}
+				style:padding-right={replaceOffset === undefined ? undefined : `${replaceOffset}px`}
+				style:--nya-search-actions-width={searchActionsWidth === undefined ? undefined : `${searchActionsWidth}px`}>
+				<Toolbar items={replaceToolbar} run={runToolbarAction} tabindex={commonTabIndex} visible={cache.visible && !isCollapsed} />
 			</div>
 		</div>
 	</div>
@@ -864,13 +866,27 @@
 				align-items: center;
 				height: 28px;
 				min-width: 140px;
-				padding-right: 184px;
+				// Legacy fallback: counter gutter + search actions, minus replacement actions.
+				padding-right: calc(108px + var(--nya-search-actions-width, 140px) - 64px);
 				margin-left: 4px;
 			}
 		}
 
 		&.nya-finder--reading .main-part {
 			padding-left: 8px;
+		}
+
+		&.nya-finder--custom-toolbar .main-part {
+			display: grid;
+			grid-template-columns: minmax(177px, 1fr) auto auto;
+			grid-template-rows: 28px 28px;
+			row-gap: 6px;
+			.finder, .replacer { display: contents; }
+			.finder .nya-input { grid-column: 1; grid-row: 1; }
+			.finder .nya-tip { grid-column: 2; grid-row: 1; }
+			.finder-act { grid-column: 3; grid-row: 1; min-width: 0; }
+			.replacer .nya-input { grid-column: 1; grid-row: 2; }
+			.replacer-act { grid-column: 2 / 4; grid-row: 2; padding-right: 0; min-width: 0; justify-content: flex-start; }
 		}
 	}
 	.nya-tip {
@@ -977,6 +993,11 @@
 				width: 112px;
 				justify-content: flex-start;
 				padding-right: unset;
+			}
+			&.nya-finder--custom-toolbar .main-part {
+				grid-template-columns: minmax(100px, 1fr) auto;
+				.finder-act { grid-column: 2; width: auto; }
+				.replacer-act { grid-column: 2; width: auto; }
 			}
 		}
 	}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
-import { attachHistory } from "./history-source.mjs";
+import { attachHistory, toolbarSource } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 
@@ -44,6 +44,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 	};
 	attachHistory(plugin);
 	const finder = loadSource("../src/SearchBox.svelte", {
+		"./toolbar": toolbarSource,
 		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,
 		"./util/obsidian-internal": loadSource("../src/util/obsidian-internal.ts"),
