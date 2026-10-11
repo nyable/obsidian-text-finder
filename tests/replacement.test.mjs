@@ -46,6 +46,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 	const finder = loadSource("../src/SearchBox.svelte", {
 		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,
+		"./util/obsidian-internal": loadSource("../src/util/obsidian-internal.ts"),
 		"./constants": loadSource("../src/constants.ts"),
 		obsidian: { MarkdownView: class {}, Platform: { isMobile: false } },
 	});

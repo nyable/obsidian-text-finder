@@ -16,6 +16,7 @@
 	import { i18n } from "./i18n";
 	import { Platform, type MarkdownView } from "obsidian";
 	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
+	import { getLivePreviewPreference } from "./util/obsidian-internal";
 	import type { TransactionSpec } from "@codemirror/state";
 
 	export let editorSearch: EditorSearch;
@@ -161,8 +162,11 @@
 			const state = activeEditor.view.getState();
 			const { sourceModeWhenSearch } = editorSearch.plugin.settings;
 			if (state.mode === "source" && sourceModeWhenSearch) {
-				state.source = !isNeedPreviewMode();
-				activeEditor.view.setState(state, { history: false });
+				const needPreview = isNeedPreviewMode();
+				if (needPreview !== undefined) {
+					state.source = !needPreview;
+					activeEditor.view.setState(state, { history: false });
+				}
 			}
 		}
 		setVisible(false);
@@ -501,8 +505,8 @@
 		}
 	};
 
-	const isNeedPreviewMode = (): boolean => {
-		return (editorSearch.plugin.app.vault as any).getConfig("livePreview");
+	const isNeedPreviewMode = (): boolean | undefined => {
+		return getLivePreviewPreference(editorSearch.plugin.app.vault);
 	};
 
 	const defaultEnterEvent = (e: KeyboardEvent) => {

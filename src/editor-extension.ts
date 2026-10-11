@@ -173,13 +173,6 @@ export class EditorSearch {
 		}));
 	}
 
-	private openObsidianSearch() {
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		(this.plugin.app as any).commands.commands[
-			"editor:open-search"
-		].checkCallback();
-	}
-
 	private registerCommand() {
 		const { plugin } = this;
 		plugin.addCommand({
@@ -198,7 +191,7 @@ export class EditorSearch {
 					if (previewCheck || sourceCheck) {
 						if (!checking) {
 							if (mode === "preview") {
-								this.openObsidianSearch();
+								view.showSearch();
 							} else if (mode === "source") {
 								const defaultSearchText = useSelectionAsSearch
 									? view.editor.getSelection()

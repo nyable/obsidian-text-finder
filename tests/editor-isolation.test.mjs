@@ -69,6 +69,7 @@ function environment() {
 			"./search-highlight": highlightStub,
 			"./editor-extension": highlightStub,
 			"./util/text-helper": helper, "./constants": loadSource("../src/constants.ts"),
+			"./util/obsidian-internal": loadSource("../src/util/obsidian-internal.ts"),
 			obsidian: { MarkdownView, Platform: { isMobile: false } },
 		});
 		component.editorSearch = search;
