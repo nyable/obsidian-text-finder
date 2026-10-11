@@ -1,7 +1,7 @@
 {
 	"id": "text-finder",
 	"name": "Text Finder",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"minAppVersion": "0.15.0",
 	"description": "VSCode-like find/replace in editing mode and rendered-text search in reading mode, with regular expressions and case sensitivity.",
 	"author": "hafuhafu",
