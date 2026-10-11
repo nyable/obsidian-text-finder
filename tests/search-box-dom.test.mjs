@@ -409,3 +409,60 @@ test("unsupported reading renderer offers native find outside the match counter"
 	assert.equal(status.querySelectorAll("button").length, 1);
 	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "!");
 });
+
+function mockLayoutObserver(t) {
+	const previous = window.ResizeObserver;
+	const observers = [];
+	window.ResizeObserver = class {
+		observed = [];
+		constructor(callback) { this.callback = callback; observers.push(this); }
+		observe(element) { this.observed.push(element); }
+		disconnect() { this.disconnected = true; }
+	};
+	t.after(() => { if (previous) window.ResizeObserver = previous; else delete window.ResizeObserver; });
+	return observers;
+}
+
+test("replacement spacer shrinks with the current counter without depending on the previously expanded row", async (t) => {
+	const observers = mockLayoutObserver(t);
+	const h = mount(t); h.component.setCollapse(false); await tick();
+	const count = h.target.querySelector(".nya-tip");
+	const actions = h.target.querySelector(".finder-act");
+	const replace = h.target.querySelector(".replacer-act");
+	const toolbar = replace.querySelector(".nya-toolbar");
+	const observer = observers.find((entry) => entry.observed.includes(count));
+	assert.deepEqual(observer.observed, [count, actions, toolbar]);
+	let countWidth = 100;
+	count.getBoundingClientRect = () => ({ width: countWidth });
+	actions.getBoundingClientRect = () => ({ width: 140 });
+	toolbar.getBoundingClientRect = () => ({ width: 56 });
+	for (const element of [h.target.querySelector(".nya-finder"), h.target.querySelector(".finder"), h.target.querySelector("textarea")]) {
+		element.getBoundingClientRect = () => { throw new Error("spacer must not read its own dependent geometry"); };
+	}
+	observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "184px");
+	for (let cycle = 0; cycle < 3; cycle++) {
+		countWidth = 148.36; observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "232.36px");
+		countWidth = 117.81; observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "201.81px");
+		countWidth = 100; h.component.setFindText("", false); observer.callback(); await tick();
+		assert.equal(replace.style.paddingRight, "184px");
+	}
+	h.component.$destroy(); assert.equal(observer.disconnected, true);
+});
+
+test("custom toolbar and collapsed layouts do not retain or receive the default replacement spacer", async (t) => {
+	const observers = mockLayoutObserver(t);
+	const h = mount(t); h.component.setCollapse(false); await tick();
+	const count = h.target.querySelector(".nya-tip");
+	const actions = h.target.querySelector(".finder-act");
+	const replace = h.target.querySelector(".replacer-act");
+	const toolbar = replace.querySelector(".nya-toolbar");
+	const observer = observers.find((entry) => entry.observed.includes(count));
+	count.getBoundingClientRect = () => ({ width: 148.36 });
+	actions.getBoundingClientRect = () => ({ width: 140 });
+	toolbar.getBoundingClientRect = () => ({ width: 56 });
+	observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "232.36px");
+	h.component.setCollapse(true); await tick(); observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "");
+	h.component.setCollapse(false); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => ({ ...item, placement: "more" }));
+	h.component.refreshToolbar(); await tick(); observer.callback(); await tick(); assert.equal(replace.style.paddingRight, "");
+});

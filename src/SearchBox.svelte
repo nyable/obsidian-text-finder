@@ -72,9 +72,6 @@
 	let replaceToolbar = defaultToolbar("replace");
 	let historyEnabled = true;
 	$: if (editorSearch) refreshToolbar();
-	let finderEl: HTMLDivElement;
-	let replaceEl: HTMLTextAreaElement;
-	let replaceActionsEl: HTMLDivElement;
 	let replaceOffset: number | undefined;
 	let searchActionsWidth: number | undefined;
 	$: customToolbar = searchToolbar.some((item, index) => item.id !== defaultToolbar("search")[index]?.id
@@ -89,26 +86,37 @@
 		historyEnabled = editorSearch.plugin.settings.enableHistory;
 	}
 
-	// Measure the legacy geometry instead of retaining its hard-coded 184px spacer.
-	// Custom layouts align both text inputs and allow actions to size to their content.
+	// Derive the spacer from the current controls, never from the row/input widths:
+	// the spacer itself contributes to those widths and would keep an old wide count alive.
+	// Custom toolbars use CSS grid; mobile and reading layouts need no spacer.
 	function alignRows(node: HTMLElement, _layout: unknown) {
+		const win = node.ownerDocument.defaultView;
+		const count = node.querySelector<HTMLElement>(".nya-tip");
+		const searchActions = node.querySelector<HTMLElement>(".finder-act");
+		const replaceActions = node.querySelector<HTMLElement>(".replacer-act");
+		const replaceToolbar = replaceActions?.querySelector<HTMLElement>(".nya-toolbar");
+		const outerWidth = (element: HTMLElement) => {
+			const style = win!.getComputedStyle(element);
+			return element.getBoundingClientRect().width
+				+ (parseFloat(style.marginLeft) || 0) + (parseFloat(style.marginRight) || 0);
+		};
 		const measure = () => {
-			if (isMobile || readingMode || isCollapsed || customToolbar || !replaceEl || !replaceActionsEl || !searchEl || !finderEl) return;
-			const input = searchEl.getBoundingClientRect();
-			const row = finderEl.getBoundingClientRect();
-			const searchActions = finderEl.querySelector<HTMLElement>(".finder-act")!;
-			if (!input.width || !row.width) return;
-			const replaceWidth = replaceActionsEl.querySelector<HTMLElement>(".nya-toolbar")?.getBoundingClientRect().width ?? 0;
-			const offset = Math.max(0, Math.round((row.width - input.width - replaceWidth - 4) * 100) / 100);
-			if (offset !== replaceOffset) replaceOffset = offset;
+			if (isMobile || readingMode || isCollapsed || customToolbar || !win || !count || !searchActions || !replaceActions || !replaceToolbar) return;
 			const width = searchActions.getBoundingClientRect().width;
+			if (!width || !count.getBoundingClientRect().width || !replaceToolbar.getBoundingClientRect().width) return;
+			const replaceStyle = win.getComputedStyle(replaceActions);
+			const replaceMargins = (parseFloat(replaceStyle.marginLeft) || 0) + (parseFloat(replaceStyle.marginRight) || 0);
+			const offset = Math.max(0, Math.round((outerWidth(count) + outerWidth(searchActions)
+				- outerWidth(replaceToolbar) - replaceMargins) * 100) / 100);
+			if (offset !== replaceOffset) replaceOffset = offset;
 			if (width !== searchActionsWidth) searchActionsWidth = width;
 		};
-		const win = node.ownerDocument.defaultView;
-		const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
-		observer?.observe(node);
-		if (searchEl) observer?.observe(searchEl);
+		const observer = !isMobile && win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
+		for (const element of [count, searchActions, replaceToolbar]) {
+			if (element) observer?.observe(element, { box: "border-box" });
+		}
 		win?.addEventListener("resize", measure);
+		measure();
 		return { update: measure, destroy() { observer?.disconnect(); win?.removeEventListener("resize", measure); } };
 	}
 
@@ -674,7 +682,7 @@
 	</div>
 	{/if}
 	<div class="main-part">
-		<div class="finder" bind:this={finderEl}>
+		<div class="finder">
 			<textarea
 				wrap="off"
 				autocorrect="off"
@@ -762,12 +770,11 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
-				bind:this={replaceEl}
 				on:keydown={enterOnReplacer}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={replacerTabIndex}
 			/>
-			<div class="replacer-act" bind:this={replaceActionsEl}
+			<div class="replacer-act"
 				style:padding-right={replaceOffset === undefined ? undefined : `${replaceOffset}px`}
 				style:--nya-search-actions-width={searchActionsWidth === undefined ? undefined : `${searchActionsWidth}px`}>
 				<Toolbar items={replaceToolbar} run={runToolbarAction} tabindex={commonTabIndex} visible={cache.visible && !isCollapsed} />
