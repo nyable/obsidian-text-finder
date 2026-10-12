@@ -1,6 +1,6 @@
 # 产品能力与边界
 
-本文件记录当前源码可确认的功能；已批准但与实现有差异的关闭语义单独见 [interactions](interactions.md#已批准的关闭契约)。源码事实不等于真实 Obsidian 验收通过，验证边界见 [compatibility](../compatibility.md)。
+本文件记录当前源码可确认的功能；已批准的关闭语义见 [interactions](interactions.md#已批准的关闭契约)。源码事实不等于真实 Obsidian 验收通过，验证边界见 [compatibility](../compatibility.md)。
 
 ## 范围与入口
 
@@ -30,10 +30,11 @@
 - 正则使用 JavaScript `RegExp`，flags 为 `g`、正则模式下的 `m` 和大小写不敏感时的 `i`。没有单独 flags 输入或整词选项。
 - 空查询、空正文、无结果、无效正则均返回空匹配；零宽匹配不计数、不替换。无效正则当前没有独立语法错误界面。
 - 单次替换和全部替换基于当前原文重新计算。全部替换通过一个 CodeMirror changes 事务提交，不递归处理新插入文本。
+- 单次替换只展开目标模板，不预先创建所有候选插入文本；不限制既有捕获、前缀／后缀或转义能力。
 - 正则替换支持 `$1`–`$99`、`$<name>`、`$&`、`$$`、原文前缀 `` $` `` 和后缀 `$'`；遵循 JavaScript 模板语义。
 - 正则模式且转义设置开启时，替换输入单次解析 `\n`、`\t`、`\\`；未知转义、末尾反斜杠和真实 NUL 保留。普通文本替换不展开美元模板或反斜杠转义。
 
-依据：`src/util/text-helper.ts` 的 `findTextMatches()`／`findReplacementChanges()`／`expandReplacement()`；`src/SearchBox.svelte` 的 `adjustReplaceText()`／`replaceText()`。回归：`tests/text-helper.test.mjs`、`tests/regex-replacement.test.mjs`、`tests/replacement.test.mjs`。
+依据：`src/util/text-helper.ts` 的 `findTextMatches()`／`prepareReplacements()`／`expandReplacement()`；`src/SearchBox.svelte` 的 `adjustReplaceText()`／`replaceText()`。回归：`tests/text-helper.test.mjs`、`tests/regex-replacement.test.mjs`、`tests/replacement.test.mjs`。
 
 ## 阅读模式正文
 

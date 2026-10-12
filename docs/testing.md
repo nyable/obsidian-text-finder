@@ -24,6 +24,9 @@ git diff --check
 - 输入法组合输入期间的 Enter／NumpadEnter 与上下键不触发导航、替换或历史操作。
 - 单次替换的按钮、Enter 与命令入口一致性，以及隐藏面板焦点和重新打开后的选中状态。
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
+- 统一关闭入口、清空两种输入、隐藏 Escape、模式异常与保留正则／大小写偏好。
+- 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
+- `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
 
 相关测试保留在 [`tests/`](../tests/)，例如 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 `search-box-dom.test.mjs`。当前覆盖情况以测试文件和运行结果为准，不在文档中固定测试总数。
 
@@ -47,7 +50,7 @@ jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘�
 - 阅读查找关闭“阅读模式下使用 Obsidian 搜索”；复制 [测试笔记](../tests/fixtures/reading-search.md)，在尾部前加入长正文制造离屏分块。
 - 记录源码 commit、产物来源、Obsidian／系统版本、主题／snippets、语言、缩放、重现步骤及实际结果。未执行与失败要区分，不由本方法表推定通过。
 - 具体结果留在 OpenCode 会话或有明确版本／环境的验收记录中，不在本文件维护勾选进度。
-- 两项已批准关闭行为与现有实现仍有差异，见 [关闭契约](product/interactions.md#已批准的关闭契约)。不能因为契约获批就报告现有代码已符合。
+- 关闭契约已有源码及自动回归，见 [关闭契约](product/interactions.md#已批准的关闭契约)；仍需按真实宿主记录验收结果。
 
 ### 编辑与输入场景
 
@@ -57,7 +60,7 @@ jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘�
 | 单次替换入口 | 对 `cat cat` 执行 `cat → cat!`，分别用按钮、Enter 和命令；文本、当前匹配及滚动位置一致 |
 | 隐藏与重新打开 | 关闭后 Tab／Shift+Tab 不进入隐藏控件，More 关闭；重新打开聚焦并选中查询。覆盖编辑／阅读、展开／折叠及目标移动平台 |
 | 文档安全 | 同文件双分屏独立当前项；改正文、撤销／重做、换文件／模式后不使用旧坐标；后台重算不主动滚动 |
-| 关闭语义 | 对照已批准关闭契约测试各用户关闭入口及清空开关，记录当前实现差异；缺失／非布尔 livePreview 偏好不应写模式 |
+| 关闭语义 | 各用户关闭入口一致；清空开关清两种输入但保留选项；隐藏后 Escape 无副作用；缺失／非布尔／抛错 livePreview 偏好不写模式 |
 
 行为依据：`src/SearchBox.svelte`、`src/editor-extension.ts`；自动回归参见 `tests/search-box-dom.test.mjs`、`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
 

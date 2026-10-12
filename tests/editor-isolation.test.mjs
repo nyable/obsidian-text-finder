@@ -71,6 +71,7 @@ function environment() {
 	const search = new EditorSearch(plugin);
 	const finder = (view) => {
 		const component = loadSource("../src/SearchBox.svelte", {
+			svelte: { onMount() {} }, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 			"./toolbar": toolbarSource,
 			"./search-highlight": highlightStub,
 			"./editor-extension": highlightStub,

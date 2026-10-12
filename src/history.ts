@@ -55,6 +55,51 @@ export function parseHistoryLimit(value: string): number | null {
 	return Number.isInteger(limit) && limit >= 1 && limit <= 200 ? limit : null;
 }
 
+/** History identity is exact text; ordering may change while browsing. */
+export class HistoryNavigation {
+	private selected: string | null = null;
+	private previous: string[] = [];
+	private draft = "";
+
+	reset() { this.selected = null; this.previous = []; this.draft = ""; }
+	select(text: string, items: SearchHistoryItem[]) {
+		this.selected = items.some((item) => item.text === text) ? text : null;
+		this.previous = items.map((item) => item.text);
+		this.draft = "";
+	}
+	reconcile(items: SearchHistoryItem[]): string | undefined {
+		const texts = items.map((item) => item.text);
+		let replacement: string | undefined;
+		if (this.selected !== null && !texts.includes(this.selected)) {
+			const index = this.previous.indexOf(this.selected);
+			const survivors = new Set(texts);
+			const neighbour = this.previous.slice(index + 1).find((text) => survivors.has(text))
+				?? this.previous.slice(0, Math.max(0, index)).reverse().find((text) => survivors.has(text))
+				?? texts[0];
+			this.selected = neighbour ?? null;
+			replacement = neighbour ?? this.draft;
+		}
+		this.previous = texts;
+		return replacement;
+	}
+	move(direction: -1 | 1, current: string, items: SearchHistoryItem[]): string | undefined {
+		const repaired = this.reconcile(items);
+		// One key action repairs a removed item without skipping its neighbour.
+		if (repaired !== undefined) return repaired;
+		if (this.selected === null) {
+			if (direction === -1) return current ? "" : undefined;
+			if (!items.length) return undefined;
+			this.draft = current;
+			this.selected = items[0].text;
+		} else {
+			const index = items.findIndex((item) => item.text === this.selected) + direction;
+			if (index < 0) { this.selected = null; return this.draft; }
+			this.selected = items[Math.min(index, items.length - 1)]?.text ?? null;
+		}
+		return this.selected ?? this.draft;
+	}
+}
+
 interface HistorySettings {
 	searchHistory: SearchHistoryItem[];
 	historySortOrder: HistorySortOrderType;

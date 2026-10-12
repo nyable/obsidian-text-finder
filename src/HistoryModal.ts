@@ -6,7 +6,7 @@ export class HistoryModal extends Modal {
     plugin: TextFinderPlugin;
     component: HistoryModalComponent | undefined;
 
-    constructor(app: App, plugin: TextFinderPlugin) {
+    constructor(app: App, plugin: TextFinderPlugin, private closed: () => void = () => {}) {
         super(app);
         this.plugin = plugin;
     }
@@ -34,8 +34,10 @@ export class HistoryModal extends Modal {
     onClose() {
         if (this.component) {
             this.component.$destroy();
+            this.component = undefined;
         }
         const { contentEl } = this;
         contentEl.empty();
+        this.closed();
     }
 }

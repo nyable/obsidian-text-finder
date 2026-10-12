@@ -338,6 +338,20 @@ test("same-query background refresh preserves the pending user scroll and curren
 	h.search.destroy();
 });
 
+test("pending reading navigation accumulates net direction across refreshes and wraps negative steps", async () => {
+	const h = environment(["<p>cat cat cat cat cat</p>"]);
+	h.run("cat"); h.renderer.rendered = [];
+	let result;
+	for (const direction of [1, 1, 1, -1]) h.search.search("cat", options, 0, true, (value) => { result = value; }, direction);
+	h.search.search("cat", options, 0, false, (value) => { result = value; });
+	h.renderer.rendered = null; h.callbacks.forEach((callback) => callback()); await Promise.resolve();
+	assert.equal(result.index, 2);
+	h.renderer.rendered = [];
+	for (let i = 0; i < 8; i++) h.search.search("cat", options, 2, true, (value) => { result = value; }, -1);
+	h.renderer.rendered = null; h.callbacks.forEach((callback) => callback()); await Promise.resolve();
+	assert.equal(result.index, 4); h.search.destroy();
+});
+
 test("CSS hidden text is excluded while folded list and callout bodies remain searchable", () => {
 	const h = environment([`<p>visible <span style="display:none">secret</span><span style="visibility:hidden">invisible</span></p>
 		<ul><li class="is-collapsed"><ul style="display:none"><li>folded-list</li></ul></li></ul>

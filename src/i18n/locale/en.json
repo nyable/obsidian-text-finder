@@ -6,6 +6,8 @@
 	"ReadingPending": "Preparing search…",
 	"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
 	"StatusError": "Find is temporarily unavailable",
+	"EditorFailed": "Could not update the editor position or mode. Try again after the view is ready.",
+	"ReplacedNavigationFailed": "Replacement was applied, but positioning failed. Check the text before replacing again.",
 	"Retry": "Retry",
 	"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
 	"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
@@ -70,8 +72,8 @@
       "moved": "Moved {{name}}", "reset": "Restore this toolbar's defaults"
     },
     "ClearAfterHidden": {
-      "name": "Clear search text",
-      "desc": "When closing the search box, the search text will be cleared."
+      "name": "Clear search and replacement text",
+      "desc": "Clear both inputs when closing the finder. Regex and match-case options are retained."
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",
@@ -116,6 +118,8 @@
     }
   },
   "history": {
+    "Length": "Length",
+    "Characters": "{{count}} chars",
     "Title": "Search History",
     "ClearAll": "Clear All",
     "Delete": "Delete",

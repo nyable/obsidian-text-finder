@@ -3,7 +3,24 @@ import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
 
-const { findReplacementChanges, findTextOffsets } = loadSource("../src/util/text-helper.ts");
+const { findReplacementChanges, findTextOffsets, prepareReplacements } = loadSource("../src/util/text-helper.ts");
+
+test("single replacement lazily expands only its chosen original match", (t) => {
+	let expansions = 0;
+	const original = String.prototype.replace;
+	t.mock.method(String.prototype, "replace", function (...args) {
+		if (String(this) === "$'") expansions++;
+		return original.apply(this, args);
+	});
+	const prepared = prepareReplacements("a".repeat(2000), "a", "$'", true, true);
+	assert.equal(prepared.matches.length, 2000);
+	assert.equal(expansions, 0);
+	assert.equal(prepared.one(1000).insert.length, 999);
+	assert.equal(expansions, 1);
+	assert.equal(prepared.one(-1), undefined);
+	assert.equal(prepared.all().length, 2000);
+	assert.equal(expansions, 2001);
+});
 
 function applyChanges(source, changes) {
 	for (const { from, to, insert } of [...changes].reverse()) {

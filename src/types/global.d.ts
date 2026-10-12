@@ -58,6 +58,8 @@ interface SearchCache {
 }
 
 interface ReplaceResult {
+	/** The edit committed, but follow-up positioning failed. Do not repeat it. */
+	navigationFailed?: boolean;
 	/**
 	 * 是否有进行替换
 	 */

@@ -29,6 +29,14 @@ pnpm build
 - 修改依赖时，使用 pnpm 更新并提交 `pnpm-lock.yaml`。
 - [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) 固定 CodeMirror 版本并配置构建依赖许可，避免多个不兼容的实例。
 - CI 使用 `--frozen-lockfile` 安装，执行测试、TypeScript/Svelte 检查和插件构建，配置见 [`.github/workflows/`](../.github/workflows/)。
+- 回归测试含版本、翻译键、产品命令／设置表、CSS 默认值一致性检查；构建后 CI 比较 manifest 源文件和产物。
+
+## 变更同步
+
+- 产品行为以 interactions 的批准契约为预期，源码和测试记录实现；冲突时先判定需求，不自动以代码为准。
+- 默认值／类型以 settings 和 toolbar 为来源，命令以注册定义为来源，公开 CSS 默认值以全局 SCSS 为来源。文档表格由一致性测试守护，不引入重复 Schema 系统。
+- 功能变化核对 README／features，交互变化核对 interactions，数据变化核对 architecture 与迁移回归，宿主依赖变化核对 compatibility 与实机场景。
+- 每次关键功能变更核对异常路径测试、旧数据兼容、命令／CSS 接口、文案及真实宿主验收需求。安全公告按可达调用链判断，不为消除扫描命中盲目升级框架主版本。
 
 ## 维护入口
 

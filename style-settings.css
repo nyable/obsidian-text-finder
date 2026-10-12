@@ -23,10 +23,10 @@ settings:
         default: '#2488db'
     - 
         id: nya-dragger-color
-        title: Dragger color
-        title.zh: 拖拽控件的颜色
-        description: The color of the dragger
-        description.zh: 拖拽控件的颜色
+        title: Accent strip color
+        title.zh: 装饰条颜色
+        description: The color of the decorative strip (not a resize handle)
+        description.zh: 左侧装饰条的颜色（不是调整宽度的手柄）
         type: variable-color
         opacity: true
         format: hex

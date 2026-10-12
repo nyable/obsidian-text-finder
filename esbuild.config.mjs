@@ -19,7 +19,8 @@ const prod = process.argv[2] === "production";
 const copyManifest = {
 	name: "copy-manifest",
 	setup(build) {
-		build.onEnd(() => {
+		build.onEnd((result) => {
+			if (result.errors.length) return;
 			const outdir = build.initialOptions.outdir ?? "dist";
 			copyFileSync("manifest.json", join(outdir, "manifest.json"));
 		});

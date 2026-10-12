@@ -27,6 +27,6 @@ jobs:
       - name: Build plugin
         run: pnpm build
       - name: Verify build outputs
-        run: test -s dist/main.js && test -s dist/styles.css
+        run: test -s dist/main.js && test -s dist/styles.css && cmp manifest.json dist/manifest.json
       - name: Verify install did not change dependency definitions
         run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml

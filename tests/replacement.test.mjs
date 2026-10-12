@@ -44,6 +44,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 	};
 	attachHistory(plugin);
 	const finder = loadSource("../src/SearchBox.svelte", {
+		svelte: { onMount() {} }, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 		"./toolbar": toolbarSource,
 		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,

@@ -30,6 +30,7 @@ function environment() {
 	const commands = new Map();
 	view.showSearch = () => calls.push(["native"]);
 	const finder = {
+		closeFinder: () => calls.push(["close"]),
 		setVisible: (...args) => calls.push(["visible", ...args]),
 		toggleVisible: () => calls.push(["toggle"]),
 		toNextMatch: () => calls.push(["next"]),
@@ -107,15 +108,15 @@ test("ToggleFind uses the same native fallback and closes an already-open plugin
 	h.plugin.settings.useObsidianSearchInRead = true;
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
 	assert.deepEqual(h.calls, [["native"]]);
-	h.search.finderViews.set(h.view, { isVisible: () => true, setVisible: (value) => h.calls.push(["visible", value]) });
+	h.search.finderViews.set(h.view, { isVisible: () => true, closeFinder: () => h.calls.push(["close"]) });
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
-	assert.deepEqual(h.calls.at(-1), ["visible", false]);
+	assert.deepEqual(h.calls.at(-1), ["close"]);
 	h.search.finderViews.clear();
 	h.search.destoryAll();
 });
 
 for (const [id, action] of [
-	["text-finder-hide-find", ["visible", false]], ["text-finder-toggle-find", ["visible", true, undefined]],
+	["text-finder-hide-find", ["close"]], ["text-finder-toggle-find", ["visible", true, undefined]],
 	["text-finder-next-match", ["next"]], ["text-finder-previous-match", ["previous"]],
 ]) {
 	test(`${id} works in reading mode, with no mutation during availability checks`, () => {
@@ -123,6 +124,7 @@ for (const [id, action] of [
 		const command = h.commands.get(id);
 		assert.equal(command.checkCallback(true), true);
 		assert.equal(h.created(), 0);
+		if (id === "text-finder-hide-find") h.search.finderViews.set(h.view, { closeFinder: () => h.calls.push(["close"]), $destroy() {} });
 		command.checkCallback(false);
 		assert.deepEqual(h.calls, [action]);
 		h.close();
@@ -163,7 +165,7 @@ test("view-scoped Escape listener is removed when its leaf closes", () => {
 	const h = environment();
 	h.view.containerEl = h.root;
 	let escapes = 0;
-	const finder = { closeFinder: () => escapes++, $destroy() {} };
+	const finder = { isVisible: () => true, closeFinder: () => escapes++, $destroy() {} };
 	h.search.registerFinderEvent(h.view, finder);
 	h.search.finderViews.set(h.view, finder);
 	h.root.dispatchEvent(new h.dom.window.KeyboardEvent("keydown", { key: "Escape" }));
@@ -193,4 +195,39 @@ test("native fallback closes the plugin finder and remains bound to its open own
 	h.close(); h.search.openNativeSearch(h.view);
 	assert.equal(h.calls.length, 2);
 	h.search.finderViews.clear(); h.search.destoryAll();
+});
+
+test("hidden, modified and consumed Escape events never close Finder", () => {
+	const h = environment(); h.view.containerEl = h.root;
+	let visible = false; let closes = 0;
+	h.search.registerFinderEvent(h.view, { isVisible: () => visible, closeFinder: () => closes++ });
+	const key = (options = {}) => h.root.dispatchEvent(new h.dom.window.KeyboardEvent("keydown", { key: "Escape", cancelable: true, ...options }));
+	key(); assert.equal(closes, 0);
+	visible = true;
+	key({ metaKey: true }); key({ isComposing: true }); assert.equal(closes, 0);
+	const consumed = new h.dom.window.KeyboardEvent("keydown", { key: "Escape", cancelable: true });
+	consumed.preventDefault(); h.root.dispatchEvent(consumed); assert.equal(closes, 0);
+	key(); assert.equal(closes, 1); h.search.destoryAll();
+});
+
+test("late layout callbacks do not initialize unloaded plugins and initialization is idempotent", () => {
+	let callback; let unloaded = false; let commands = 0; let extensions = 0;
+	const plugin = { editorSearch: null, isUnloaded: () => unloaded,
+		app: { workspace: { onLayoutReady: (fn) => { callback = fn; }, on() {} } },
+		registerEvent() {}, addCommand() { commands++; }, registerEditorExtension() { extensions++; } };
+	const { editorExtensionProvider } = loadSource("../src/editor-extension.ts", {
+		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
+		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
+	});
+	editorExtensionProvider(plugin); unloaded = true; callback();
+	assert.equal(plugin.editorSearch, null); assert.equal(commands, 0);
+	unloaded = false; callback(); callback();
+	assert.equal(commands, 10); assert.equal(extensions, 1); plugin.editorSearch.destoryAll();
+});
+
+test("unload closes tracked history modals exactly once", () => {
+	const h = environment(); let closes = 0;
+	h.search.historyModals.add({ close: () => closes++ });
+	h.search.destoryAll(); h.search.destoryAll();
+	assert.equal(closes, 1); assert.equal(h.search.historyModals.size, 0);
 });

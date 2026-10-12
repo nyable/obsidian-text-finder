@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
-import { constants, historySource, settingsSource, queueSource, toolbarSource } from "./history-source.mjs";
+import { constants, historySource, settingsSource, toolbarSource } from "./history-source.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
 const notices = [];
@@ -46,7 +46,7 @@ class Setting {
 		callback(dropdown); fields.set(this.name, dropdown); return this;
 	}
 }
-const obsidian = { Plugin, PluginSettingTab, Setting, Notice: class { constructor(message) { notices.push(message); } } };
+const obsidian = { Plugin, PluginSettingTab, Setting, normalizePath: (path) => path, Notice: class { constructor(message) { notices.push(message); } } };
 const translations = { i18n: { t: (key) => key } };
 const settingsTabSource = loadSource("../src/settings-tab.ts", {
 	obsidian, "./i18n": translations, "./constants": constants, "./history": historySource, "./toolbar": toolbarSource,
@@ -55,12 +55,65 @@ const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
 	obsidian, "./settings-tab": settingsTabSource,
 	"./i18n": { i18n: { t: (key) => key } },
 	"./editor-extension": { editorExtensionProvider: () => {} },
-	"./constants": constants, "./history": historySource, "./settings": settingsSource, "./save-queue": queueSource,
+	"./constants": constants, "./history": historySource, "./settings": settingsSource,
+	"./settings-storage": loadSource("../src/settings-storage.ts"),
 });
 function plugin(data) {
-	const p = new TextFinderPlugin(); p.data = data; p.writes = []; return p;
+	const p = new TextFinderPlugin(); p.data = data; p.writes = [];
+	p.manifest = { id: "text-finder", dir: ".obsidian/plugins/text-finder" };
+	p.app = { vault: { configDir: ".obsidian", adapter: {
+		stat: async () => ({ type: "file" }),
+		read: async () => JSON.stringify(await p.loadData() ?? null),
+		write: async (_path, text) => p.saveData(JSON.parse(text)),
+	} } };
+	return p;
 }
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+test("malformed persisted JSON blocks writes even when host loadData would swallow the error", async (t) => {
+	t.mock.method(console, "error", () => {});
+	const p = plugin(null);
+	p.app.vault.adapter.read = async () => "{broken";
+	p.loadData = async () => undefined;
+	await p.loadSettings();
+	await assert.rejects(p.saveSettings(), /refusing to overwrite/);
+	assert.equal(p.writes.length, 0);
+});
+
+test("unload during a slow read does not register UI or accept new saves", async (t) => {
+	t.mock.method(console, "error", () => {});
+	const p = plugin(null); let release;
+	p.app.vault.adapter.read = () => new Promise((resolve) => { release = resolve; });
+	const before = tabs.length;
+	const load = p.onload(); await settle();
+	p.onunload(); release("null"); await load;
+	assert.equal(tabs.length, before);
+	await assert.rejects(p.saveSettings(), /unloaded/);
+	assert.equal(p.writes.length, 0);
+});
+
+test("actual plugin reload reads all accepted snapshots before writing new history", async () => {
+	let disk = JSON.stringify(settingsSource.defaultSettings()); let release; let started;
+	const firstStarted = new Promise((resolve) => { started = resolve; });
+	const snapshots = [];
+	const app = { vault: { configDir: ".obsidian", adapter: {
+		stat: async () => ({ type: "file" }), read: async () => disk,
+		write: async (_path, text) => {
+			snapshots.push(JSON.parse(text));
+			if (snapshots.length === 1) { started(); await new Promise((resolve) => { release = resolve; }); }
+			disk = text;
+		},
+	} } };
+	const old = plugin(null); old.app = app; await old.loadSettings();
+	old.history.record("A"); old.history.record("B"); old.history.record("C");
+	await firstStarted; old.onunload();
+	const fresh = plugin(null); fresh.app = app; const load = fresh.loadSettings();
+	release(); await load;
+	assert.deepEqual(fresh.history.sorted().map((item) => item.text).sort(), ["A", "B", "C"]);
+	fresh.history.record("NEW"); await fresh.flushSettings();
+	assert.ok(JSON.parse(disk).searchHistory.some((item) => item.text === "NEW"));
+	assert.equal(snapshots.length, 4);
+});
 
 test("actual plugin migrates all entries, saves once and loads normalized data unchanged", async () => {
 	const p = plugin({ searchHistory: [{ text: "new", createdAt: 5, lastUsedAt: 6, count: 2 }, "old", { text: "missingLast", createdAt: 2, count: 7 }] });

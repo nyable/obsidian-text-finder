@@ -9,7 +9,9 @@
 	import type { EditorContext } from "./editor-context";
 	import { i18n } from "./i18n";
 	import { Platform, type MarkdownView } from "obsidian";
-	import { findTextOffsets, findReplacementChanges } from "./util/text-helper";
+	import { findTextOffsets, prepareReplacements } from "./util/text-helper";
+	import { HistoryNavigation } from "./history";
+	import { onMount } from "svelte";
 	import { getLivePreviewPreference } from "./util/obsidian-internal";
 	import type { TransactionSpec } from "@codemirror/state";
 	import Toolbar from "./Toolbar.svelte";
@@ -44,15 +46,18 @@
 	};
 
 	// Search History
-	let historyIndex = -1;
-	// Temporary storage for the current input when navigating history
-	let tempInput = "";
+	const historyNavigation = new HistoryNavigation();
 	// Track usage separately from bind:value to identify consecutive query cycles.
 	let lastRecordedSearch: string | null = null;
 	let currentSearch = "";
 
 	// Get sorted history based on user preference
 	const getSortedHistory = () => editorSearch.plugin.history.sorted();
+	onMount(() => editorSearch.plugin.history.subscribe(() => {
+		if (!editorSearch.plugin.settings.enableHistory) { historyNavigation.reset(); return; }
+		const text = historyNavigation.reconcile(getSortedHistory());
+		if (text !== undefined) setFindText(text, false);
+	}));
 
 	// Continuous navigation counts once; explicit history reuse starts a new use.
 	const recordSearchToHistory = (searchText: string, force = false) => {
@@ -179,10 +184,8 @@
 			setFindText(searchText !== undefined ? searchText : cache.search);
 			searchEl.focus();
 			searchEl.select();
-			// Set history index (either provided or reset to -1)
-			historyIndex =
-				historyIndexOverride !== undefined ? historyIndexOverride : -1;
-			tempInput = "";
+			if (historyIndexOverride !== undefined) historyNavigation.select(cache.search, getSortedHistory());
+			else historyNavigation.reset();
 		} else {
 			readingRequest++;
 			readingPending = false;
@@ -190,6 +193,7 @@
 			readingError = undefined;
 			editorSearch.clearReadingSearch?.(ownerView);
 			cache.collapse = true;
+			historyNavigation.reset();
 			if (settings.clearAfterHidden) {
 				resetMatches(true, true);
 			} else {
@@ -210,7 +214,7 @@
 		setVisible(true, searchText, index);
 		recordSearchToHistory(searchText, true);
 		// Usage can reorder the list; preserve the selected entry's new position.
-		historyIndex = getSortedHistory().findIndex((item) => item.text === searchText);
+		historyNavigation.select(searchText, getSortedHistory());
 		return true;
 	}
 
@@ -219,6 +223,7 @@
 	}
 
 	export function resetAll() {
+		historyNavigation.reset();
 		readingRequest++;
 		readingPending = false;
 		readingUnsupported = false;
@@ -241,7 +246,8 @@
 	}
 
 	export function toggleVisible() {
-		setVisible(!cache.visible);
+		if (cache.visible) closeFinder();
+		else setVisible(true);
 	}
 
 	export function toggleCollapse() {
@@ -253,6 +259,7 @@
 	}
 
 	const onSearchChanged = (e: Event) => {
+		historyNavigation.reset();
 		const target = e.target as HTMLTextAreaElement;
 		setFindText(target.value);
 	};
@@ -266,7 +273,7 @@
 		const before = getEditorContext();
 		const result = replaceMatchedText(cache.replace);
 		const current = getEditorContext();
-		if (result.changed && result.beforeCount === result.afterCount && before && current
+		if (result.changed && !result.navigationFailed && result.beforeCount === result.afterCount && before && current
 			&& current.file === before.file && current.editor === before.editor
 			&& current.editorView === before.editorView && isCurrentContext(current)
 			&& matchedContext?.doc === current.doc && matchedQuery === queryKey()) {
@@ -276,19 +283,23 @@
 	};
 
 	export const closeFinder = () => {
-		const activeEditor = getEditorContext();
-		if (activeEditor) {
-			const state = activeEditor.view.getState();
-			const { sourceModeWhenSearch } = editorSearch.plugin.settings;
-			if (state.mode === "source" && sourceModeWhenSearch) {
-				const needPreview = isNeedPreviewMode();
-				if (needPreview !== undefined) {
-					state.source = !needPreview;
-					activeEditor.view.setState(state, { history: false });
+		if (!cache.visible) return;
+		try {
+			const activeEditor = getEditorContext();
+			if (activeEditor) {
+				const state = activeEditor.view.getState();
+				const { sourceModeWhenSearch } = editorSearch.plugin.settings;
+				if (state.mode === "source" && sourceModeWhenSearch) {
+					const needPreview = isNeedPreviewMode();
+					if (needPreview !== undefined) {
+						state.source = !needPreview;
+						void Promise.resolve(activeEditor.view.setState(state, { history: false }))
+							.catch((error) => editorSearch.plugin.reportError("search.EditorFailed", error));
+					}
 				}
 			}
-		}
-		setVisible(false);
+		} catch (error) { editorSearch.plugin.reportError("search.EditorFailed", error); }
+		finally { setVisible(false); }
 	};
 	export const toggleRegexMode = () => {
 		cache.options.regexMode = !cache.options.regexMode;
@@ -443,8 +454,9 @@
 	export const toNextMatch = () => navigateMatch(1);
 	export const toPreviousMatch = () => navigateMatch(-1);
 
-	export const scrollToMatch = (activeEditor = getEditorContext()) => {
+	export const scrollToMatch = (activeEditor = getEditorContext(), afterReplacement = false) => {
 		if (isReading()) { setFindText(cache.search, true); return; }
+		try {
 		if (activeEditor && isCurrentContext(activeEditor)) {
 			if (matchedContext?.doc !== activeEditor.doc || matchedQuery !== queryKey()
 				|| matchedContext.file !== activeEditor.file || matchedContext.editorView !== activeEditor.editorView) {
@@ -471,7 +483,19 @@
 				if (sourceModeWhenSearch && state.mode === "source") {
 					state.source = true;
 				}
-				view.setState(state, { history: false });
+				const requestQuery = queryKey();
+				const requestFile = ownerView.file;
+				const reportPositionError = (error: unknown) => editorSearch.plugin.reportError(
+					afterReplacement ? "search.ReplacedNavigationFailed" : "search.EditorFailed", error);
+				let changed: Promise<void>;
+				try { changed = view.setState(state, { history: false }); }
+				catch (error) { reportPositionError(error); return false; }
+				void Promise.resolve(changed).then(() => {
+					// Mode changes can rebuild the editor asynchronously. Never submit
+					// old offsets to a new editor or overwrite a newer query/close.
+					if (cache.visible && ownerView.file === requestFile && queryKey() === requestQuery
+						&& getEditorContext() && !isCurrentContext(activeEditor)) matchAgain(false);
+				}).catch(reportPositionError);
 				if (!isCurrentContext(activeEditor)) {
 					matchAgain(false);
 					return;
@@ -482,6 +506,11 @@
 						: undefined,
 				}, activeEditor);
 			}
+		}
+		return true;
+		} catch (error) {
+			editorSearch.plugin.reportError(afterReplacement ? "search.ReplacedNavigationFailed" : "search.EditorFailed", error);
+			return false;
 		}
 	};
 
@@ -494,10 +523,12 @@
 		cache.matches = [];
 		cache.index = 0;
 		if (clearSearch) {
+			historyNavigation.reset();
 			cache.search = "";
 			currentSearch = "";
 			lastRecordedSearch = null;
 		}
+		if (clearReplace) cache.replace = "";
 		emitChange();
 	};
 
@@ -521,19 +552,19 @@
 
 		// Hidden finders do not track editor changes. Never use cached offsets
 		// for a write: recalculate against the editor captured for this action.
-		const changes = findReplacementChanges(
+		const replacements = prepareReplacements(
 			activeEditor.editor.getValue(),
 			cache.search,
 			cache.options.regexMode ? adjustReplaceText(inputText) : inputText,
 			cache.options.regexMode,
 			cache.options.caseSensitive,
 		);
-		cache.matches = changes.map(({ from, to }, index) => ({ from, to, index }));
+		cache.matches = replacements.matches;
 		rememberMatches(activeEditor);
 		if (cache.matches.length === 0) {
 			emitChange(true, undefined, activeEditor);
 		}
-		return { activeEditor, changes };
+		return { activeEditor, replacements };
 	};
 
 	const replaceText = (inputText: string, all: boolean): ReplaceResult => {
@@ -550,18 +581,28 @@
 		};
 
 		if (prepared && matchSize > 0 && isCurrentContext(prepared.activeEditor)) {
-			const changes = all ? prepared.changes : [prepared.changes[index]];
+			const selected = all ? undefined : prepared.replacements.one(index);
+			const changes = all ? prepared.replacements.all() : selected ? [selected] : [];
+			if (!changes.length) return result;
 			prepared.activeEditor.editorView.dispatch({ changes });
-			const current = getEditorContext();
-			if (current && current.file === prepared.activeEditor.file
-				&& current.editorView === prepared.activeEditor.editorView) setFindText(search, true, current);
-			else {
-				cache.matches = [];
-				cache.index = 0;
-				matchedContext = null;
-			}
 			result.changed = true;
 			result.changeCount = changes.length;
+			try {
+				const current = getEditorContext();
+				if (current && current.file === prepared.activeEditor.file
+					&& current.editorView === prepared.activeEditor.editorView) {
+					setFindText(search, false, current);
+					if (!scrollToMatch(current, true)) result.navigationFailed = true;
+				} else {
+					cache.matches = [];
+					cache.index = 0;
+					matchedContext = null;
+				}
+			} catch (error) {
+				result.navigationFailed = true;
+				// The write succeeded. A positioning failure must not invite retrying it.
+				editorSearch.plugin.reportError("search.ReplacedNavigationFailed", error);
+			}
 			result.afterCount = cache.matches.length;
 		}
 		return result;
@@ -587,24 +628,10 @@
 
 			// Only navigate history if cursor is on the first line
 			if (firstLineEnd === -1 || cursorPosition <= firstLineEnd) {
-				if (historyIndex === -1) {
-					// Start navigating history from the beginning (most recent/used)
-					tempInput = cache.search;
-					historyIndex = 0;
-				} else {
-					// Move forward in the sorted history
-					historyIndex = Math.min(
-						sortedHistory.length - 1,
-						historyIndex + 1,
-					);
-				}
-
-				if (historyIndex >= 0 && historyIndex < sortedHistory.length) {
+				const text = historyNavigation.move(1, cache.search, sortedHistory);
+				if (text !== undefined) {
 					e.preventDefault();
-					setFindText(sortedHistory[historyIndex].text);
-				} else if (historyIndex === -1) {
-					// If we are at the beginning of history and go up, we might want to stay or do nothing
-					// For now, let's just prevent default if we successfully changed text
+					setFindText(text);
 				}
 			}
 			return;
@@ -617,24 +644,10 @@
 
 			// Only navigate history if cursor is on the last line
 			if (lastLineStart === -1 || cursorPosition > lastLineStart) {
-				if (historyIndex === -1) {
-					// VSCode-like behavior: clear search when pressing down at newest position
-					if (cache.search !== "") {
-						e.preventDefault();
-						setFindText("");
-					}
-					return;
-				}
-
-				e.preventDefault();
-				// Move backward in the sorted history
-				historyIndex = historyIndex - 1;
-				if (historyIndex < 0) {
-					// Reached beginning of history, restore temp input
-					historyIndex = -1;
-					setFindText(tempInput);
-				} else {
-					setFindText(sortedHistory[historyIndex].text);
+				const text = historyNavigation.move(-1, cache.search, sortedHistory);
+				if (text !== undefined) {
+					e.preventDefault();
+					setFindText(text);
 				}
 			}
 			return;
@@ -643,11 +656,10 @@
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (enableInputHotkeys && isEnterPress) {
 			// 这里本来打算监听enter shift+enter ctrl+enter 但是加上修饰键 会和默认的快捷键有冲突.所以除了enter都用命令的快捷键算了
-			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
+			if (!e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
 				e.preventDefault();
 
-				historyIndex = -1;
-				tempInput = "";
+				historyNavigation.reset();
 				toNextMatch();
 			}
 		}
@@ -658,7 +670,7 @@
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
 		if (enableInputHotkeys && isEnterPress) {
-			if (!e.altKey && !e.ctrlKey && !e.shiftKey) {
+			if (!e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
 				e.preventDefault();
 				replaceOnce();
 			}
@@ -670,7 +682,7 @@
 	};
 
 	const defaultEnterEvent = (e: KeyboardEvent) => {
-		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
+		const isEnterPress = ["Enter", "NumpadEnter", "Space"].includes(e.code);
 		if (isEnterPress) {
 			e.preventDefault();
 			const el = e.target as HTMLElement;

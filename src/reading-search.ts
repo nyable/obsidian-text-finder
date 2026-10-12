@@ -79,6 +79,7 @@ export class ReadingSearch {
 	private waitTimer: number | null = null;
 	private doc: Document | null = null;
 	private results: ReadingMatch[] = [];
+	private matchOffsets: MatchOffset[] = [];
 	private queryKey = "";
 	private nodeSections = new WeakMap<Node, PreviewSection>();
 	private sectionElements = new Set<Node>();
@@ -132,7 +133,12 @@ export class ReadingSearch {
 				this.request = request;
 			} else {
 				request.done = done;
-				if (!request.waiting || scroll) { request.index = index; request.scroll = scroll; request.direction = direction; }
+				if (request.waiting && scroll && direction) {
+					request.scroll = true;
+					request.direction += direction;
+				} else if (!request.waiting || scroll) {
+					request.index = index; request.scroll = scroll; request.direction = direction;
+				}
 				if (!request.waiting) request.deadline = Date.now() + this.waitTimeoutMs;
 			}
 			this.run(request);
@@ -190,6 +196,7 @@ export class ReadingSearch {
 						return sections.length ? { match, endpoints, sections } : null;
 					}).filter((result): result is ReadingMatch => result !== null);
 				this.queryKey = request.key;
+				this.matchOffsets = this.results.map(({ match }, index) => ({ ...match, index }));
 				this.sectionEndpoints.clear();
 				this.results.forEach((result, index) => {
 					for (const endpoint of result.endpoints) {
@@ -202,14 +209,14 @@ export class ReadingSearch {
 			}
 			let index = newDocument ? 0 : request.index;
 			index = index >= 0 && index < this.results.length ? index : 0;
-			if (this.results.length && request.direction) index = (index + request.direction + this.results.length) % this.results.length;
+			if (this.results.length && request.direction) index = ((index + request.direction) % this.results.length + this.results.length) % this.results.length;
 			this.currentIndex = index;
 			if (request.scroll) this.scroll(index, request);
 			if (!this.current(request)) return;
 			// Navigation can move sections. Construct live ranges only after it completes.
 			this.paint();
 			request.index = index; request.scroll = false; request.direction = 0;
-			request.done({ matches: this.results.map(({ match }, i) => ({ ...match, index: i })), index, pending: false, unsupported: false });
+			request.done({ matches: this.matchOffsets, index, pending: false, unsupported: false });
 		} catch { if (this.request === request) this.fail("failed", request.done); }
 	}
 
@@ -347,7 +354,7 @@ export class ReadingSearch {
 	clear() {
 		this.lifecycle++; this.request = null; this.paintScheduled = false;
 		this.removeHighlights(); this.disconnect(); this.dirty = true;
-		this.results = []; this.queryKey = ""; this.textIndex = null;
+		this.results = []; this.matchOffsets = []; this.queryKey = ""; this.textIndex = null;
 		this.sectionEndpoints.clear();
 		this.nodeSections = new WeakMap(); this.sectionElements.clear();
 		this.sections = null; this.source = null; this.renderer = null; this.file = null;

@@ -4,6 +4,30 @@ import { historySource as h, settingsSource as s } from "./history-source.mjs";
 
 const item = (text, count = 1, createdAt = 10, lastUsedAt = 20) => ({ text, count, createdAt, lastUsedAt });
 
+test("history navigation retains exact identity across reorder and selects the next surviving neighbour", () => {
+	const nav = new h.HistoryNavigation();
+	const rows = ["A", " B ", "C", "D"].map((text) => item(text));
+	assert.equal(nav.move(1, "draft", rows), "A");
+	assert.equal(nav.move(1, "A", rows), " B ");
+	assert.equal(nav.reconcile([rows[3], rows[2], rows[1], rows[0]]), undefined);
+	assert.equal(nav.move(-1, " B ", [rows[3], rows[2], rows[1], rows[0]]), "C");
+	assert.equal(nav.reconcile([rows[3], rows[0]]), "A");
+	assert.equal(nav.reconcile([rows[3]]), "D");
+	assert.equal(nav.reconcile([]), "draft");
+	assert.equal(nav.move(1, "draft", []), undefined);
+});
+
+test("history shrink never indexes a missing entry and reset starts with the new draft", () => {
+	const nav = new h.HistoryNavigation();
+	const rows = ["A", "B", "C"].map((text) => item(text));
+	for (let i = 0; i < 3; i++) nav.move(1, "draft", rows);
+	assert.equal(nav.move(-1, "C", rows.slice(0, 1)), "A");
+	assert.equal(nav.move(-1, "A", rows.slice(0, 1)), "draft");
+	nav.reset();
+	assert.equal(nav.move(1, "typed", rows), "A");
+	assert.equal(nav.move(-1, "A", rows), "typed");
+});
+
 test("new installations default to reading plugin search while explicit native preferences survive normalization", () => {
 	assert.equal(s.defaultSettings().useObsidianSearchInRead, false);
 	assert.equal(s.normalizeSettings({ useObsidianSearchInRead: true }).settings.useObsidianSearchInRead, true);

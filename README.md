@@ -53,6 +53,7 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Assign shortcuts to Text Finder commands in Obsidian's hotkey settings.
 -   Run “Open search in current file”, enter a query, and use the previous/next buttons or Enter to navigate matches.
 -   In editing mode, use “Open search & replace in current file” for replacements. Press Escape or the close button to hide the finder.
+-   All closing commands use the same behavior. Queries and regex/match-case options are retained by default; “Clear search and replacement text” clears both inputs, not the options. Escape has no finder effect while it is hidden.
 
 ## Reading-mode search
 
@@ -80,6 +81,7 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 
 -   Run “Show search history” to view, reuse, copy or delete queries. Use Up/Down in the search field to browse history.
 -   Leading/trailing spaces, newlines and tabs are preserved. Continuous navigation with the same query counts as one use.
+-   If the query being browsed is deleted, browsing moves to the next surviving neighbour, or the previous one at the end. Empty history restores the input from before browsing.
 -   Keep 1–200 entries and sort by creation time, last use or usage count. Lowering the limit removes lower-priority entries.
 -   Disabling history preserves existing entries but stops recording new queries, updating usage and Up/Down history navigation.
 -   Read/save failures display a notice. Follow its instructions; unsaved changes may be lost on exit.
@@ -89,6 +91,8 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 Use [CSS snippets](https://help.obsidian.md/Extending+Obsidian/CSS+snippets) or [Style Settings Plugin](https://github.com/mgmeyers/obsidian-style-settings) to customize styles.
 
 [Example Style Settings configuration file](./style-settings.css).
+
+To use the example, save it as a CSS snippet in your vault, enable that snippet, then open the Style Settings plugin. Installing Style Settings alone does not register this example.
 
 Here are some CSS snippets examples.
 

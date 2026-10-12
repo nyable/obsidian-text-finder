@@ -21,5 +21,9 @@
 | 只隐藏透明度／指针事件；键盘或晚到回焦仍进入隐藏控件 | visibility／aria-hidden／tabindex 同步，blur＋隐藏焦点防护，关闭 More | `13e8c2e`；`src/SearchBox.svelte:syncFinderVisibility()`／`guardHiddenFocus()`、`src/Toolbar.svelte`；组件焦点测试 |
 | 各替换入口各自导航；无写入或切文件后也前进 | 按钮／Enter／命令共享 `replaceOnce()`，成功且上下文有效才额外前进 | `13e8c2e`；`src/SearchBox.svelte:replaceOnce()`、`src/editor-extension.ts`；组件与编辑隔离测试 |
 | 用真实 NUL 作转义哨兵；用户 NUL 被替换破坏 | 单次无哨兵解析，只识别支持的转义 | `13e8c2e`；`src/SearchBox.svelte:adjustReplaceText()`；`tests/replacement.test.mjs` 的 NUL／连续反斜杠测试 |
+| 只测试 loadData／saveData 抛错，假定宿主 JSON 包装会传播异常 | 使用公开 adapter stat／read／write，解析失败禁止保存，写失败可见；不存在与权限失败分开 | `src/settings-storage.ts`；`tests/settings-storage.test.mjs`、`tests/main-settings.test.mjs` 的 malformed JSON／I/O 测试 |
+| 单实例队列已串行就认为重载不会竞争；旧任务尚未进入宿主全局队列 | 同 App／路径共享跨模块读写队列，新实例先读取旧实例全部已接受写入 | `src/settings-storage.ts`；`tests/settings-storage.test.mjs` 的 new module instances、`tests/main-settings.test.mjs` 的 reload 测试 |
+| 缓存历史排序下标；删除或缩容后索引越界 | 精确文本浏览身份，删除转存活邻近项，清空恢复暂存输入 | `src/history.ts:HistoryNavigation`；`tests/history.test.mjs`、`tests/search-box-dom.test.mjs` 的邻近项测试 |
+| 为单次替换展开所有模板；前缀／后缀导致多余字符串工作 | 全文匹配保持语义，但只展开实际写入的目标 | `src/util/text-helper.ts:prepareReplacements()`；`tests/regex-replacement.test.mjs` 的 lazily expands 测试 |
 
 使用这些经验时引用对应行为契约，而不是把历史实现原样复制回来。新的回归经验应说明具体症状、原因和可执行证据；尚未确认的风险放在兼容性验证边界，不伪装成历史缺陷。

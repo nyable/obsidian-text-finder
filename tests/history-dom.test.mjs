@@ -26,7 +26,7 @@ const bundle = await build({
 		setup(build) {
 			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/i18n$/ }, ({ path }) => ({ path, namespace: "stub" }));
 			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
-				if (path === "obsidian") return { contents: `export const moment = () => ({format: () => 'date', fromNow: () => 'relative'});` };
+				if (path === "obsidian") return { contents: `export const moment = timestamp => { (globalThis.__historyDates ??= []).push(timestamp); return {format: () => 'date', fromNow: () => 'relative'}; };` };
 				if (path === "./i18n") return { contents: `export const i18n = { t: key => key };` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
 				return { contents: icon + `\nexport { Component as Trash2, Component as Copy, Component as CheckSquare, Component as Square, Component as Info, Component as ArrowLeft, Component as Calendar, Component as Clock, Component as Hash, Component as AlignLeft };`, resolveDir: root };
@@ -66,6 +66,7 @@ function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlugi
 			historyMaxCount: 10,
 			searchHistory: texts.map((text, index) => ({ text, count: 1, createdAt: 100 - index, lastUsedAt: 100 - index })),
 		},
+		isUnloaded: () => false,
 		saveSettings: async () => { saves++; },
 		reportError: (key, error) => errors.push({ key, error }),
 	};
@@ -75,7 +76,7 @@ function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlugi
 	} }) };
 	const target = document.createElement("div");
 	document.body.append(target);
-	const component = new HistoryModal({ target, props: { plugin, modal: { close: () => { closes++; } } } });
+	const component = new HistoryModal({ target, props: { plugin, modal: { contentEl: target, close: () => { closes++; } } } });
 	t.after(() => { component.$destroy(); target.remove(); });
 	const rows = () => [...target.querySelectorAll(".nya-history-item")];
 	const row = (text) => rows().find((row) => row.querySelector(".nya-history-text").textContent === text);
@@ -298,4 +299,32 @@ test("usage updates in another modal refresh an open detail view", async (t) => 
 	await tick();
 	assert.match(second.target.querySelector(".nya-history-detail").textContent, /2/);
 	assert.equal(first.plugin.settings.searchHistory.find((i) => i.text === "B").count, 2);
+});
+
+test("checkbox Space toggles once and does not reuse the query", async (t) => {
+	const h = mount(t);
+	const event = await h.key(h.row("A").querySelector('[role="checkbox"]'), " ");
+	assert.equal(event.defaultPrevented, true);
+	assert.equal(h.row("A").querySelector('[role="checkbox"]').getAttribute("aria-checked"), "true");
+	assert.equal(h.searched.length, 0);
+});
+
+test("late clipboard success after modal destruction does not record usage", async (t) => {
+	const h = mount(t); let finish;
+	navigator.clipboard.writeText = () => new Promise((resolve) => { finish = resolve; });
+	await h.action("A", "Copy"); h.component.$destroy();
+	finish(); await Promise.resolve(); await tick();
+	assert.equal(h.plugin.settings.searchHistory.find((item) => item.text === "A").count, 1);
+	assert.equal(h.saves(), 0);
+});
+
+test("list and detail preserve a valid epoch creation timestamp", async (t) => {
+	const h = mount(t, "createdAt", ["A"]);
+	globalThis.__historyDates = [];
+	h.plugin.settings.searchHistory[0] = { text: "A", count: 1, createdAt: 0, lastUsedAt: 9 };
+	h.plugin.history.notify(); await tick();
+	assert.ok(globalThis.__historyDates.includes(0));
+	globalThis.__historyDates = [];
+	await h.action("A", "Details");
+	assert.ok(globalThis.__historyDates.includes(0));
 });

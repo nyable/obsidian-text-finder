@@ -18,6 +18,8 @@ type VaultWithConfig = Vault & {
 export function getLivePreviewPreference(vault: Vault): boolean | undefined {
 	const configVault = vault as VaultWithConfig;
 	if (typeof configVault.getConfig !== "function") return undefined;
-	const value = configVault.getConfig("livePreview");
-	return typeof value === "boolean" ? value : undefined;
+	try {
+		const value = configVault.getConfig("livePreview");
+		return typeof value === "boolean" ? value : undefined;
+	} catch { return undefined; }
 }

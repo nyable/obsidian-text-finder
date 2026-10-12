@@ -13,6 +13,7 @@
 	// History is deduplicated by its exact text; display order is not identity.
 	let selectedTexts: Set<string> = new Set();
 	let viewingItem: SearchHistoryItem | null = null;
+	let disposed = false;
 
 	const viewDetails = (event: CustomEvent<SearchHistoryItem>) => {
 		viewingItem = event.detail;
@@ -30,9 +31,10 @@
 		// A new settings snapshot also refreshes capacity/sort props in the list.
 		listSettings = { ...plugin.settings };
 	});
-	onDestroy(unsubscribe);
+	onDestroy(() => { disposed = true; unsubscribe(); });
 
 	const select = (event: CustomEvent<SearchHistoryItem>) => {
+		if (disposed) return;
 		const item = event.detail;
 		try {
 			const finder = plugin.editorSearch?.getFinder();
@@ -53,8 +55,9 @@
 	const copy = async (event: CustomEvent<SearchHistoryItem>) => {
 		const item = event.detail;
 		try {
-			await navigator.clipboard.writeText(item.text);
+			await modal.contentEl.ownerDocument.defaultView!.navigator.clipboard.writeText(item.text);
 			// A late clipboard completion must not resurrect a deleted entry.
+			if (disposed || plugin.isUnloaded()) return;
 			plugin.history.record(item.text, true, true);
 		} catch (error) { plugin.reportError("history.CopyFailed", error); }
 	};

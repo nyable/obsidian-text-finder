@@ -1,9 +1,9 @@
-import { Notice, Plugin } from "obsidian";
+import { Notice, Plugin, normalizePath } from "obsidian";
 import { i18n } from "./i18n";
 import { editorExtensionProvider, EditorSearch } from "./editor-extension";
 import { HistoryController } from "./history";
 import { defaultSettings, normalizeSettings, type PluginSettings } from "./settings";
-import { SaveQueue } from "./save-queue";
+import { SettingsStorage } from "./settings-storage";
 import { SettingTab } from "./settings-tab";
 
 export type { SearchHistoryItem } from "./history";
@@ -11,26 +11,40 @@ export type { SearchHistoryItem } from "./history";
 export default class TextFinderPlugin extends Plugin {
 	settings!: PluginSettings;
 	history = new HistoryController(() => this.settings, () => this.saveSettings());
-	private saveQueue = new SaveQueue<PluginSettings>((snapshot) => this.saveData(snapshot));
+	private storage?: SettingsStorage;
+	private unloaded = false;
 	private storageReadable = false;
 	private lastErrorNotice = -Infinity;
 	editorSearch: EditorSearch | null = null;
+	isUnloaded() { return this.unloaded; }
 	async onload() {
 		await this.loadSettings();
+		if (this.unloaded) return;
 		this.addSettingTab(new SettingTab(this.app, this));
 
 		editorExtensionProvider(this);
 	}
 	onunload() {
-		// 在取消加载插件的时候销毁finder的svelte组件,不然重复开关会重复创建,虽然没有影响
+		this.unloaded = true;
+		this.storage?.close();
 		this.editorSearch?.destoryAll();
 	}
+	private getStorage() {
+		if (!this.storage) {
+			const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+			this.storage = new SettingsStorage(this.app, normalizePath(`${dir}/data.json`));
+		}
+		return this.storage;
+	}
 	async loadSettings() {
+		if (this.unloaded) return;
 		let raw: unknown;
 		try {
-			raw = await this.loadData();
+			raw = await this.getStorage().read();
+			if (this.unloaded) return;
 			this.storageReadable = true;
 		} catch (error) {
+			if (this.unloaded) return;
 			this.storageReadable = false;
 			this.settings = defaultSettings();
 			this.history.notify();
@@ -45,17 +59,19 @@ export default class TextFinderPlugin extends Plugin {
 
 	async saveSettings() {
 		try {
+			if (this.unloaded) throw new Error("Plugin is unloaded; refusing a new settings write");
 			if (!this.storageReadable) throw new Error("Settings were not read successfully; refusing to overwrite stored data");
-			await this.saveQueue.enqueue(this.settings);
+			await this.getStorage().write(this.settings);
 		} catch (error) {
 			this.reportError(this.storageReadable ? "history.SaveFailed" : "history.LoadFailed", error);
 			throw error;
 		}
 	}
-	flushSettings() { return this.saveQueue.flush(); }
+	flushSettings() { return this.storage?.flush() ?? Promise.resolve(); }
 	requestSaveSettings() { void this.saveSettings().catch(() => {}); }
 	reportError(key: string, error: unknown) {
 		console.error(`Text Finder: ${key}`, error);
+		if (this.unloaded) return;
 		const now = Date.now();
 		if (now - this.lastErrorNotice >= 5000) {
 			this.lastErrorNotice = now;

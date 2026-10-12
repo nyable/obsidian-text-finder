@@ -26,7 +26,7 @@
 	};
 
 	const getTooltip = (item: SearchHistoryItem) => {
-		return `Length: ${item.text.length} | ${i18n.t("history.Count")}: ${item.count || 1}\n${i18n.t("history.Created")}: ${formatTime(item.createdAt || item.lastUsedAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n\n${item.text}`;
+		return `${i18n.t("history.Length")}: ${item.text.length} | ${i18n.t("history.Count")}: ${item.count}\n${i18n.t("history.Created")}: ${formatTime(item.createdAt)}\n${i18n.t("history.LastUsed")}: ${formatTime(item.lastUsedAt)}\n\n${item.text}`;
 	};
 
 	const toggleSelect = (text: string) => {
@@ -105,7 +105,9 @@
 					role="checkbox"
 					aria-checked={selectedTexts.has(item.text)}
 					tabindex="0"
-					on:keydown={(e) => e.key === "Enter" && toggleSelect(item.text)}
+					on:keydown={(e) => {
+						if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSelect(item.text); }
+					}}
 				>
 					{#if selectedTexts.has(item.text)}
 						<CheckSquare size={16} />
@@ -118,7 +120,9 @@
 					on:click={() => select(item)}
 					role="button"
 					tabindex="0"
-					on:keydown|self={(e) => e.key === "Enter" && select(item)}
+					on:keydown|self={(e) => {
+						if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(item); }
+					}}
 					title={getTooltip(item)}
 				>
 					<div class="nya-history-top">
@@ -150,17 +154,17 @@
 					</div>
 					<div class="nya-history-bottom">
 						<span class="nya-history-length"
-							>{item.text.length} chars</span
+							>{i18n.t("history.Characters", { count: item.text.length })}</span
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-count"
-							>Used: {item.count || 1}</span
+							>{i18n.t("history.Count")}: {item.count}</span
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-time-combined">
 							{#if settings.historySortOrder === HistorySortOrder.CREATED_AT}
-								{formatTime(item.createdAt || item.lastUsedAt)} ({formatRelative(
-									item.createdAt || item.lastUsedAt,
+								{formatTime(item.createdAt)} ({formatRelative(
+									item.createdAt,
 								)})
 							{:else}
 								{formatTime(item.lastUsedAt)} ({formatRelative(
@@ -272,6 +276,7 @@
 			background-color: rgba(var(--interactive-accent-rgb), 0.1);
 			border-color: var(--interactive-accent);
 		}
+		&:focus-within .nya-history-actions { opacity: 1; }
 	}
 	.nya-history-checkbox {
 		display: flex;
@@ -336,6 +341,7 @@
 		transition: opacity 0.2s;
 		flex-shrink: 0;
 	}
+	@media (hover: none) { .nya-history-actions { opacity: 1; } }
 	.nya-icon-btn {
 		display: flex;
 		align-items: center;

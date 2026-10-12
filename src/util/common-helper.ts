@@ -4,8 +4,8 @@
  * @returns 唯一ID
  */
 export function generateUniqueId() {
-	if (crypto && crypto.randomUUID) {
-		return crypto.randomUUID();
+	if (globalThis.crypto?.randomUUID) {
+		return globalThis.crypto.randomUUID();
 	} else {
 		return generateSimpleId();
 	}

@@ -38,6 +38,7 @@ export class EditorSearch {
 	private modeObservers = new Map<MarkdownView, MutationObserver>();
 	private finderEvents = new Map<MarkdownView, () => void>();
 	private disposed = false;
+	private historyModals = new Set<HistoryModal>();
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
@@ -50,6 +51,7 @@ export class EditorSearch {
 	 * @returns SearchBox
 	 */
 	getFinder(view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)): SearchBox {
+		if (this.disposed) throw new Error("Text Finder is disposed");
 		if (!view) {
 			throw new Error(
 				"Get Text-Finder Error: plugin.app.workspace.getActiveViewOfType(MarkdownView) is null"
@@ -137,7 +139,12 @@ export class EditorSearch {
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
 	refreshToolbars() { this.finderViews.forEach((finder) => finder.refreshToolbar()); }
-	openHistory() { new HistoryModal(this.plugin.app, this.plugin).open(); }
+	openHistory() {
+		if (this.disposed) return;
+		const modal = new HistoryModal(this.plugin.app, this.plugin, () => this.historyModals.delete(modal));
+		this.historyModals.add(modal);
+		modal.open();
+	}
 	openNativeSearch(view: MarkdownView) {
 		if (!this.isViewOpen(view)) return;
 		this.finderViews.get(view)?.setVisible(false);
@@ -161,6 +168,8 @@ export class EditorSearch {
 	 */
 	destoryAll() {
 		this.disposed = true;
+		this.historyModals.forEach((modal) => modal.close());
+		this.historyModals.clear();
 		this.readingSearches.forEach((search) => search.destroy());
 		this.readingSearches.clear();
 		this.modeObservers.forEach((observer) => observer.disconnect());
@@ -183,7 +192,9 @@ export class EditorSearch {
 		const mountEl = view.containerEl;
 		const listener = (e: KeyboardEvent) => {
 			// press esc
-			if (e.key == "Escape" && finder) {
+			if (e.key === "Escape" && !e.defaultPrevented && !e.isComposing
+				&& !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && finder.isVisible()) {
+				e.preventDefault();
 				finder.closeFinder();
 			}
 		};
@@ -299,7 +310,12 @@ export class EditorSearch {
 		plugin.addCommand({
 			id: CMD.HIDE_FIND,
 			name: i18n.t("commands.HideFind.name"),
-			checkCallback: (checking) => this.finderCommand(checking, (finder) => finder.setVisible(false)),
+			checkCallback: (checking) => {
+				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!view || !this.isViewOpen(view)) return false;
+				if (!checking) this.finderViews.get(view)?.closeFinder();
+				return true;
+			},
 		});
 
 		plugin.addCommand({
@@ -310,7 +326,7 @@ export class EditorSearch {
 				if (!view || !this.isViewOpen(view)) return false;
 				if (!checking) {
 					const finder = this.finderViews.get(view);
-					if (finder?.isVisible()) finder.setVisible(false);
+					if (finder?.isVisible()) finder.closeFinder();
 					else this.showFinder(view);
 				}
 				return true;
@@ -375,6 +391,7 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 	const workspace = plugin.app.workspace;
 
 	workspace.onLayoutReady(() => {
+		if (plugin.isUnloaded() || plugin.editorSearch) return;
 		plugin.editorSearch = new EditorSearch(plugin);
 
 		plugin.registerEditorExtension([textMatchMarker]);

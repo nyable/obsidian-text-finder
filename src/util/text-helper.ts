@@ -69,14 +69,25 @@ export function findReplacementChanges(
 	enableRegexMode: boolean,
 	enableCaseSensitive: boolean
 ): ReplacementChange[] {
-	return findTextMatches(source, target, enableRegexMode, enableCaseSensitive)
-		.map((match) => ({
-			from: match.index,
-			to: match.index + match[0].length,
-			insert: enableRegexMode
-				? expandReplacement(source, match, replacement)
-				: replacement,
-		}));
+	return prepareReplacements(source, target, replacement, enableRegexMode, enableCaseSensitive).all();
+}
+
+/** Match once against the complete original text, expand only requested inserts. */
+export function prepareReplacements(
+	source: string, target: string, replacement: string,
+	enableRegexMode: boolean, enableCaseSensitive: boolean,
+) {
+	const matches = findTextMatches(source, target, enableRegexMode, enableCaseSensitive);
+	const change = (match: RegExpExecArray): ReplacementChange => ({
+		from: match.index,
+		to: match.index + match[0].length,
+		insert: enableRegexMode ? expandReplacement(source, match, replacement) : replacement,
+	});
+	return {
+		matches: matches.map((match, index) => ({ from: match.index, to: match.index + match[0].length, index })),
+		one: (index: number) => matches[index] ? change(matches[index]) : undefined,
+		all: () => matches.map(change),
+	};
 }
 
 // String.replace template semantics, evaluated using the original match and

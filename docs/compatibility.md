@@ -18,10 +18,11 @@
 | Obsidian Plugin／Workspace／MarkdownView／Editor／Modal／Setting | 加载、命令、视图、编辑、设置、存储、原生查找 | 按 owner 路由、检查视图仍打开；宿主行为需实测 | `src/main.ts`、`src/editor-extension.ts`、`src/settings-tab.ts`、`src/HistoryModal.ts` |
 | 内部 `editor.cm` | CodeMirror 文档、事务及高亮 | 缺失时返回无编辑上下文，不向其他活动编辑器借用目标 | `src/editor-extension.ts:getEditorContext()` |
 | 私有 `previewMode.renderer` | 全部分块、渲染等待、虚拟挂载／定位 | shape 检查和运行时异常保护；缺失则不做局部 DOM 冒充全文 | `src/reading-search.ts:rendererFor()`／`supported()` |
-| 内部 `Vault.getConfig("livePreview")` | 关闭按钮恢复编辑偏好 | 缺失／非布尔返回 undefined，不切模式；该辅助函数不捕获方法本身抛出的异常 | `src/util/obsidian-internal.ts`、`src/SearchBox.svelte:closeFinder()` |
+| 内部 `Vault.getConfig("livePreview")` | 用户关闭入口恢复编辑偏好 | 缺失／非布尔／抛错返回 undefined，不切模式；模式 Promise 拒绝提示，不阻止隐藏 | `src/util/obsidian-internal.ts`、`src/SearchBox.svelte:closeFinder()` |
+| 公开 DataAdapter stat／read／write | 原插件 data.json 设置与历史 | stat 不把权限失败当作不存在；直接解析及传播写入错误；共享 realm 的读写队列跨实例重载保持顺序 | `src/settings-storage.ts`、`src/main.ts` |
 | CSS highlights／Highlight／Range | 阅读高亮与定位 | 能力检测，所属 Document 注册表，普通／当前优先级；运行失败清理所有权 | `src/reading-search.ts`、`src/reading-text.ts:endpointRange()` |
 | MutationObserver／ResizeObserver／Pointer／Selection | 模式、正文、布局、工具栏拖动、阅读选区 | 多数操作使用 ownerDocument；不能由 jsdom 推定窗口／移动宿主表现 | `src/editor-extension.ts`、组件 actions、`src/settings-tab.ts` |
-| Clipboard／crypto／moment | 历史复制、ID、日期／语言 | 复制失败提示；语言由 moment locale 映射，英文 fallback；工具辅助函数仍引用全局对象 | `src/HistoryModal.svelte`、`src/util/common-helper.ts`、`src/i18n/index.ts` |
+| Clipboard／crypto／moment | 历史复制、ID、日期／语言 | Clipboard 使用所属 Document，失败提示；crypto 缺失可降级；语言由 moment locale 映射，英文 fallback | `src/HistoryModal.svelte`、`src/util/common-helper.ts`、`src/i18n/index.ts` |
 
 ## 阅读范围与降级
 
@@ -54,4 +55,4 @@
 
 实机方法集中在 [testing](testing.md#实际应用验收)，但仓库没有据此确认的完整支持矩阵。验证场景和源码注释不是通过证据；真实报告应限定所验证环境。
 
-还需实机证据的边界包括：社区主题和离屏 computed style、details／折叠正文具体宿主结构、全局 Clipboard／样式注入在弹出窗口的表现、插件卸载时历史 Modal 的关闭与订阅释放。对应实现：`src/reading-text.ts`、`src/reading-search.ts:scroll()`、`src/HistoryModal.svelte`、`esbuild.config.mjs`、`src/main.ts:onunload()`。
+还需实机证据的边界包括：社区主题和离屏 computed style、details／折叠正文具体宿主结构、Clipboard／样式注入在弹出窗口的表现、插件卸载时历史 Modal 的关闭与订阅释放、移动存储适配器及慢 I/O 重载。对应实现：`src/reading-text.ts`、`src/reading-search.ts:scroll()`、`src/HistoryModal.svelte`、`src/settings-storage.ts`、`esbuild.config.mjs`、`src/main.ts:onunload()`。

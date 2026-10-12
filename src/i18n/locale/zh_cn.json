@@ -6,6 +6,8 @@
 	"ReadingPending": "正在准备搜索…",
 	"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
 	"StatusError": "查找暂不可用",
+	"EditorFailed": "无法更新编辑器位置或模式。请在视图就绪后重试。",
+	"ReplacedNavigationFailed": "替换已完成，但定位失败。再次替换前请检查正文。",
 	"Retry": "重试",
 	"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
 	"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
@@ -70,8 +72,8 @@
       "moved": "已调整{{name}}的位置", "reset": "恢复本栏默认布局"
     },
     "ClearAfterHidden": {
-      "name": "清空搜索文本",
-      "desc": "在关闭搜索窗口后清空搜索文本"
+      "name": "清空查找和替换文本",
+      "desc": "关闭查找器时清空两个输入框，保留正则和大小写选项。"
     },
     "EnableInputHotkeys": {
       "name": "启用输入框的快捷键",
@@ -116,6 +118,8 @@
     }
   },
   "history": {
+    "Length": "长度",
+    "Characters": "{{count}} 字符",
     "Title": "搜索历史",
     "ClearAll": "清空所有",
     "Delete": "删除",

@@ -82,6 +82,7 @@ function mount(t) {
 	view.editor = editor;
 	const plugin = {
 		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], moveCursorToMatch: true },
+		reportError() {},
 		saveSettings: () => { saves++; return pending; },
 	};
 	attachHistory(plugin);
@@ -612,6 +613,7 @@ for (const [name, vault, expected] of [
 	["live preview disabled", { getConfig: () => false }, true],
 	["internal configuration API unavailable", {}, undefined],
 	["internal preference is not a boolean", { getConfig: () => "true" }, undefined],
+	["internal preference getter throws", { getConfig: () => { throw new Error("host failure"); } }, undefined],
 ]) {
 	test(`closing Finder safely restores the editor preference: ${name}`, async (t) => {
 		const h = mount(t); await tick();
@@ -625,3 +627,96 @@ for (const [name, vault, expected] of [
 		assert.deepEqual(states.map((state) => state.source), expected === undefined ? [] : [expected]);
 	});
 }
+
+test("close clears both inputs only when configured, preserving regex and case preferences", async (t) => {
+	const h = mount(t); await tick();
+	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode();
+	h.component.getSearchCache().replace = "dog";
+	h.component.closeFinder();
+	assert.equal(h.component.getSearchCache().search, "cat");
+	assert.equal(h.component.getSearchCache().replace, "dog");
+	h.component.setVisible(true); h.plugin.settings.clearAfterHidden = true;
+	h.component.closeFinder(); await tick();
+	assert.equal(h.component.getSearchCache().search, "");
+	assert.equal(h.component.getSearchCache().replace, "");
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	h.component.setVisible(true); assert.equal(h.component.getSearchCache().replace, "");
+});
+
+test("all user close entry points restore mode once; hidden close is inert", async (t) => {
+	const h = mount(t); await tick();
+	const states = []; h.plugin.settings.sourceModeWhenSearch = true;
+	h.plugin.app = { vault: { getConfig: () => true }, workspace: { getActiveViewOfType: () => h.view, iterateAllLeaves: (fn) => fn({ view: h.view }), on() {} } };
+	h.view.setState = (state) => { states.push(state.source); };
+	const commands = new Map(); h.plugin.addCommand = (cmd) => commands.set(cmd.id, cmd); h.plugin.registerEvent = () => {};
+	const search = new EditorSearch(h.plugin); search.finderViews.set(h.view, h.component);
+	search.registerFinderEvent({ containerEl: h.target }, h.component);
+	for (const close of [
+		() => h.target.querySelector('[aria-label="search.tip.Close"]').click(),
+		() => h.target.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", cancelable: true })),
+		() => commands.get("text-finder-hide-find").checkCallback(false),
+		() => commands.get("text-finder-toggle-find").checkCallback(false),
+	]) {
+		h.component.setVisible(true, "cat"); states.length = 0;
+		close(); assert.equal(h.component.isVisible(), false); assert.deepEqual(states, [false]);
+		h.component.closeFinder(); assert.deepEqual(states, [false]);
+	}
+	search.finderViews.clear(); search.destoryAll();
+});
+
+test("mode failures still hide Finder and rejected promises are reported", async (t) => {
+	const h = mount(t); await tick(); const errors = [];
+	h.plugin.reportError = (key) => errors.push(key); h.plugin.settings.sourceModeWhenSearch = true;
+	h.plugin.app = { vault: { getConfig: () => true } };
+	for (const action of [() => { throw new Error("sync"); }, () => Promise.reject(new Error("async"))]) {
+		h.component.setVisible(true, ""); h.view.setState = action;
+		h.component.closeFinder(); await Promise.resolve();
+		assert.equal(h.component.isVisible(), false);
+	}
+	assert.deepEqual(errors, ["search.EditorFailed", "search.EditorFailed"]);
+});
+
+test("live history removal selects neighbours without scrolling and empty history restores the draft", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchHistory = ["A", "B", "C"].map((text, index) => ({ text, count: 1, createdAt: 3 - index, lastUsedAt: 3 - index }));
+	h.plugin.history.notify(); h.component.setVisible(true, "draft");
+	const input = h.target.querySelector("textarea");
+	const up = async () => { input.selectionStart = 0; input.dispatchEvent(new window.KeyboardEvent("keydown", { code: "ArrowUp" })); await tick(); };
+	await up(); await up(); assert.equal(input.value, "B"); h.scrolls.length = 0;
+	h.plugin.history.remove(new Set(["B"])); await tick(); assert.equal(input.value, "C"); assert.equal(h.scrolls.length, 0);
+	h.plugin.history.remove(new Set(["C"])); await tick(); assert.equal(input.value, "A");
+	h.plugin.history.remove(new Set(["A"])); await tick(); assert.equal(input.value, "draft");
+});
+
+test("Meta Enter does not navigate or replace", async (t) => {
+	const h = mount(t); h.component.setCollapse(false); await tick();
+	for (const input of h.target.querySelectorAll("textarea")) {
+		input.dispatchEvent(new window.KeyboardEvent("keydown", { code: "Enter", metaKey: true, cancelable: true }));
+	}
+	assert.equal(h.component.getSearchCache().index, 0);
+	assert.equal(h.view.editor.getValue(), "cat cat"); assert.equal(h.scrolls.length, 0);
+});
+
+test("successful replacement with failed positioning reports completion without retrying the write", async (t) => {
+	const h = mount(t); await tick(); const errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	h.view.editor.scrollIntoView = () => { throw new Error("scroll failed"); };
+	const result = h.component.replaceOnce();
+	assert.equal(result.changed, true); // Default empty replacement removes one match.
+	assert.equal(result.navigationFailed, true);
+	assert.equal(h.view.editor.getValue(), " cat");
+	assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+});
+
+test("same-count replacement positioning failure does not advance or repeat the write", async (t) => {
+	const h = mount(t); await tick(); const errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	h.component.getSearchCache().replace = "cat!";
+	h.view.editor.scrollIntoView = () => { throw new Error("scroll failed"); };
+	const result = h.component.replaceOnce();
+	assert.equal(result.changed, true); assert.equal(result.changeCount, 1);
+	assert.equal(result.navigationFailed, true);
+	assert.equal(h.view.editor.getValue(), "cat! cat");
+	assert.equal(h.component.getSearchCache().index, 0);
+	assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+});

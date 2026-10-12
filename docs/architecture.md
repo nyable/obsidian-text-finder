@@ -8,7 +8,7 @@
 TextFinderPlugin                         加载、设置、错误与持久化
 ├─ SettingTab                            原生 Obsidian／DOM 设置 UI
 ├─ HistoryController                     共享历史、同步订阅通知
-├─ SaveQueue                             独立快照、串行写入
+├─ SettingsStorage                       独立快照、跨实例串行读写
 └─ EditorSearch                          命令、视图归属、资源生命周期
    ├─ MarkdownView → SearchBox.svelte     每视图查询会话
    │  ├─ Toolbar.svelte × 2
@@ -29,7 +29,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 | 状态 | 所属／证据 |
 | --- | --- |
 | 查询／替换／选项、可见性／折叠、匹配／索引 | `src/SearchBox.svelte` 的 `cache` |
-| 历史浏览、暂存输入、连续使用周期 | `src/SearchBox.svelte` 的 `historyIndex`／`tempInput`／`lastRecordedSearch`／`currentSearch` |
+| 历史浏览、暂存输入、连续使用周期 | `src/history.ts:HistoryNavigation` 及组件的 `lastRecordedSearch`／`currentSearch` |
 | 匹配上下文、查询身份、阅读请求代次／状态 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest` 等 |
 | 菜单、焦点、状态提示延迟／定位 | `src/Toolbar.svelte`、`src/SearchStatus.svelte` |
 | 设置与共享历史 | `src/main.ts:settings`、`src/history.ts:HistoryController` |
@@ -59,7 +59,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 ## 持久化数据格式
 
-唯一类型定义是 `src/settings.ts:PluginSettings`；通过 Obsidian `loadData()`／`saveData()` 保存一个 JSON 对象，没有独立 schema version。会话输入、匹配、可见性、菜单、历史选择集合不持久化。
+唯一类型定义是 `src/settings.ts:PluginSettings`；`SettingsStorage` 通过公开 DataAdapter 在原插件目录的 `data.json` 保存同一个 JSON 对象，没有独立 schema version。会话输入、匹配、可见性、菜单、历史选择集合不持久化。
 
 ```ts
 interface PluginSettings {
@@ -90,18 +90,19 @@ interface PluginSettings {
 - `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
 - `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
-- `SaveQueue.enqueue()` 排队前深拷贝 JSON；失败只拒绝该调用，不阻塞后续保存。`flush()` 包含等待中追加的任务，但生产卸载入口没有调用它。
+- `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
+- `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。
 - 读取失败启用默认内存状态并禁止写入；修复后重载，临时内存修改不会与重新读取的数据合并。保存失败不回滚，下次修改尝试保存最新快照，没有自动后台重试或强制退出落盘保证。
 
-依据：`src/history.ts`、`src/settings.ts`、`src/toolbar.ts`、`src/save-queue.ts`、`src/main.ts`。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/save-queue.test.mjs`。
+依据：`src/history.ts`、`src/settings.ts`、`src/toolbar.ts`、`src/settings-storage.ts`、`src/main.ts`。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/settings-storage.test.mjs`。旧 `SaveQueue` 不再用于生产设置写入，保留其独立算法测试。
 
 ## 生命周期
 
-`onLayoutReady()` 创建 EditorSearch 并注册高亮扩展；Finder 挂到所属 `view.containerEl`。workspace 编辑、文件、活动视图、布局、主题事件驱动刷新。模式变化监听 `data-mode`；关闭 leaf 清理 Finder、适配器和监听，插件卸载调用 `destoryAll()`。
+`onLayoutReady()` 在插件仍有效且尚未初始化时创建 EditorSearch 并注册高亮扩展；异步设置加载后也检查卸载状态。Finder 挂到所属 `view.containerEl`。workspace 编辑、文件、活动视图、布局、主题事件驱动刷新。模式变化监听 `data-mode`；关闭 leaf 清理 Finder、适配器和监听，插件卸载调用 `destoryAll()`。
 
 阅读资源按所属 Document 创建，`clear()`／`destroy()` 释放 Observer、计时器、端点映射和高亮所有权，并使迟到的请求回调失效。
 
-历史 Modal 在 `onClose()` 销毁组件，组件取消历史订阅；未纳入 EditorSearch 的统一资源 Map。宿主卸载时 Modal 是否自动关闭是实机待验证项，不宣称统一卸载覆盖。
+历史 Modal 由 EditorSearch 跟踪，卸载主动关闭；`onClose()` 销毁组件并移除跟踪，组件取消历史订阅，迟到复制成功不再统计。真实宿主窗口表现仍需实测。
 
 依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
 
@@ -110,7 +111,7 @@ interface PluginSettings {
 | 分类 | 模块 | 边界 |
 | --- | --- | --- |
 | 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Svelte |
-| 框架无关但宿主耦合 | `search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
+| 框架无关但宿主耦合 | `settings-storage.ts`、`search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
 | 原生 UI | `settings-tab.ts` | 使用 Obsidian Setting 与直接 DOM 操作，不依赖 Svelte |
 | 混合集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts` | 插件／命令／Modal 与 Svelte 挂载、实例方法、`$destroy()` 直接或间接关联 |
 | 直接 Svelte 耦合 | 六个 `.svelte` 文件 | `$:`、bind、actions、dispatcher、tick、生命周期、动态组件、事件修饰符、scoped styles |

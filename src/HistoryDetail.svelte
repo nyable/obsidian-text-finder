@@ -54,11 +54,11 @@
 				<span class="label">{i18n.t("history.Created")}</span>
 				<div class="value-group">
 					<span class="value"
-						>{formatDate(item.createdAt || item.lastUsedAt)}</span
+						>{formatDate(item.createdAt)}</span
 					>
 					<span class="value sub"
 						>({formatRelative(
-							item.createdAt || item.lastUsedAt,
+							item.createdAt,
 						)})</span
 					>
 				</div>
@@ -84,7 +84,7 @@
 			</div>
 			<div class="nya-history-card-content">
 				<span class="label">{i18n.t("history.Count")}</span>
-				<span class="value">{item.count || 1}</span>
+				<span class="value">{item.count}</span>
 			</div>
 		</div>
 		<div class="nya-history-detail-card">
@@ -92,7 +92,7 @@
 				<AlignLeft size={14} />
 			</div>
 			<div class="nya-history-card-content">
-				<span class="label">Length</span>
+				<span class="label">{i18n.t("history.Length")}</span>
 				<span class="value">{item.text.length}</span>
 			</div>
 		</div>
