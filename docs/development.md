@@ -4,7 +4,7 @@
 
 ## 环境
 
-- Node.js 24.21.0，见 [`.node-version`](../.node-version)。
+- Node.js 版本以 [`.node-version`](../.node-version) 为准，支持范围见 [`package.json`](../package.json) 的 `engines`。
 - pnpm，版本见 [`package.json`](../package.json) 的 `packageManager`。安装方式见 [pnpm 安装指南](https://pnpm.io/installation)。
 - 使用 TypeScript、Svelte 4、CodeMirror 6 和 esbuild。
 
@@ -30,14 +30,8 @@ pnpm build
 - [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) 固定 CodeMirror 版本并配置构建依赖许可，避免多个不兼容的实例。
 - CI 使用 `--frozen-lockfile` 安装，执行测试、TypeScript/Svelte 检查和插件构建，配置见 [`.github/workflows/`](../.github/workflows/)。
 
-## 代码入口
+## 维护入口
 
-- [`src/main.ts`](../src/main.ts)：插件加载、设置和持久化。
-- [`src/editor-extension.ts`](../src/editor-extension.ts)：命令、视图归属及资源管理。
-- [`src/SearchBox.svelte`](../src/SearchBox.svelte)：共享面板、查询、历史及导航入口。
-- [`src/search-highlight.ts`](../src/search-highlight.ts)：编辑模式 CodeMirror 高亮。
-- [`src/reading-search.ts`](../src/reading-search.ts)、[`src/reading-text.ts`](../src/reading-text.ts)：阅读模式适配与文本映射。
-
-## API 与发布注意事项
-
-Obsidian 版本变化可能影响接口。阅读查找目前还依赖非公开接口，因此必须进行运行时检查和 [真实应用验收](reading-acceptance.md)，不能仅凭编译成功判断兼容性。`manifest.json` 的最低版本声明不等同于阅读查找已在所有版本验证。
+- 模块、代码入口和数据格式见 [architecture](architecture.md)。
+- 宿主 API 与支持边界见 [compatibility](compatibility.md)。
+- 验证命令、性能诊断及实机验收方法见 [testing](testing.md)。

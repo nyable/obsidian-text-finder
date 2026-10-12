@@ -1,0 +1,57 @@
+# 兼容性与验证边界
+
+源码能力检测、类型检查和模拟测试不等于真实宿主验收。这里记录依赖与保护策略，不虚构支持矩阵或发布通过结论。
+
+## 版本与依赖口径
+
+- 插件 ID、最低 Obsidian 版本和移动端声明以 `manifest.json` 为准；`isDesktopOnly: false` 是声明，不是 Android／iOS 实测证明。
+- 开发 Node／pnpm、SDK 和依赖版本以 `.node-version`、`package.json`、`pnpm-lock.yaml` 为准，不在此复制版本清单。
+- 阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与 Manifest 最低 0.15.0、开发 SDK 版本是不同证据，不能推定所有版本支持插件阅读查找。
+- esbuild 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron 等为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。
+
+依据：`src/reading-search.ts` 文件头、`manifest.json`、`package.json`、`esbuild.config.mjs`、`pnpm-workspace.yaml`。
+
+## API 边界与保护
+
+| 依赖 | 用途 | 保护／限制 | 源码 |
+| --- | --- | --- | --- |
+| Obsidian Plugin／Workspace／MarkdownView／Editor／Modal／Setting | 加载、命令、视图、编辑、设置、存储、原生查找 | 按 owner 路由、检查视图仍打开；宿主行为需实测 | `src/main.ts`、`src/editor-extension.ts`、`src/settings-tab.ts`、`src/HistoryModal.ts` |
+| 内部 `editor.cm` | CodeMirror 文档、事务及高亮 | 缺失时返回无编辑上下文，不向其他活动编辑器借用目标 | `src/editor-extension.ts:getEditorContext()` |
+| 私有 `previewMode.renderer` | 全部分块、渲染等待、虚拟挂载／定位 | shape 检查和运行时异常保护；缺失则不做局部 DOM 冒充全文 | `src/reading-search.ts:rendererFor()`／`supported()` |
+| 内部 `Vault.getConfig("livePreview")` | 关闭按钮恢复编辑偏好 | 缺失／非布尔返回 undefined，不切模式；该辅助函数不捕获方法本身抛出的异常 | `src/util/obsidian-internal.ts`、`src/SearchBox.svelte:closeFinder()` |
+| CSS highlights／Highlight／Range | 阅读高亮与定位 | 能力检测，所属 Document 注册表，普通／当前优先级；运行失败清理所有权 | `src/reading-search.ts`、`src/reading-text.ts:endpointRange()` |
+| MutationObserver／ResizeObserver／Pointer／Selection | 模式、正文、布局、工具栏拖动、阅读选区 | 多数操作使用 ownerDocument；不能由 jsdom 推定窗口／移动宿主表现 | `src/editor-extension.ts`、组件 actions、`src/settings-tab.ts` |
+| Clipboard／crypto／moment | 历史复制、ID、日期／语言 | 复制失败提示；语言由 moment locale 映射，英文 fallback；工具辅助函数仍引用全局对象 | `src/HistoryModal.svelte`、`src/util/common-helper.ts`、`src/i18n/index.ts` |
+
+## 阅读范围与降级
+
+- 插件阅读查找需要完整渲染分块及 Custom Highlight 支持。不兼容时“打开／切换查找”使用原生查找，保留用户原生偏好。
+- 等待渲染时不发布局部数量；默认 5 秒等待超时是渲染保护，不是正则或索引执行限时。
+- 定位私有接口返回失败、Highlight 异常等进入错误状态，不能报告成功导航。用户可重试或主动降级。
+- 离屏节点的 CSS 祖先／兄弟依赖可能与挂载后不同；索引规则不模拟任意 CSS 可见性。伪元素、公式、图表、嵌入及第三方动态输出边界见 [features](product/features.md#阅读模式正文)。
+- 首次全文索引和正则同步执行，大文档可能阻塞；没有 Worker 隔离，危险正则不能被渲染等待超时中断。
+- 高亮注册表按 Document 合并视图所有权；正常关闭一个视图不清另一个视图。注册表异常清理是失败保护，不能承诺损坏宿主 API 下的完整多视图绘制。
+
+依据：`src/editor-extension.ts:showFinder()`／`openNativeSearch()`；`src/reading-search.ts` 的 `ready()`／`run()`／`scroll()`／`removeHighlights()`。内部机制见 [architecture](architecture.md#阅读索引与高亮机制)。
+
+## 验证能力
+
+| 手段 | 能证明什么 | 不能证明什么 |
+| --- | --- | --- |
+| TypeScript／Svelte check | 类型及组件诊断 | 私有 API 在实际宿主可用 |
+| Node 算法／控制器测试 | 文本、模板、数据规范化、统计、保存队列 | Chromium 绘制／滚动、移动体验 |
+| `source-loader.mjs` 抽取 script | 当前导出操作的模拟执行 | `$:` 响应式、bind、模板和生命周期；loader 会移除响应式标签 |
+| 真实组件 jsdom 测试 | 组件绑定、响应式、DOM 事件及焦点语义 | 实际图标／翻译／宿主；历史 DOM 测试移除样式，部分布局由 mock 几何值提供 |
+| 阅读 benchmark | 当前机器逻辑索引／导航开销及 Range 数量 | 固定性能门槛、实机绘制／滚动性能 |
+| CI 构建与产物检查 | 配置中的锁定安装、检查、构建链路 | 某次 CI 已成功；所有目标平台兼容 |
+| 实际 Obsidian 验收／截图 | 记录环境中的表现 | 未测试平台和其他主题／版本 |
+
+依据：`tests/source-loader.mjs`、`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`、`tests/reading-benchmark.mjs`、`.github/workflows/ci.yml`。验证命令见 [testing](testing.md)。未见真实宿主 E2E／截图自动回归或覆盖率门槛，不能将这些列为已有保障。
+
+## 实机证据要求
+
+真实应用检查需记录 Obsidian／系统版本、主题／snippets、语言、窗口／缩放、重现笔记和操作。重点是长文离屏全文计数、真实滚动、高亮重挂载、分屏／弹窗／迁移、编辑撤销重做、IME／焦点及目标 Android／iOS。
+
+实机方法集中在 [testing](testing.md#实际应用验收)，但仓库没有据此确认的完整支持矩阵。验证场景和源码注释不是通过证据；真实报告应限定所验证环境。
+
+还需实机证据的边界包括：社区主题和离屏 computed style、details／折叠正文具体宿主结构、全局 Clipboard／样式注入在弹出窗口的表现、插件卸载时历史 Modal 的关闭与订阅释放。对应实现：`src/reading-text.ts`、`src/reading-search.ts:scroll()`、`src/HistoryModal.svelte`、`esbuild.config.mjs`、`src/main.ts:onunload()`。

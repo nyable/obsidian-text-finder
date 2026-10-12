@@ -1,0 +1,77 @@
+# 交互与状态契约
+
+除单独标出的“已批准约束”外，下文为当前实现事实，不代表授权调整其他交互。实际宿主表现需要按 [compatibility](../compatibility.md) 验证。
+
+## 打开与查询会话
+
+- Finder 懒创建并绑定 Markdown 视图；同文件双分屏分别维护查询会话和当前项。
+- 普通“打开查找”使用有效选区，否则复用旧查询；“打开查找与替换”无选区时传入空字符串，会清空旧查询。此差异按现状记录，不擅自统一。
+- 阅读选区必须两端都在所属预览容器内，来自所属 Document 的 Selection。
+- 打开后立即匹配、聚焦并全选查询；输入／切换选项重算，合法当前索引通常保留，不强制新查询回到第一项。
+- 文件变化保留查询、重算结果；模式变化清除另一模式结果，保留查询和选项。阅读界面强制隐藏替换区域。
+- 普通关闭保留组件实例，不持久化会话；视图关闭／卸载释放资源。默认保留查询、替换文本、选项，关闭会折叠替换区域。
+
+依据：`src/editor-extension.ts` 的 `getFinder()`／`selectionText()`／`showFinder()`／`registerCommand()`；`src/SearchBox.svelte` 的 `setVisible()`／`rememberMatches()`／`setFindText()`／`matchAgain()`。
+
+## 已批准的关闭契约
+
+以下两条是维护者批准的行为约束，**不是对当前实现已完成的声明**：
+
+1. 关闭按钮、视图内 Escape、关闭命令、切换查找的关闭分支共用关闭语义，以关闭按钮为基准。
+   - 基准：`closeFinder()` 在可编辑 owner 存在且 `sourceModeWhenSearch` 开启时，根据有效的全局 livePreview 偏好恢复 `state.source`，然后隐藏面板。
+   - 偏好缺失或非布尔时不写模式；恢复的是全局偏好，不是保存的打开前视图状态。
+   - 当前实现差异：按钮／Escape 调 `closeFinder()`；关闭命令和切换关闭直接调用 `setVisible(false)`，绕过模式恢复。
+2. 开启 `clearAfterHidden` 后，关闭应同时清空查询和替换输入；关闭仍不等于重置所有查询选项。
+   - 当前实现差异：`setVisible(false)` 调 `resetMatches(true, true)`，但 `resetMatches()` 的 `clearReplace` 参数未使用，替换文本仍保留。
+
+依据：`src/SearchBox.svelte` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/editor-extension.ts` 的 `registerFinderEvent()` 和 HideFind／ToggleFind 命令；`src/util/obsidian-internal.ts:getLivePreviewPreference()`。上述约束经维护者明确确认，不来自源码推断。
+
+范围不自动扩大到原生查找降级、视图销毁或插件卸载；这些路径当前承担隐藏／资源释放职责，是否执行同一模式恢复语义没有额外产品决定。
+
+## 导航与替换
+
+- 前后导航循环；过期文档／查询先重算。编辑定位滚动后可强制源码、选中匹配；保存历史不参与等待链。
+- 正文变化、文件打开、活动视图变化及布局刷新采用不主动滚动的重新匹配。
+- 替换前重新取得 owner 的 Editor、CodeMirror 和文档，重新计算原文变化。已关闭视图、阅读模式或上下文失效不作为写入目标。
+- 单次替换按钮、替换框 Enter 和命令调用 `replaceOnce()`：替换后重算；数量未变且文档／编辑器仍有效时再前进一项，否则定位重算后的当前项。不成功或写入中换文件时不额外前进。
+- 全部替换一次提交所有原文变化，不套用单次替换的额外前进规则。
+- 隐藏面板仍可通过编辑命令执行替换；安全来自写入前重算，而不是假设隐藏期间结果有效。
+
+依据：`src/SearchBox.svelte` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`prepareReplacement()`／`replaceText()`；`src/editor-extension.ts:registerEvent()`。回归：`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
+
+## 输入、焦点与菜单
+
+- `enableInputHotkeys` 开启时，普通 Enter／NumpadEnter 在查找框导航下一项，在替换框替换一次。当前仅排除 Alt／Ctrl／Shift，未排除 Meta；不是新增 macOS 快捷设计。
+- IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter 和历史上下键不触发快捷操作。输入事件本身仍会更新查询。
+- 查询 textarea 支持多行；不自动纠错／大写、不检查拼写、不允许用户 resize。
+- 隐藏面板同步设 `visibility: hidden` 和 `aria-hidden`，移除 Tab 入口，blur 内部焦点并拒绝迟到聚焦；不承诺统一把焦点送回编辑器。
+- More 触发器支持 Enter／Space；打开后聚焦首个可用菜单项。上下键循环、Home／End 定位；Escape 关闭菜单并回焦触发器，不关闭 Finder；Tab 关闭后回焦触发器再交给默认 Tab 行为。外部 pointerdown 关闭菜单。
+- 设置分类支持左右键／Home／End；工具栏排序后恢复对应按钮／手柄焦点。拖动有 4px 启动阈值，pointercancel、窗口失焦和 Escape 可取消；切页／隐藏设置清理拖动。
+- 历史行 Enter 复用；复选框 Enter 切换选择。子按钮键盘操作不能触发父行复用；没有自行补充复选框 Space 行为。
+
+依据：`src/SearchBox.svelte` 的 `syncFinderVisibility()`／`guardHiddenFocus()`／`trackComposition()`／`onFinderKeyDown()`／`enterOnReplacer()` 和 textarea 模板；`src/Toolbar.svelte:menuKeys()`；`src/settings-tab.ts`；`src/HistoryList.svelte`。回归：`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`。
+
+## 历史交互
+
+- 单纯输入不立即记录。匹配导航记录非空查询，不要求一定有匹配；阅读导航还检查当前不处于 unsupported／error。
+- 同查询连续导航只计一次使用，后续更新时间；A → B → A 开始新周期。明确复用计一次，紧接导航不重复计数。
+- 第一行 ArrowUp 从当前排序首项向较旧／低优先级项浏览；最后一行 ArrowDown 向前返回，离开历史浏览时恢复暂存输入。未进入历史浏览时 ArrowDown 清空非空查询。
+- 复用作用于操作时当前可搜索 Markdown 视图；成功才关闭弹窗，失败保留弹窗并提示。不因为打开历史弹窗就固定未来复用目标。
+- 复制成功才统计使用，且只更新仍存在的条目；复制拒绝不统计，异步完成不能复活删除项。
+- 选择以精确文本为身份；重排不改变选中对象。订阅通知同步刷新多个弹窗、容量和详情，删除的详情对象退出详情页。
+- 删除立即更新内存并请求保存，无确认弹窗。详情删除返回列表；保存失败不回滚可见修改。
+- 容量输入仅完整十进制整数 1–200 有效，Enter／blur 提交，无效输入恢复当前值；缩容立即按排序裁剪。
+
+依据：`src/SearchBox.svelte` 的 `recordSearchToHistory()`／`setVisibleFromHistory()`／`onFinderKeyDown()`；`src/HistoryModal.svelte` 的订阅／`select`／`copy`；`src/history.ts`；`src/settings-tab.ts:renderPage()`。数据规则见 [architecture](../architecture.md#持久化数据格式)。
+
+## 阅读状态与错误
+
+- 等待立即显示计数标记 `…`，持续 400ms 后显示外置状态提示；查询／文件变化、关闭会重置提示延迟。
+- 不支持／失败／超时显示 `!` 与状态说明，不冒充无结果；失败和超时提供重试，不支持只提供原生入口。
+- 默认最多等待渲染 5 秒，以渲染回调后的微任务及约 100ms 检查补充；不能中断同步匹配正则。
+- 请求绑定查询选项、视图、文件及渲染器；同查询后台刷新保留等待中的用户导航意图。过期回调不能定位或发布结果。
+- 阅读导航先挂载分块、展开必要列表／Callout／details 祖先，然后定位首个文本端点；不恢复折叠状态。跨块匹配只绘制挂载部分。
+- 打开时原生偏好开启则直接用原生查找；不支持时提示并回退。运行失败可主动降级，降级关闭插件面板以避免两套入口同时可见。
+- 存储／复制／复用错误由插件 Notice 提示，按全局 5 秒间隔节流；读取失败禁止写入，保存失败保留内存修改。
+
+依据：`src/SearchStatus.svelte`、`src/reading-search.ts` 的 `search()`／`run()`／`scroll()`／`clear()`、`src/editor-extension.ts` 的 `showFinder()`／`openNativeSearch()`、`src/main.ts:reportError()`。

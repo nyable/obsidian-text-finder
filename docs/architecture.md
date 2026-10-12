@@ -1,0 +1,119 @@
+# 架构与数据边界
+
+这里描述当前模块、数据流和依赖边界。产品行为见 [features](product/features.md) 和 [interactions](product/interactions.md)。
+
+## 模块关系
+
+```text
+TextFinderPlugin                         加载、设置、错误与持久化
+├─ SettingTab                            原生 Obsidian／DOM 设置 UI
+├─ HistoryController                     共享历史、同步订阅通知
+├─ SaveQueue                             独立快照、串行写入
+└─ EditorSearch                          命令、视图归属、资源生命周期
+   ├─ MarkdownView → SearchBox.svelte     每视图查询会话
+   │  ├─ Toolbar.svelte × 2
+   │  └─ SearchStatus.svelte
+   ├─ MarkdownView → ReadingSearch       阅读适配器
+   └─ HistoryModal.ts                    原生 Modal 容器
+      └─ HistoryModal.svelte
+         ├─ HistoryList.svelte
+         └─ HistoryDetail.svelte
+```
+
+依据：`src/main.ts:onload()`、`src/editor-extension.ts` 的资源 Map／`getFinder()`／`getReadingSearch()`／`openHistory()`、`src/HistoryModal.ts`、组件导入与模板。
+
+## 状态归属与数据流
+
+没有 `svelte/store` Store；`$:` 响应式语句、组件局部状态及框架无关控制器订阅承担状态更新。
+
+| 状态 | 所属／证据 |
+| --- | --- |
+| 查询／替换／选项、可见性／折叠、匹配／索引 | `src/SearchBox.svelte` 的 `cache` |
+| 历史浏览、暂存输入、连续使用周期 | `src/SearchBox.svelte` 的 `historyIndex`／`tempInput`／`lastRecordedSearch`／`currentSearch` |
+| 匹配上下文、查询身份、阅读请求代次／状态 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest` 等 |
+| 菜单、焦点、状态提示延迟／定位 | `src/Toolbar.svelte`、`src/SearchStatus.svelte` |
+| 设置与共享历史 | `src/main.ts:settings`、`src/history.ts:HistoryController` |
+| 历史选择／详情 | `src/HistoryModal.svelte:selectedTexts`／`viewingItem` |
+| Finder、适配器、监听与模式观察器 | `src/editor-extension.ts:EditorSearch` 的各 Map |
+| 阅读索引、端点、请求、计时器及 Document 高亮所有权 | `src/reading-search.ts:ReadingSearch` 和文档级 `documents` WeakMap |
+
+编辑链路：输入／操作 → `setFindText()` → 原文匹配 → 校验 owner／文档／查询 → CodeMirror effect／选择／滚动。文档变化立即清旧高亮，重算后再提交新结果。依据：`src/SearchBox.svelte` 的上下文方法、`src/search-highlight.ts:textMatchMarker`。
+
+阅读链路：查询 → 检测私有渲染器／Highlight 能力 → 等待全文就绪 → 渲染 DOM 索引 → 精确查询匹配 → 稳定数字端点 → 挂载后临时 Range／Document 高亮注册表 → UI 回调。请求过期即拒绝发布。依据：`src/reading-text.ts`、`src/reading-search.ts`。
+
+历史链路：操作 → 控制器同步更新设置／通知 → 组件刷新 → 异步保存快照。排序后的选择以精确文本为身份；保存不控制 UI 导航。依据：`src/history.ts:commit()`／`subscribe()`、`src/HistoryModal.svelte`。
+
+本地化由 i18next 初始化英文／简体中文资源，以 Obsidian `moment.locale()` 将连字符映射为下划线后选择语言，英文 fallback；没有插件自身的语言切换设置。日期格式化也使用宿主 moment。依据：`src/i18n/index.ts`、`src/HistoryList.svelte`、`src/HistoryDetail.svelte`。
+
+## 阅读索引与高亮机制
+
+- 公共 preview API 无法枚举虚拟化移出的分块，适配器集中使用私有 `previewMode.renderer` 的 sections、渲染状态、`onRendered`、`showSection`、`applyScrollSection` 和 `updateVirtualDisplay`。能力与降级边界见 [compatibility](compatibility.md)。
+- 就绪要求 renderer 文本与 lastText／当前视图数据一致、解析和渲染结束、所有分块已渲染。索引读取包含离屏节点的完整分块 DOM，排除页眉／页脚；不额外重渲染整篇 Markdown，避免重复触发第三方处理器。
+- `ReadingTextIndex` 保存逻辑文本及文本 span 到节点内偏移的映射。实体已由 DOM 解码，逻辑偏移为 UTF-16，**不是 Markdown 源码偏移**；空白及边界规则见 [阅读模式正文](product/features.md#阅读模式正文)。
+- 匹配保存文本节点和数字端点，不长期缓存可变 DOM Range。节点移出会使 Range 塌缩，重新挂载不会自动恢复；绘制只为挂载分块创建临时 Range，跨节点端点分开绘制以避开排除内容。
+- 索引和精确查询结果可缓存；端点按分块分组。纯分块挂载／移出只重绘，正文及相关属性变化使索引失效，不把滚动当成全文编辑。
+- 一个 MutationObserver 同时监听阅读根和离屏分块，相关属性为 `class`、`style`、`hidden`、`aria-hidden`、`open`；主题变化也失效。导航前消费待处理变更，避免异步通知尚未执行时复用旧索引。
+- 高亮注册表按 Document 合并视图所有权，普通匹配优先级 0、当前项 1；正常关闭只移除对应视图。窗口迁移重建所属文档的索引／高亮。视觉接口见 [ui-baseline](product/ui-baseline.md)。
+
+依据：`src/reading-search.ts` 的 `ready()`／`run()`／`watch()`／`paint()`／`updateRegistry()`；`src/reading-text.ts` 的索引类型／`readingMatchEndpoints()`。回归：`tests/reading-search.test.mjs` 的离屏计数、虚拟化、窗口迁移及端点测试。请求等待、导航和取消行为见 [interactions](product/interactions.md#阅读状态与错误)。
+
+## 持久化数据格式
+
+唯一类型定义是 `src/settings.ts:PluginSettings`；通过 Obsidian `loadData()`／`saveData()` 保存一个 JSON 对象，没有独立 schema version。会话输入、匹配、可见性、菜单、历史选择集合不持久化。
+
+```ts
+interface PluginSettings {
+  clearAfterHidden: boolean;
+  enableInputHotkeys: boolean;
+  sourceModeWhenSearch: boolean;
+  moveCursorToMatch: boolean;
+  useSelectionAsSearch: boolean;
+  useObsidianSearchInRead: boolean;
+  useEscapeCharInReplace: boolean;
+  enableHistory: boolean;
+  historyMaxCount: number; // integer，1–200
+  historySortOrder: "createdAt" | "count" | "lastUsedAt";
+  searchHistory: {
+    text: string;
+    createdAt: number;
+    lastUsedAt: number;
+    count: number;
+  }[];
+  searchToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
+  replaceToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
+}
+```
+
+`ToolbarAction` 及各栏有效动作以 `src/toolbar.ts` 为准，两个工具栏不是可任意混放动作的列表。时间戳为非负安全整数，次数为正安全整数，递增饱和在最大安全整数；文本不 trim。
+
+- `normalizeHistory()` 逐项校验旧字符串、旧 timestamp 对象和混合记录；精确重复文本合并最早创建、最近使用、最大计数。旧记录中已经裁掉的空白无法恢复。
+- `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
+- `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
+- `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
+- `SaveQueue.enqueue()` 排队前深拷贝 JSON；失败只拒绝该调用，不阻塞后续保存。`flush()` 包含等待中追加的任务，但生产卸载入口没有调用它。
+- 读取失败启用默认内存状态并禁止写入；修复后重载，临时内存修改不会与重新读取的数据合并。保存失败不回滚，下次修改尝试保存最新快照，没有自动后台重试或强制退出落盘保证。
+
+依据：`src/history.ts`、`src/settings.ts`、`src/toolbar.ts`、`src/save-queue.ts`、`src/main.ts`。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/save-queue.test.mjs`。
+
+## 生命周期
+
+`onLayoutReady()` 创建 EditorSearch 并注册高亮扩展；Finder 挂到所属 `view.containerEl`。workspace 编辑、文件、活动视图、布局、主题事件驱动刷新。模式变化监听 `data-mode`；关闭 leaf 清理 Finder、适配器和监听，插件卸载调用 `destoryAll()`。
+
+阅读资源按所属 Document 创建，`clear()`／`destroy()` 释放 Observer、计时器、端点映射和高亮所有权，并使迟到的请求回调失效。
+
+历史 Modal 在 `onClose()` 销毁组件，组件取消历史订阅；未纳入 EditorSearch 的统一资源 Map。宿主卸载时 Modal 是否自动关闭是实机待验证项，不宣称统一卸载覆盖。
+
+依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
+
+## 依赖与耦合边界
+
+| 分类 | 模块 | 边界 |
+| --- | --- | --- |
+| 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Svelte |
+| 框架无关但宿主耦合 | `search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
+| 原生 UI | `settings-tab.ts` | 使用 Obsidian Setting 与直接 DOM 操作，不依赖 Svelte |
+| 混合集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts` | 插件／命令／Modal 与 Svelte 挂载、实例方法、`$destroy()` 直接或间接关联 |
+| 直接 Svelte 耦合 | 六个 `.svelte` 文件 | `$:`、bind、actions、dispatcher、tick、生命周期、动态组件、事件修饰符、scoped styles |
+| 工具链耦合 | esbuild Svelte 插件、tsconfig、类型引用、组件编译测试、script 抽取测试 | 不应把现有测试加载方式误认为框架无关 |
+
+**维护约束：**SearchBox 同时包含业务编排与展示，修改组件时必须核对操作语义和安全不变量，不能当作纯展示层。依据：`src/SearchBox.svelte` 的导出操作、`src/editor-extension.ts` 的 `Map<MarkdownView, SearchBox>` 及调用点。
