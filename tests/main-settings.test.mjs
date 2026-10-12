@@ -115,6 +115,26 @@ test("actual plugin reload reads all accepted snapshots before writing new histo
 	assert.equal(snapshots.length, 4);
 });
 
+for (const manifestDir of [undefined, ".custom/plugins/renamed-folder"]) {
+	test(`settings use original plugin data path with custom configuration directory: ${manifestDir ?? "fallback"}`, async () => {
+		const p = plugin(null); const paths = [];
+		p.manifest.dir = manifestDir; p.app.vault.configDir = ".custom";
+		p.app.vault.adapter.stat = async (path) => { paths.push(path); return null; };
+		p.app.vault.adapter.read = async () => { throw new Error("must not read missing file"); };
+		p.app.vault.adapter.write = async (path) => { paths.push(path); };
+		await p.loadSettings(); p.history.record("A"); await p.flushSettings();
+		assert.deepEqual(paths, Array(2).fill(`${manifestDir ?? ".custom/plugins/text-finder"}/data.json`));
+	});
+}
+
+test("stat/read race blocks saves rather than overwriting data that disappeared during load", async (t) => {
+	t.mock.method(console, "error", () => {});
+	const p = plugin(null);
+	p.app.vault.adapter.read = async () => { throw Object.assign(new Error("missing after stat"), { code: "ENOENT" }); };
+	await p.loadSettings(); await assert.rejects(p.saveSettings(), /refusing to overwrite/);
+	assert.equal(p.writes.length, 0);
+});
+
 test("actual plugin migrates all entries, saves once and loads normalized data unchanged", async () => {
 	const p = plugin({ searchHistory: [{ text: "new", createdAt: 5, lastUsedAt: 6, count: 2 }, "old", { text: "missingLast", createdAt: 2, count: 7 }] });
 	await p.loadSettings();

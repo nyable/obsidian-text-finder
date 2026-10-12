@@ -26,6 +26,7 @@ git diff --check
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
 - 统一关闭入口、清空两种输入、隐藏 Escape、模式异常与保留正则／大小写偏好。
 - 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
+- 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。
 - `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
 
 相关测试保留在 [`tests/`](../tests/)，例如 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 `search-box-dom.test.mjs`。当前覆盖情况以测试文件和运行结果为准，不在文档中固定测试总数。
@@ -34,11 +35,22 @@ git diff --check
 
 ```sh
 node tests/reading-benchmark.mjs
+node --expose-gc tests/search-benchmark.mjs
 ```
 
 脚本用 100／1,000／5,000 个分块与递增匹配数量，输出首次索引时间、导航中位时间及绘制 Range 数量。它不属于自动正确性测试套件，也不提供固定性能门槛。
 
 jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘制、滚动或移动端性能。避免和完整测试／构建同时运行以减少测量噪声。不要使用可能发生灾难性回溯的正则进行日常库压力测试。
+
+`search-benchmark.mjs` 分别记录索引、正则、端点映射、Range、观察器、高亮与挂载定位的独占逻辑时间，覆盖无／低／高匹配密度、上下文正则、查询变化及正文变化；编辑部分只测匹配与单次／全部模板展开，不包含 CodeMirror 事务。heap delta 不是峰值内存，`otherMs` 包含未单独计时的分块和结果整理。
+
+## 可选宿主方法验证
+
+```sh
+node tests/host-contract-check.mjs /path/to/obsidian.asar
+```
+
+脚本只读提取指定安装包中的存储、队列、布局和卸载方法，在内存文件系统和 UI 服务边界运行当前插件源码，输出 app.js 校验值与验证范围。宿主代码未打包进仓库，不在普通 CI 强制依赖本机安装；方法形状变化时显式失败。该验证不是完整 Obsidian GUI、移动存储或真实磁盘验收。
 
 ## 实际应用验收
 

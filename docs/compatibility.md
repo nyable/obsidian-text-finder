@@ -11,6 +11,15 @@
 
 依据：`src/reading-search.ts` 文件头、`manifest.json`、`package.json`、`esbuild.config.mjs`、`pnpm-workspace.yaml`。
 
+### 依赖安全边界
+
+- 依赖扫描命中不等于插件可利用漏洞。Svelte 的 SSR 属性展开、动态标签和 contenteditable 绑定类公告需 SSR 调用链；本插件构建为客户端 DOM 组件，无 SSR／hydrate 入口。仍应随框架使用方式变化重新检查。
+- [Svelte DOM clobbering 公告](https://github.com/advisories/GHSA-rcqx-6q8c-2c42) 要求 form 属性展开与内部 input／button 的 name 同时由用户控制；当前源码没有 form，也不将查询／历史文本作为属性集合展开。不能因此宣称框架版本已修复。
+- moment 来自宿主 Obsidian external；本插件调用 `moment.locale()` 读取语言，不将用户值传给 locale 加载。开发 SDK 的 moment 扫描结果不能证明实际宿主版本安全。
+- braces 位于开发 lint 的 glob 调用链，不在插件运行时包中；当前 lint 模式由开发命令固定，不由笔记或查询控制。处理开发工具风险与插件运行时风险须分开，不为扫描结果盲目升级框架主版本。
+
+依据：`package.json`／`pnpm-lock.yaml`、`esbuild.config.mjs`、`src/i18n/index.ts` 和组件模板。依赖版本或不可信输入边界变化时重新扫描并检查可达性；这不是永久豁免。
+
 ## API 边界与保护
 
 | 依赖 | 用途 | 保护／限制 | 源码 |
@@ -45,6 +54,7 @@
 | 真实组件 jsdom 测试 | 组件绑定、响应式、DOM 事件及焦点语义 | 实际图标／翻译／宿主；历史 DOM 测试移除样式，部分布局由 mock 几何值提供 |
 | 阅读 benchmark | 当前机器逻辑索引／导航开销及 Range 数量 | 固定性能门槛、实机绘制／滚动性能 |
 | CI 构建与产物检查 | 配置中的锁定安装、检查、构建链路 | 某次 CI 已成功；所有目标平台兼容 |
+| 可选宿主方法脚本 | 指定 ASAR 的真实 stat/read/write/queue、布局与卸载方法在内存边界中的行为 | 真实磁盘、移动适配器、完整宿主加载、GUI／滚动 |
 | 实际 Obsidian 验收／截图 | 记录环境中的表现 | 未测试平台和其他主题／版本 |
 
 依据：`tests/source-loader.mjs`、`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`、`tests/reading-benchmark.mjs`、`.github/workflows/ci.yml`。验证命令见 [testing](testing.md)。未见真实宿主 E2E／截图自动回归或覆盖率门槛，不能将这些列为已有保障。

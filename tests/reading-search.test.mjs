@@ -71,6 +71,18 @@ test("reading search counts detached tail sections before the user scrolls", () 
 	h.search.destroy();
 });
 
+test("reading result reuse never mutates earlier query snapshots or another view", () => {
+	const first = environment(), second = environment(["<p>cat cat cat cat</p>"], first.dom);
+	const initial = first.run("cat"); const snapshot = structuredClone(initial.matches);
+	assert.equal(first.run("cat", options, 1, true).matches, initial.matches);
+	assert.equal(second.run("cat").matches.length, 4);
+	const next = first.run("tail"); assert.notEqual(next.matches, initial.matches);
+	first.search.clear();
+	assert.deepEqual(initial.matches, snapshot);
+	assert.equal(second.run("cat", options, 3, true).index, 3);
+	first.search.destroy(); second.search.destroy(); first.dom.window.close();
+});
+
 test("regex anchors and lookarounds use the full logical reading text", (t) => {
 	t.mock.method(console, "log", () => {});
 	const h = environment(["<p>foo<strong>bar</strong></p>", "<p>bar</p>"]);

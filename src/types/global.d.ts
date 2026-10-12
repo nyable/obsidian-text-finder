@@ -58,8 +58,10 @@ interface SearchCache {
 }
 
 interface ReplaceResult {
-	/** The edit committed, but follow-up positioning failed. Do not repeat it. */
+	/** The edit committed, but positioning failed or was superseded. */
 	navigationFailed?: boolean;
+	/** Only present for asynchronous host positioning; the edit is already committed. */
+	navigationCompletion?: Promise<boolean>;
 	/**
 	 * 是否有进行替换
 	 */

@@ -30,7 +30,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 | --- | --- |
 | 查询／替换／选项、可见性／折叠、匹配／索引 | `src/SearchBox.svelte` 的 `cache` |
 | 历史浏览、暂存输入、连续使用周期 | `src/history.ts:HistoryNavigation` 及组件的 `lastRecordedSearch`／`currentSearch` |
-| 匹配上下文、查询身份、阅读请求代次／状态 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest` 等 |
+| 匹配上下文、查询身份、阅读／编辑定位请求代次 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest`／`positionRequest` 等 |
 | 菜单、焦点、状态提示延迟／定位 | `src/Toolbar.svelte`、`src/SearchStatus.svelte` |
 | 设置与共享历史 | `src/main.ts:settings`、`src/history.ts:HistoryController` |
 | 历史选择／详情 | `src/HistoryModal.svelte:selectedTexts`／`viewingItem` |
@@ -38,6 +38,8 @@ TextFinderPlugin                         加载、设置、错误与持久化
 | 阅读索引、端点、请求、计时器及 Document 高亮所有权 | `src/reading-search.ts:ReadingSearch` 和文档级 `documents` WeakMap |
 
 编辑链路：输入／操作 → `setFindText()` → 原文匹配 → 校验 owner／文档／查询 → CodeMirror effect／选择／滚动。文档变化立即清旧高亮，重算后再提交新结果。依据：`src/SearchBox.svelte` 的上下文方法、`src/search-highlight.ts:textMatchMarker`。
+
+编辑定位将正文提交与宿主模式切换分开：替换结果同步返回 `changed`，若宿主 `setState()` 异步完成则附 `navigationCompletion`，完成后再次校验请求代次、查询／索引、可见性及文件／编辑器／文档身份，再提交选区并决定单次替换的额外前进。重建编辑器仅后台重算，过期请求不再定位；销毁取消订阅并使代次失效。无法取消宿主内部已启动的模式切换。
 
 阅读链路：查询 → 检测私有渲染器／Highlight 能力 → 等待全文就绪 → 渲染 DOM 索引 → 精确查询匹配 → 稳定数字端点 → 挂载后临时 Range／Document 高亮注册表 → UI 回调。请求过期即拒绝发布。依据：`src/reading-text.ts`、`src/reading-search.ts`。
 

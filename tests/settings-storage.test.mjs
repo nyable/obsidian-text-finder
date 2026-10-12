@@ -81,3 +81,29 @@ test("snapshots are isolated and lanes are scoped by App and data path", async (
 	gate.resolve(); await write;
 	assert.deepEqual(JSON.parse(text), { nested: [1] });
 });
+
+test("different paths in the same App do not share a blocked plugin lane", async () => {
+	const gate = deferred(); const writes = [];
+	const app = { vault: { adapter: { write: async (path) => {
+		if (path === "one") await gate.promise;
+		writes.push(path);
+	} } } };
+	const first = new SettingsStorage(app, "one"), second = new SettingsStorage(app, "two");
+	const blocked = first.write({}); await second.write({});
+	assert.deepEqual(writes, ["two"]); gate.resolve(); await blocked;
+	assert.deepEqual(writes, ["two", "one"]);
+});
+
+test("a failed old write does not poison a fresh read or silently replay the failed snapshot", async () => {
+	let disk = '{"value":"persisted"}'; let fail = true; const writes = [];
+	const app = { vault: { adapter: {
+		stat: async () => ({ type: "file" }), read: async () => disk,
+		write: async (_path, text) => { if (fail) throw new Error("disk failed"); writes.push(JSON.parse(text)); disk = text; },
+	} } };
+	const old = new SettingsStorage(app, "data.json");
+	await assert.rejects(old.write({ value: "unsaved" }), /disk failed/); old.close();
+	const fresh = new (loadSource("../src/settings-storage.ts").SettingsStorage)(app, "data.json");
+	assert.deepEqual(await fresh.read(), { value: "persisted" });
+	fail = false; await fresh.write({ value: "NEW" }); await fresh.flush();
+	assert.deepEqual(writes, [{ value: "NEW" }]);
+});

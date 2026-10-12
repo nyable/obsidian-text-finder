@@ -99,6 +99,103 @@ function mount(t) {
 	return { component, target, scrolls, specs, plugin, view, resolve, saves: () => saves };
 }
 
+const deferred = () => {
+	let resolve, reject;
+	const promise = new Promise((done, fail) => { resolve = done; reject = fail; });
+	return { promise, resolve, reject };
+};
+const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+test("async replacement positioning commits once and advances only after success", async (t) => {
+	const h = mount(t); await tick(); const position = deferred();
+	h.component.getSearchCache().replace = "cat!";
+	h.view.setState = () => position.promise;
+	const result = h.component.replaceOnce();
+	assert.equal(result.changed, true); assert.equal(h.view.editor.getValue(), "cat! cat");
+	assert.equal(h.component.getSearchCache().index, 0);
+	position.resolve(); assert.equal(await result.navigationCompletion, true); await settlePosition();
+	assert.equal(h.component.getSearchCache().index, 1);
+	assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+});
+
+test("async replacement mode rejection prevents additional navigation and reports committed edit", async (t) => {
+	const h = mount(t); await tick(); const position = deferred(); const errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	h.component.getSearchCache().replace = "cat!";
+	h.view.setState = () => position.promise;
+	const result = h.component.replaceOnce();
+	position.reject(new Error("host rejected"));
+	assert.equal(await result.navigationCompletion, false); await settlePosition();
+	assert.equal(result.changed, true); assert.equal(result.navigationFailed, true);
+	assert.equal(h.view.editor.getValue(), "cat! cat");
+	assert.equal(h.component.getSearchCache().index, 0);
+	assert.equal(h.scrolls.length, 1);
+	assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+});
+
+for (const [name, invalidate] of [
+	["close and reopen", (h) => { h.component.setVisible(false); h.view.setState = () => {}; h.component.setVisible(true, "cat"); }],
+	["query changes away and back", (h) => { h.component.setFindText("dog", false); h.component.setFindText("cat", false); }],
+	["document edit", (h) => h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } })],
+	["file switch", (h) => { h.view.file = { path: "b.md" }; }],
+	["unload", (h) => h.component.$destroy()],
+]) {
+	test(`late async replacement position is inert after ${name}`, async (t) => {
+		const h = mount(t); await tick(); const position = deferred();
+		h.component.getSearchCache().replace = "cat!"; h.view.setState = () => position.promise;
+		const result = h.component.replaceOnce(); invalidate(h);
+		const count = h.specs.length; const scrolls = h.scrolls.length;
+		position.resolve(); assert.equal(await result.navigationCompletion, false); await settlePosition();
+		assert.equal(h.specs.length, count); assert.equal(h.scrolls.length, scrolls);
+		assert.equal(h.specs.filter((spec) => spec.changes && spec.changes[0]?.insert === "cat!").length, 1);
+	});
+}
+
+test("out-of-order same-query navigation only selects the newest requested match", async (t) => {
+	const h = mount(t); await tick(); const first = deferred(), second = deferred();
+	let calls = 0; h.view.setState = () => (++calls === 1 ? first : second).promise;
+	h.component.toNextMatch(); h.component.toPreviousMatch();
+	const count = h.specs.length;
+	second.resolve(); await settlePosition();
+	assert.equal(h.specs.at(-1).selection.anchor, 0);
+	const selected = h.specs.length; assert.equal(selected, count + 1);
+	first.resolve(); await settlePosition(); assert.equal(h.specs.length, selected);
+});
+
+test("async mode rebuild refreshes matches without dispatching old coordinates or advancing", async (t) => {
+	const h = mount(t); await tick(); const position = deferred();
+	h.component.getSearchCache().replace = "cat!"; h.view.setState = () => position.promise;
+	const result = h.component.replaceOnce();
+	const old = h.view.editor.cm; let lateOldDispatch = 0;
+	old.dispatch = () => lateOldDispatch++;
+	h.view.editor.cm = { state: EditorState.create({ doc: "prefix cat! cat" }), dispatch(spec) {
+		h.specs.push(spec); this.state = this.state.update({ changes: spec.changes, selection: spec.selection }).state;
+	} };
+	position.resolve(); assert.equal(await result.navigationCompletion, false); await settlePosition();
+	assert.equal(lateOldDispatch, 0); assert.equal(h.component.getSearchCache().index, 0);
+	assert.equal(h.component.getSearchCache().matches[0].from, 7);
+	assert.equal(h.specs.at(-1).selection, undefined);
+});
+
+test("late positioning rejection after destruction has no notice or editor effects", async (t) => {
+	const h = mount(t); await tick(); const position = deferred(); const errors = [];
+	h.plugin.reportError = (key) => errors.push(key); h.view.setState = () => position.promise;
+	h.component.getSearchCache().replace = "cat!";
+	const result = h.component.replaceOnce(); h.component.$destroy();
+	const count = h.specs.length; position.reject(new Error("late rejection"));
+	assert.equal(await result.navigationCompletion, false); await settlePosition();
+	assert.deepEqual(errors, []); assert.equal(h.specs.length, count);
+});
+
+test("hidden replacement retains safe async next-match behavior while the finder stays hidden", async (t) => {
+	const h = mount(t); await tick(); h.component.setVisible(false);
+	const position = deferred(); h.view.setState = () => position.promise;
+	h.component.getSearchCache().replace = "cat!";
+	const result = h.component.replaceOnce(); assert.equal(h.view.editor.getValue(), "cat! cat");
+	position.resolve(); assert.equal(await result.navigationCompletion, true); await settlePosition();
+	assert.equal(h.component.isVisible(), false); assert.equal(h.component.getSearchCache().index, 1);
+});
+
 function mountReading(t) {
 	window.CSS = { highlights: new Map() };
 	window.Highlight = class extends Set { priority = 0; };

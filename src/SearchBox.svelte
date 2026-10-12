@@ -28,6 +28,8 @@
 	let readingUnsupported = false;
 	let readingError: "failed" | "timeout" | undefined;
 	let readingRequest = 0;
+	let positionRequest = 0;
+	let disposed = false;
 	let searchMode = "source";
 	let statusContext = ownerView?.file;
 	const isReading = () => ownerView.getMode?.() === "preview";
@@ -53,11 +55,14 @@
 
 	// Get sorted history based on user preference
 	const getSortedHistory = () => editorSearch.plugin.history.sorted();
-	onMount(() => editorSearch.plugin.history.subscribe(() => {
-		if (!editorSearch.plugin.settings.enableHistory) { historyNavigation.reset(); return; }
-		const text = historyNavigation.reconcile(getSortedHistory());
-		if (text !== undefined) setFindText(text, false);
-	}));
+	onMount(() => {
+		const unsubscribe = editorSearch.plugin.history.subscribe(() => {
+			if (!editorSearch.plugin.settings.enableHistory) { historyNavigation.reset(); return; }
+			const text = historyNavigation.reconcile(getSortedHistory());
+			if (text !== undefined) setFindText(text, false);
+		});
+		return () => { disposed = true; positionRequest++; unsubscribe(); };
+	});
 
 	// Continuous navigation counts once; explicit history reuse starts a new use.
 	const recordSearchToHistory = (searchText: string, force = false) => {
@@ -177,6 +182,7 @@
 		searchText?: string,
 		historyIndexOverride?: number,
 	) {
+		positionRequest++;
 		cache.visible = flag;
 		syncFinderVisibility();
 		const settings = editorSearch.plugin.settings;
@@ -223,6 +229,7 @@
 	}
 
 	export function resetAll() {
+		positionRequest++;
 		historyNavigation.reset();
 		readingRequest++;
 		readingPending = false;
@@ -273,12 +280,18 @@
 		const before = getEditorContext();
 		const result = replaceMatchedText(cache.replace);
 		const current = getEditorContext();
-		if (result.changed && !result.navigationFailed && result.beforeCount === result.afterCount && before && current
-			&& current.file === before.file && current.editor === before.editor
-			&& current.editorView === before.editorView && isCurrentContext(current)
-			&& matchedContext?.doc === current.doc && matchedQuery === queryKey()) {
-			toNextMatch();
-		}
+		const request = positionRequest;
+		const advance = () => {
+			if (!disposed && positionRequest === request && result.changed && !result.navigationFailed
+				&& result.beforeCount === result.afterCount && before && current
+				&& current.file === before.file && current.editor === before.editor
+				&& current.editorView === before.editorView && isCurrentContext(current)
+				&& matchedContext?.doc === current.doc && matchedQuery === queryKey()) {
+				toNextMatch();
+			}
+		};
+		if (result.navigationCompletion) void result.navigationCompletion.then((success) => { if (success) advance(); });
+		else advance();
 		return result;
 	};
 
@@ -366,6 +379,7 @@
 	};
 
 	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0) => {
+		positionRequest++;
 		statusContext = ownerView.file;
 		// Svelte's bind:value may update cache.search before the input handler.
 		if (currentSearch !== text) lastRecordedSearch = null;
@@ -455,59 +469,50 @@
 	export const toPreviousMatch = () => navigateMatch(-1);
 
 	export const scrollToMatch = (activeEditor = getEditorContext(), afterReplacement = false) => {
-		if (isReading()) { setFindText(cache.search, true); return; }
+		if (disposed) return false;
+		if (isReading()) { setFindText(cache.search, true); return true; }
 		try {
-		if (activeEditor && isCurrentContext(activeEditor)) {
+			if (!activeEditor || !isCurrentContext(activeEditor)) return false;
 			if (matchedContext?.doc !== activeEditor.doc || matchedQuery !== queryKey()
 				|| matchedContext.file !== activeEditor.file || matchedContext.editorView !== activeEditor.editorView) {
 				setFindText(cache.search, false, activeEditor);
 			}
-			const { editor } = activeEditor;
-
-			const { matches, index } = cache;
-			if (matches.length > 0 && index >= 0 && index < matches.length) {
-				const matched = matches[index];
-				const { from, to } = matched;
-
-				editor.scrollIntoView(
-					{
-						from: editor.offsetToPos(from),
-						to: editor.offsetToPos(to),
-					},
-					true,
-				);
-				const view = activeEditor.view;
-				const state = view.getState();
-				const { sourceModeWhenSearch, moveCursorToMatch } =
-					editorSearch.plugin.settings;
-				if (sourceModeWhenSearch && state.mode === "source") {
-					state.source = true;
-				}
-				const requestQuery = queryKey();
-				const requestFile = ownerView.file;
-				const reportPositionError = (error: unknown) => editorSearch.plugin.reportError(
-					afterReplacement ? "search.ReplacedNavigationFailed" : "search.EditorFailed", error);
-				let changed: Promise<void>;
-				try { changed = view.setState(state, { history: false }); }
-				catch (error) { reportPositionError(error); return false; }
-				void Promise.resolve(changed).then(() => {
-					// Mode changes can rebuild the editor asynchronously. Never submit
-					// old offsets to a new editor or overwrite a newer query/close.
-					if (cache.visible && ownerView.file === requestFile && queryKey() === requestQuery
-						&& getEditorContext() && !isCurrentContext(activeEditor)) matchAgain(false);
-				}).catch(reportPositionError);
+			const matched = cache.matches[cache.index];
+			if (!matched) return true;
+			const request = ++positionRequest;
+			const requestQuery = queryKey();
+			const requestIndex = cache.index;
+			const visible = cache.visible;
+			const { editor, view } = activeEditor;
+			const { from, to } = matched;
+			editor.scrollIntoView({ from: editor.offsetToPos(from), to: editor.offsetToPos(to) }, true);
+			const state = view.getState();
+			const { sourceModeWhenSearch, moveCursorToMatch } = editorSearch.plugin.settings;
+			if (sourceModeWhenSearch && state.mode === "source") state.source = true;
+			const currentRequest = () => !disposed && positionRequest === request
+				&& cache.visible === visible && queryKey() === requestQuery && cache.index === requestIndex
+				&& ownerView.file === activeEditor.file;
+			const complete = () => {
+				if (!currentRequest()) return false;
 				if (!isCurrentContext(activeEditor)) {
-					matchAgain(false);
-					return;
+					// Mode switches may rebuild the editor. Refresh, but never select
+					// using old offsets or advance a replacement in the new editor.
+					const rebuilt = getEditorContext();
+					if (rebuilt && rebuilt.editorView !== activeEditor.editorView) matchAgain(false);
+					return false;
 				}
-				emitChange(true, {
-					selection: moveCursorToMatch
-						? { anchor: from, head: to }
-						: undefined,
-				}, activeEditor);
+				emitChange(true, { selection: moveCursorToMatch ? { anchor: from, head: to } : undefined }, activeEditor);
+				return true;
+			};
+			const changed = view.setState(state, { history: false });
+			if (changed && typeof changed.then === "function") {
+				return Promise.resolve(changed).then(complete).catch((error) => {
+					if (currentRequest() && getEditorContext()) editorSearch.plugin.reportError(
+						afterReplacement ? "search.ReplacedNavigationFailed" : "search.EditorFailed", error);
+					return false;
+				});
 			}
-		}
-		return true;
+			return complete();
 		} catch (error) {
 			editorSearch.plugin.reportError(afterReplacement ? "search.ReplacedNavigationFailed" : "search.EditorFailed", error);
 			return false;
@@ -515,6 +520,7 @@
 	};
 
 	export const resetMatches = (clearSearch = false, clearReplace = false) => {
+		positionRequest++;
 		readingRequest++;
 		readingPending = false;
 		readingUnsupported = false;
@@ -592,7 +598,12 @@
 				if (current && current.file === prepared.activeEditor.file
 					&& current.editorView === prepared.activeEditor.editorView) {
 					setFindText(search, false, current);
-					if (!scrollToMatch(current, true)) result.navigationFailed = true;
+					const positioned = scrollToMatch(current, true);
+					if (typeof positioned === "boolean") result.navigationFailed = !positioned;
+					else result.navigationCompletion = positioned.then((success) => {
+						result.navigationFailed = !success;
+						return success;
+					});
 				} else {
 					cache.matches = [];
 					cache.index = 0;
