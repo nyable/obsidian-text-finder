@@ -8,6 +8,8 @@
 	"MatchPending": "Searching… Close or cancel to stop the Worker.",
 	"SynchronousRetry": "Retry synchronously (may block)",
 	"CancelSearch": "Cancel and close",
+	"ReplacementPending": "Preparing replacement… No edit has been applied yet; close or cancel to stop.",
+	"ReplacementRematching": "Replacement applied. Updating matches… Cancelling will not undo the edit.",
 	"ReadingPending": "Preparing search…",
 	"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
 	"StatusError": "Find is temporarily unavailable",

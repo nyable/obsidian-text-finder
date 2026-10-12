@@ -58,9 +58,12 @@ interface SearchCache {
 }
 
 interface ReplaceResult {
+	/** Candidate computation may be cancelled/failed without committing text. */
+	status?: "completed" | "cancelled" | "failed";
+	error?: unknown;
 	/** The edit committed, but positioning failed or was superseded. */
 	navigationFailed?: boolean;
-	/** Only present for asynchronous host positioning; the edit is already committed. */
+	/** Asynchronous post-commit matching and/or host positioning. Never replays the edit. */
 	navigationCompletion?: Promise<boolean>;
 	/**
 	 * 是否有进行替换

@@ -118,6 +118,231 @@ function delayedMatcher() {
 }
 const matchedCats = { status: "completed", synchronous: false, matches: [{ from: 0, to: 3, index: 0 }, { from: 4, to: 7, index: 1 }] };
 
+function replacementMatcher() {
+	const matcher = delayedMatcher();
+	matcher.replacements = [];
+	matcher.replace = (source, query, replacement, options, index, all) => {
+		const pending = deferred(); matcher.replacements.push({ source, query, replacement, options, index, all, ...pending }); return pending.promise;
+	};
+	return matcher;
+}
+const candidates = (insert = "cat!", all = false) => ({ ...matchedCats,
+	changes: all ? [{ from: 0, to: 3, insert }, { from: 4, to: 7, insert }] : [{ from: 0, to: 3, insert }] });
+async function mountReplacement(t) {
+	const matcher = replacementMatcher(), h = mount(t, matcher);
+	matcher.requests[0].resolve(matchedCats); await settlePosition();
+	h.component.getSearchCache().replace = "cat!";
+	return { ...h, matcher };
+}
+
+test("async replacement commits once, tolerates own editor events, then waits for rematch and positioning before advance", async (t) => {
+	const h = await mountReplacement(t), mode = deferred(); h.view.setState = () => mode.promise;
+	const original = h.view.editor.cm.dispatch;
+	h.view.editor.cm.dispatch = function(spec) { original.call(this, spec); if (spec.changes) h.component.matchAgain(false); };
+	const pending = h.component.replaceOnce();
+	assert.equal(h.view.editor.getValue(), "cat cat");
+	h.component.matchAgain(false); assert.equal(h.matcher.replacements.length, 1);
+	h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	assert.equal(result.changed, true); assert.equal(h.view.editor.getValue(), "cat! cat");
+	assert.equal(h.matcher.requests.length, 2); assert.equal(h.component.getSearchCache().index, 0);
+	h.matcher.requests[1].resolve({ ...matchedCats, matches: [{ from: 0, to: 3, index: 0 }, { from: 5, to: 8, index: 1 }] });
+	await settlePosition(); assert.equal(h.component.getSearchCache().index, 0);
+	mode.resolve(); assert.equal(await result.navigationCompletion, true); await settlePosition();
+	assert.equal(h.component.getSearchCache().index, 1); assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+	assert.equal(result.afterCount, 2);
+});
+
+test("all replacement is one immutable CodeMirror transaction with inverse undo/redo", async (t) => {
+	const h = await mountReplacement(t), before = h.view.editor.cm.state.doc;
+	const pending = h.component.replaceAllMatchedText("dog"); h.matcher.replacements[0].resolve(candidates("dog", true));
+	const result = await pending; assert.equal(result.changeCount, 2); assert.equal(h.view.editor.getValue(), "dog dog");
+	const changes = h.specs.filter((spec) => spec.changes); assert.equal(changes.length, 1);
+	const transaction = EditorState.create({ doc: before }).update(changes[0]);
+	const undone = transaction.state.update({ changes: transaction.changes.invert(before) }).state;
+	assert.equal(undone.doc.toString(), "cat cat");
+	assert.equal(undone.update({ changes: transaction.changes }).state.doc.toString(), "dog dog");
+	h.matcher.requests[1].resolve({ ...matchedCats, matches: [] }); await result.navigationCompletion;
+	assert.equal(result.afterCount, 0); assert.equal(h.component.getSearchCache().index, 0);
+});
+
+for (const [name, invalidate] of [
+	["query away and back", (h) => { h.component.setFindText("dog", false); h.component.setFindText("cat", false); }],
+	["option change", (h) => { h.component.getSearchCache().options.regexMode = true; }],
+	["document edit", (h) => { h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false); }],
+	["equal-text new doc", (h) => { h.view.editor.cm.state = EditorState.create({ doc: "cat cat" }); }],
+	["file identity", (h) => { h.view.file = { path: "a.md" }; }],
+	["file rename", (h) => { h.view.file.path = "renamed.md"; }],
+	["navigation", (h) => h.component.toNextMatch()],
+	["editor rebuild", (h) => { h.view.editor.cm = { state: EditorState.create({ doc: "cat cat" }), dispatch() { throw new Error("must not commit"); } }; }],
+	["mode switch", (h) => { h.view.getMode = () => "preview"; }],
+	["close reopen", (h) => { h.component.setVisible(false); h.component.setVisible(true); }],
+	["replace input", (h) => { h.component.getSearchCache().replace = "different"; }],
+	["escape setting", (h) => { h.plugin.settings.useEscapeCharInReplace = true; }],
+	["dispose", (h) => h.component.$destroy()],
+]) {
+	test(`replacement candidates never commit after ${name}`, async (t) => {
+		const h = await mountReplacement(t); const pending = h.component.replaceOnce(); invalidate(h);
+		const count = h.specs.filter((spec) => spec.changes).length;
+		h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+		assert.equal(result.changed, false); assert.equal(result.status, "cancelled");
+		assert.equal(h.specs.filter((spec) => spec.changes).length, count);
+	});
+}
+
+test("latest replacement request wins; repeated input cannot commit two stale writes", async (t) => {
+	const h = await mountReplacement(t), first = h.component.replaceOnce(), second = h.component.replaceOnce();
+	h.matcher.replacements[0].resolve(candidates()); assert.equal((await first).changed, false);
+	h.matcher.replacements[1].resolve(candidates()); const result = await second;
+	assert.equal(result.changed, true); assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+	h.matcher.requests[1].resolve(matchedCats); await result.navigationCompletion;
+});
+
+test("pre-commit replacement failure can be explicitly sync retried without an automatic write", async (t) => {
+	const h = await mountReplacement(t); const pending = h.component.replaceOnce();
+	h.matcher.replacements[0].resolve({ status: "failed", error: new Error("Worker failed") }); const result = await pending; await settlePosition();
+	assert.equal(result.changed, false); assert.equal(h.view.editor.getValue(), "cat cat");
+	const sync = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.SynchronousRetry");
+	assert.ok(sync); sync.click(); await settlePosition();
+	assert.equal(h.view.editor.getValue(), "cat! cat"); assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+});
+
+test("post-commit Worker failure reports applied edit and retry only searches, never replays replacement", async (t) => {
+	const h = await mountReplacement(t), errors = []; h.plugin.reportError = (key) => errors.push(key);
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	h.matcher.requests[1].resolve({ status: "failed", error: new Error("post-commit crash") });
+	assert.equal(await result.navigationCompletion, false); await settlePosition();
+	assert.equal(result.changed, true); assert.equal(result.navigationFailed, true);
+	assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+	assert.equal(h.target.querySelector(".nya-search-status span").textContent, "search.ReplacedNavigationFailed");
+	const retry = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.Retry");
+	retry.click(); await settlePosition(); assert.equal(h.matcher.replacements.length, 1);
+	assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+});
+
+test("closing after commit cancels rematch navigation but retains exactly one applied change", async (t) => {
+	const h = await mountReplacement(t), pending = h.component.replaceOnce();
+	h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	h.component.setVisible(false); const count = h.specs.length;
+	h.matcher.requests[1].resolve(matchedCats); assert.equal(await result.navigationCompletion, false); await settlePosition();
+	assert.equal(h.specs.length, count); assert.equal(h.view.editor.getValue(), "cat! cat");
+	assert.equal(h.component.getSearchCache().index, 0);
+});
+
+test("hidden replacement recomputes doc through Worker and preserves hidden next-match behavior", async (t) => {
+	const h = await mountReplacement(t); h.component.setVisible(false);
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	h.matcher.requests[1].resolve({ ...matchedCats, matches: [{ from: 0, to: 3, index: 0 }, { from: 5, to: 8, index: 1 }] });
+	assert.equal(await result.navigationCompletion, true); assert.equal(h.component.isVisible(), false);
+	assert.equal(h.component.getSearchCache().index, 1);
+});
+
+test("replace textarea input cancels pending Worker candidates even if user changes away and back", async (t) => {
+	const h = await mountReplacement(t), pending = h.component.replaceOnce();
+	const input = h.target.querySelector(".replacer textarea");
+	input.value = "other"; input.dispatchEvent(new window.Event("input"));
+	input.value = "cat!"; input.dispatchEvent(new window.Event("input"));
+	h.matcher.replacements[0].resolve(candidates()); assert.equal((await pending).changed, false);
+	assert.equal(h.view.editor.getValue(), "cat cat");
+});
+
+test("production Worker drives single and all component replacements including post-commit rematch", async (t) => {
+	const host = installWorkerHost(window), engine = new MatchEngine(() => window);
+	t.after(async () => { engine.destroy(); await host.dispose(); delete window.Worker; });
+	const h = mount(t, engine), initial = engine.pending;
+	await new Promise((resolve) => { const original = initial.resolve; initial.resolve = (value) => { original(value); resolve(); }; });
+	await settlePosition(); h.component.getSearchCache().replace = "cat!";
+	const one = await h.component.replaceOnce(); assert.equal(one.changed, true);
+	assert.equal(await one.navigationCompletion, true); assert.equal(h.component.getSearchCache().index, 1);
+	assert.equal(h.view.editor.getValue(), "cat! cat");
+	const all = await h.component.replaceAllMatchedText("dog"); assert.equal(all.changeCount, 2);
+	assert.equal(await all.navigationCompletion, true); assert.equal(h.view.editor.getValue(), "dog! dog");
+	assert.equal(all.afterCount, 0); assert.equal(host.workers.length, 1, "idle Worker reused across match/replace/rematch");
+	assert.equal(h.specs.filter((spec) => spec.changes).length, 2);
+	h.component.setVisible(false); assert.equal(host.blobs.size, 0);
+});
+
+test("post-commit host positioning rejection never advances and keeps applied write", async (t) => {
+	const h = await mountReplacement(t), position = deferred(), errors = [];
+	h.view.setState = () => position.promise; h.plugin.reportError = (key) => errors.push(key);
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	h.matcher.requests[1].resolve(matchedCats); await settlePosition(); position.reject(new Error("host rejected"));
+	assert.equal(await result.navigationCompletion, false); assert.equal(result.changed, true);
+	assert.equal(h.component.getSearchCache().index, 0); assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+});
+
+test("normal replacement retry recomputes candidates in Worker and does not silently become find-only", async (t) => {
+	const h = await mountReplacement(t), pending = h.component.replaceOnce();
+	h.matcher.replacements[0].resolve({ status: "failed", error: "crash" }); await pending; await settlePosition();
+	const button = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.Retry");
+	button.click(); assert.equal(h.matcher.replacements.length, 2); assert.equal(h.view.editor.getValue(), "cat cat");
+	h.matcher.replacements[1].resolve(candidates()); await settlePosition();
+	assert.equal(h.view.editor.getValue(), "cat! cat"); h.matcher.requests[1].resolve(matchedCats); await settlePosition();
+});
+
+for (const [name, invalidate] of [
+	["document edit", (h) => { h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false); }],
+	["query change", (h) => h.component.setFindText("dog", false)],
+	["file change", (h) => { h.view.file = { path: "b.md" }; h.component.matchAgain(false); }],
+	["editor rebuild", (h) => { h.view.editor.cm = { state: EditorState.create({ doc: "cat! cat" }), dispatch() {} }; h.component.matchAgain(false); }],
+	["destroy", (h) => h.component.$destroy()],
+]) {
+	test(`post-commit rematch completion is inert after ${name}`, async (t) => {
+		const h = await mountReplacement(t), pending = h.component.replaceOnce();
+		h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+		invalidate(h); const specs = h.specs.length, scrolls = h.scrolls.length;
+		h.matcher.requests[1].resolve(matchedCats); assert.equal(await result.navigationCompletion, false); await settlePosition();
+		assert.equal(result.changed, true); assert.equal(h.specs.length, specs); assert.equal(h.scrolls.length, scrolls);
+	});
+}
+
+test("same-file split owners calculate and commit independent replacement requests", async (t) => {
+	const a = await mountReplacement(t), b = await mountReplacement(t); b.view.file = a.view.file;
+	const first = a.component.replaceOnce(), second = b.component.replaceAllMatchedText("dog");
+	b.matcher.replacements[0].resolve(candidates("dog", true)); const secondResult = await second;
+	a.matcher.replacements[0].resolve(candidates()); const firstResult = await first;
+	assert.equal(a.view.editor.getValue(), "cat! cat"); assert.equal(b.view.editor.getValue(), "dog dog");
+	a.matcher.requests[1].resolve(matchedCats); b.matcher.requests[1].resolve({ ...matchedCats, matches: [] });
+	assert.equal(await firstResult.navigationCompletion, true); assert.equal(await secondResult.navigationCompletion, true);
+	assert.equal(a.specs.filter((spec) => spec.changes).length, 1); assert.equal(b.specs.filter((spec) => spec.changes).length, 1);
+});
+
+test("host exception after commit is reported as an applied edit and never offers write replay", async (t) => {
+	const h = await mountReplacement(t), original = h.view.editor.cm.dispatch, errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	h.view.editor.cm.dispatch = function(spec) { original.call(this, spec); if (spec.changes) throw new Error("post-commit host event failed"); };
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	assert.equal(result.changed, true); assert.equal(result.changeCount, 1); assert.equal(result.status, "failed");
+	assert.equal(h.view.editor.getValue(), "cat! cat"); assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]);
+	await settlePosition(); const retry = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.Retry");
+	retry.click(); assert.equal(h.matcher.replacements.length, 1);
+});
+
+test("post-commit effect failure cannot masquerade as an uncommitted replacement", async (t) => {
+	const h = await mountReplacement(t), original = h.view.editor.cm.dispatch, errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	h.view.editor.cm.dispatch = function(spec) { if (!spec.changes) throw new Error("effect failed"); original.call(this, spec); };
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	assert.equal(result.changed, true); assert.equal(result.status, "failed"); assert.equal(result.navigationFailed, true);
+	assert.deepEqual(errors, ["search.ReplacedNavigationFailed"]); assert.equal(h.view.editor.getValue(), "cat! cat");
+});
+
+test("production controller sync compatibility preserves single-replace advancement and all-replace semantics", async (t) => {
+	const engine = new MatchEngine(() => window); t.after(() => engine.destroy());
+	const h = mount(t, engine); h.component.getSearchCache().replace = "cat!";
+	const one = h.component.replaceOnce(); assert.ok(!(one instanceof Promise));
+	assert.equal(one.changed, true); assert.equal(one.afterCount, 2); assert.equal(h.component.getSearchCache().index, 1);
+	const all = h.component.replaceAllMatchedText("dog"); assert.equal(all.changed, true);
+	assert.equal(h.view.editor.getValue(), "dog! dog"); assert.equal(all.afterCount, 0);
+});
+
+test("regex replacement input escapes are decoded once before candidate transport", async (t) => {
+	const h = await mountReplacement(t); h.plugin.settings.useEscapeCharInReplace = true;
+	h.component.getSearchCache().options.regexMode = true;
+	const pending = h.component.replaceAllMatchedText("$&\\n\\t\\\\n\0");
+	assert.equal(h.matcher.replacements[0].replacement, "$&\n\t\\n\0");
+	h.matcher.replacements[0].resolve({ status: "cancelled" }); assert.equal((await pending).changed, false);
+});
+
 test("asynchronous editor find preserves queued user navigation across background refresh", async (t) => {
 	const matcher = delayedMatcher(), h = mount(t, matcher); await tick();
 	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "…");

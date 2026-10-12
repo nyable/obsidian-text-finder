@@ -1,5 +1,5 @@
 import workerSource from "text-finder:match-worker";
-import { findTextOffsets } from "./util/text-helper";
+import { findTextOffsets, prepareReplacements } from "./util/text-helper";
 import type { MatchExecutor, MatchReply, MatchRequest, MatchResult } from "./match-protocol";
 
 interface WorkerWindow {
@@ -39,14 +39,21 @@ export class MatchEngine implements MatchExecutor {
 		private compatibility: (error: unknown) => void = () => {}, private startupTimeoutMs = 3000) {}
 
 	match(source: string, query: string, options: SearchOptions): MatchResult | Promise<MatchResult> {
+		return this.execute({ id: ++this.sequence, source, query, options: { ...options } });
+	}
+	replace(source: string, query: string, replacement: string, options: SearchOptions, index: number, all: boolean): MatchResult | Promise<MatchResult> {
+		return this.execute({ id: ++this.sequence, source, query, options: { ...options }, replacement, index,
+			operation: all ? "replaceAll" : "replaceOne" });
+	}
+	private execute(request: MatchRequest): MatchResult | Promise<MatchResult> {
 		if (this.disposed) return { status: "cancelled" };
 		const win = this.getWindow() as unknown as WorkerWindow | null;
 		if (!win || win.closed) { this.cancel(); return { status: "cancelled" }; }
 		if (this.pending) this.cancel();
 		if (this.connection && this.connection.win !== win) this.release();
-		const request: MatchRequest = { id: ++this.sequence, source, query, options: { ...options } };
 		if (this.unavailableWindow === win) return this.synchronous(request);
-		if (!source || !query) return { status: "completed", matches: [], synchronous: false };
+		if (!request.source || !request.query) return { status: "completed", matches: [], synchronous: false,
+			...(request.operation ? { changes: [] } : {}) };
 		if (!this.connection) {
 			try { this.start(win); }
 			catch (error) { return this.fallback(win, request, error); }
@@ -58,9 +65,22 @@ export class MatchEngine implements MatchExecutor {
 	}
 
 	private synchronous(request: MatchRequest): MatchResult {
-		try { return { status: "completed", synchronous: true, matches: findTextOffsets(
-			request.source, request.query, request.options.regexMode, request.options.caseSensitive) }; }
+		try {
+			if (request.operation) {
+				const prepared = prepareReplacements(request.source, request.query, request.replacement ?? "",
+					request.options.regexMode, request.options.caseSensitive);
+				const index = this.replacementIndex(request, prepared.matches.length);
+				const selected = request.operation === "replaceOne" ? prepared.one(index) : undefined;
+				return { status: "completed", synchronous: true, matches: prepared.matches,
+					changes: request.operation === "replaceAll" ? prepared.all() : selected ? [selected] : [] };
+			}
+			return { status: "completed", synchronous: true, matches: findTextOffsets(
+				request.source, request.query, request.options.regexMode, request.options.caseSensitive) };
+		}
 		catch (error) { return { status: "failed", error }; }
+	}
+	private replacementIndex(request: MatchRequest, length: number) {
+		return typeof request.index === "number" && Number.isInteger(request.index) && request.index >= 0 && request.index < length ? request.index : 0;
 	}
 	private fallback(win: WorkerWindow, request: MatchRequest, error: unknown): MatchResult {
 		this.release(); this.unavailableWindow = win;
@@ -111,7 +131,17 @@ export class MatchEngine implements MatchExecutor {
 				}
 				matches.push({ from, to, index }); end = to;
 			}
-			this.pending = null; pending.resolve({ status: "completed", matches, synchronous: false });
+			if (pending.request.operation) {
+				const expected = pending.request.operation === "replaceAll" ? matches
+					: matches.length ? [matches[this.replacementIndex(pending.request, matches.length)]] : [];
+				if (!Array.isArray(reply.changes) || reply.changes.length !== expected.length
+					|| reply.changes.some((change, index) => !change || change.from !== expected[index].from
+						|| change.to !== expected[index].to || typeof change.insert !== "string")) {
+					throw new Error("Invalid Worker replacement candidates");
+				}
+			}
+			this.pending = null; pending.resolve({ status: "completed", matches, synchronous: false,
+				...(pending.request.operation ? { changes: reply.changes } : {}) });
 		} catch (error) { this.failure(connection, error); }
 	}
 	private send() {

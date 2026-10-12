@@ -81,7 +81,9 @@ node tests/worker-experiment-cancel.mjs --dangerous
 
 生产查找的自动验证另见 `tests/match-engine.test.mjs` 与 `tests/search-box-dom.test.mjs`：运行正式 bundle／Worker 源码，覆盖语义差分、启动降级／执行失败、旧请求、同查询导航、文档／文件／编辑器身份和阅读端点失效；Node-backed 浏览器替身不能证明真实宿主 CSP。
 
-生产产物只需既有 `main.js`／`styles.css`／`manifest.json`，Worker 字符串嵌入 main。实际验收须使用临时库中的正式插件入口，而非只读探针：先做字面量／正则／大小写、连续输入与 Enter、编辑／阅读切换、同文件双分屏、关闭／重开、卸载／重载及弹窗迁移。替换仍同步，不使用危险正则替换；正式危险查找测试需要明确 opt-in，不能由安全测试通过自动推出通过。生产入口尚无本轮真实宿主结果。
+生产产物只需既有 `main.js`／`styles.css`／`manifest.json`，Worker 字符串嵌入 main。实际验收须使用临时库中的正式插件入口，而非只读探针：先做字面量／正则／大小写、连续输入与 Enter、编辑／阅读切换、同文件双分屏、关闭／重开、卸载／重载及弹窗迁移。第一阶段查找已收到用户检查成功反馈；第二阶段异步替换待实机验收。危险查找／替换测试需要明确 opt-in，不能由安全测试通过自动推出通过。
+
+异步替换自动测试覆盖 552 次正式 Worker 候选语义比较、单次后缀按需展开、失败／候选校验，实际组件的单次／全部提交、提交中重入事件、重算／模式定位、关闭／文件／doc／查询／输入失效、失败重试及同文件双 owner。CodeMirror 逆 changes 验证一次事务的 undo／redo 文本，不代替宿主真实撤销栈。实际安全样本：单次 `cat → cat!` 的额外前进；全部 `cat → dog` 一次撤销；捕获／命名组／前后顾、前缀／后缀及转义开关；提交前取消不改正文、提交后关闭不回滚且不迟到定位。先测试普通正文，不要求直接在正式入口输入危险模式。
 
 ```sh
 node tests/worker-probe-build.mjs

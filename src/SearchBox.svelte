@@ -32,9 +32,25 @@
 	let workerError = false;
 	let editingEngine: MatchExecutor | null = null;
 	let editingComputation: { context: EditorContext; key: string; window: Window | null; scroll: boolean; direction: number } | null = null;
-	const cancelEditing = () => {
+	interface ReplacementTask {
+		context: EditorContext;
+		key: string;
+		window: Window | null;
+		path: string | undefined;
+		replace: string;
+		escape: boolean;
+		phase: "prepare" | "committed";
+		committing: boolean;
+	}
+	let replacementTask: ReplacementTask | null = null;
+	let replacementRetry: ((synchronous: boolean) => void) | null = null;
+	let replacementCommittedError = false;
+	const cancelEditing = (preserveIdle = false) => {
+		const busy = !!editingComputation || !!replacementTask;
 		editingComputation = null;
-		editingEngine?.cancel();
+		replacementTask = null;
+		replacementRetry = null;
+		if (!preserveIdle || busy) editingEngine?.cancel();
 	};
 	let positionRequest = 0;
 	let disposed = false;
@@ -287,8 +303,9 @@
 
 	// All user-facing single-replace entry points share the same navigation policy.
 	export const replaceOnce = () => {
+		if (typeof editorSearch.getMatchEngine?.(ownerView).replace === "function") return replaceInWorker(cache.replace, false, true);
 		const before = getEditorContext();
-		const result = replaceMatchedText(cache.replace);
+		const result = replaceText(cache.replace, false);
 		const current = getEditorContext();
 		const request = positionRequest;
 		const advance = () => {
@@ -389,6 +406,12 @@
 	};
 
 	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0, synchronous = false) => {
+		// Host editor-change/layout events can fire synchronously during our commit.
+		// They must not cancel post-commit matching, or replay the edit.
+		if (replacementTask?.committing) return;
+		if (replacementTask && !scroll && text === cache.search && replacementCurrent(replacementTask)) return;
+		if (replacementTask) cancelEditing();
+		replacementRetry = null; replacementCommittedError = false;
 		positionRequest++;
 		statusContext = ownerView.file;
 		// Svelte's bind:value may update cache.search before the input handler.
@@ -483,6 +506,7 @@
 	};
 
 	const navigateMatch = (direction: number) => {
+		if (replacementTask) { cancelEditing(); readingPending = false; }
 		if (isReading()) {
 			setFindText(cache.search, true, null, direction);
 			if (cache.visible && !readingUnsupported && !readingError && cache.search) recordSearchToHistory(cache.search);
@@ -510,6 +534,7 @@
 
 	export const scrollToMatch = (activeEditor = getEditorContext(), afterReplacement = false) => {
 		if (disposed) return false;
+		if (replacementTask?.phase === "prepare") { cancelEditing(); readingPending = false; }
 		if (isReading()) { setFindText(cache.search, true); return true; }
 		try {
 			if (!activeEditor || !isCurrentContext(activeEditor)) return false;
@@ -664,11 +689,144 @@
 		return result;
 	};
 
-	export const replaceMatchedText = (inputText: string): ReplaceResult =>
-		replaceText(inputText, false);
+	const replacementCurrent = (task: ReplacementTask) => !disposed && replacementTask === task
+		&& !isReading() && isCurrentContext(task.context) && queryKey() === task.key
+		&& task.context.file?.path === task.path
+		&& (ownerView.containerEl?.ownerDocument.defaultView ?? null) === task.window && !task.window?.closed
+		&& (task.phase === "committed" || (cache.replace === task.replace
+			&& editorSearch.plugin.settings.useEscapeCharInReplace === task.escape));
 
-	export const replaceAllMatchedText = (inputText: string): ReplaceResult =>
-		replaceText(inputText, true);
+	const replaceInWorker = (inputText: string, all: boolean, advance = false, synchronous = false): ReplaceResult | Promise<ReplaceResult> => {
+		const result: ReplaceResult = { changed: false, changeCount: 0, search: cache.search, replace: cache.replace,
+			beforeCount: 0, afterCount: 0, status: "cancelled" };
+		if (disposed || isReading()) return result;
+		const context = getEditorContext();
+		if (!context) return result;
+		const index = matchedContext && (matchedContext.file !== context.file || matchedContext.editorView !== context.editorView) ? 0 : cache.index;
+		cancelEditing(true); positionRequest++;
+		editingEngine = editorSearch.getMatchEngine(ownerView);
+		const task: ReplacementTask = { context, key: queryKey(), window: ownerView.containerEl?.ownerDocument.defaultView ?? null,
+			path: context.file?.path, replace: cache.replace, escape: editorSearch.plugin.settings.useEscapeCharInReplace,
+			phase: "prepare", committing: false };
+		replacementTask = task; readingError = undefined; workerError = false; replacementCommittedError = false;
+		const options = { ...cache.options };
+		const replacement = options.regexMode ? adjustReplaceText(inputText) : inputText;
+		const failed = (error: unknown, committed: boolean) => {
+			result.status = "failed"; result.error = error; result.navigationFailed = committed;
+			readingPending = false; readingError = "failed"; workerError = true; replacementCommittedError = committed;
+			replacementTask = null;
+			if (committed) {
+				// Never offer to replay a write which already committed.
+				replacementRetry = null;
+				editorSearch.plugin.reportError("search.ReplacedNavigationFailed", error);
+			} else {
+				replacementRetry = (sync) => {
+					if (!disposed && isCurrentContext(context) && queryKey() === task.key && cache.replace === task.replace
+						&& editorSearch.plugin.settings.useEscapeCharInReplace === task.escape
+						&& context.file?.path === task.path
+						&& (ownerView.containerEl?.ownerDocument.defaultView ?? null) === task.window) {
+						void replaceInWorker(inputText, all, advance, sync);
+					} else setFindText(cache.search);
+				};
+			}
+		};
+		const finishPosition = (matched: MatchResult): boolean | Promise<boolean> => {
+			if (!replacementCurrent(task)) {
+				if (replacementTask === task) { replacementTask = null; readingPending = false; }
+				return false;
+			}
+			if (matched.status === "failed") { failed(matched.error, true); return false; }
+			if (matched.status === "cancelled") { replacementTask = null; readingPending = false; return false; }
+			cache.matches = matched.matches; rememberMatches(task.context);
+			result.afterCount = matched.matches.length; readingPending = false; replacementTask = null;
+			let positioned: boolean | Promise<boolean>;
+			try { positioned = scrollToMatch(task.context, true); }
+			catch (error) { failed(error, true); return false; }
+			const request = positionRequest;
+			const complete = (success: boolean) => {
+				result.navigationFailed = !success;
+				if (success && advance && result.beforeCount === result.afterCount && !disposed
+					&& positionRequest === request && isCurrentContext(task.context) && queryKey() === task.key
+					&& (ownerView.containerEl?.ownerDocument.defaultView ?? null) === task.window) toNextMatch();
+				return success;
+			};
+			return positioned instanceof Promise ? positioned.then(complete) : complete(positioned);
+		};
+		const apply = (prepared: MatchResult): ReplaceResult => {
+			if (!replacementCurrent(task)) {
+				if (replacementTask === task) { replacementTask = null; readingPending = false; }
+				return result;
+			}
+			if (prepared.status === "failed") { failed(prepared.error, false); return result; }
+			if (prepared.status === "cancelled") { replacementTask = null; readingPending = false; return result; }
+			cache.matches = prepared.matches; rememberMatches(context);
+			result.beforeCount = result.afterCount = prepared.matches.length;
+			const changes = prepared.changes ?? [];
+			if (!changes.length) {
+				replacementTask = null; readingPending = false; result.status = "completed";
+				emitChange(true, undefined, context); return result;
+			}
+			// All candidates are for the captured immutable doc, verified above.
+			// Commit exactly once, synchronously; no main-thread regex revalidation.
+			try {
+				task.committing = true; context.editorView.dispatch({ changes });
+			} catch (error) {
+				task.committing = false;
+				// Host callbacks can throw after CodeMirror has committed the state.
+				// Report that boundary, never invite a second write.
+				const committed = context.editorView.state.doc !== context.doc;
+				result.changed = committed; result.changeCount = committed ? changes.length : 0;
+				failed(error, committed); replacementRetry = null; return result;
+			}
+			finally { task.committing = false; }
+			result.changed = true; result.changeCount = changes.length; result.status = "completed";
+			task.phase = "committed";
+			const current = getEditorContext();
+			if (!current || current.file !== context.file || current.editor !== context.editor || current.editorView !== context.editorView
+				|| replacementTask !== task || queryKey() !== task.key) {
+				result.navigationFailed = true; replacementTask = null; readingPending = false; return result;
+			}
+			task.context = current;
+			cache.matches = []; readingPending = true;
+			try {
+				emitChange(true, undefined, current);
+				const matched = synchronous ? { status: "completed" as const, matches: findTextOffsets(current.doc.toString(),
+					cache.search, options.regexMode, options.caseSensitive), synchronous: true }
+					: editingEngine!.match(current.doc.toString(), cache.search, options);
+				const positioned = matched instanceof Promise ? matched.then(finishPosition) : finishPosition(matched);
+				if (positioned instanceof Promise) result.navigationCompletion = positioned.then((success) => {
+					result.navigationFailed = !success; return success;
+				}).catch((error) => {
+					if (replacementCurrent(task)) failed(error, true);
+					result.navigationFailed = true; return false;
+				});
+				else result.navigationFailed = !positioned;
+			} catch (error) { if (replacementCurrent(task)) failed(error, true); }
+			return result;
+		};
+		try {
+			const source = context.doc.toString();
+			let prepared: MatchResult | Promise<MatchResult>;
+			if (synchronous) {
+				const replacements = prepareReplacements(source, cache.search, replacement, options.regexMode, options.caseSensitive);
+				const selectedIndex = index >= 0 && index < replacements.matches.length ? index : 0;
+				const selected = all ? undefined : replacements.one(selectedIndex);
+				prepared = { status: "completed", synchronous: true, matches: replacements.matches,
+					changes: all ? replacements.all() : selected ? [selected] : [] };
+			} else prepared = editingEngine.replace!(source, cache.search, replacement, options, index, all);
+			if (prepared instanceof Promise) {
+				readingPending = true;
+				return prepared.then(apply).catch((error) => { if (replacementCurrent(task)) failed(error, task.phase === "committed"); return result; });
+			}
+			return apply(prepared);
+		} catch (error) { if (replacementCurrent(task)) failed(error, task.phase === "committed"); return result; }
+	};
+
+	export const replaceMatchedText = (inputText: string): ReplaceResult | Promise<ReplaceResult> =>
+		typeof editorSearch.getMatchEngine?.(ownerView).replace === "function" ? replaceInWorker(inputText, false) : replaceText(inputText, false);
+
+	export const replaceAllMatchedText = (inputText: string): ReplaceResult | Promise<ReplaceResult> =>
+		typeof editorSearch.getMatchEngine?.(ownerView).replace === "function" ? replaceInWorker(inputText, true) : replaceText(inputText, true);
 	const onFinderKeyDown = (e: KeyboardEvent) => {
 		if (isComposingInput(e)) return;
 		const { enableInputHotkeys, enableHistory } =
@@ -747,6 +905,7 @@
 	};
 
 	export const matchAgain = (scroll = true) => {
+		if (replacementTask?.committing || (!scroll && replacementTask && replacementCurrent(replacementTask))) return;
 		const { search } = cache;
 		if (cache.visible) {
 			setFindText(search, scroll);
@@ -762,8 +921,17 @@
 		}
 	};
 	const retrySynchronously = () => {
+		if (replacementRetry) { replacementRetry(true); return; }
 		if (isReading()) editorSearch.getReadingSearch(ownerView).retrySynchronously();
 		setFindText(cache.search, true, getEditorContext(), 0, true);
+	};
+	const onReplaceChanged = () => {
+		if (replacementTask?.phase === "prepare") { cancelEditing(); readingPending = false; }
+		replacementRetry = null;
+	};
+	const retrySearch = () => {
+		if (replacementRetry) replacementRetry(false);
+		else setFindText(cache.search);
 	};
 </script>
 
@@ -781,8 +949,10 @@
 	use:alignRows={[isCollapsed, customToolbar, searchToolbar, replaceToolbar]}
 >
 	<SearchStatus visible={cache.visible} pending={readingPending} unsupported={readingUnsupported}
-		error={readingError} query={cache.search} context={statusContext} retry={() => setFindText(cache.search)}
+		error={readingError} query={cache.search} context={statusContext} retry={retrySearch}
 		{readingMode} {workerError} synchronousRetry={retrySynchronously} cancel={() => setVisible(false)}
+		committed={replacementCommittedError}
+		replacing={replacementTask?.phase === "prepare"} rematching={replacementTask?.phase === "committed"}
 		nativeFind={() => editorSearch.openNativeSearch(ownerView)} />
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
 	<div class="nya-dragger"></div>
@@ -893,6 +1063,7 @@
 				rows="1"
 				class="nya-input"
 				bind:value={cache.replace}
+				on:input={onReplaceChanged}
 				on:keydown={enterOnReplacer}
 				placeholder={i18n.t("search.tip.ReplacePlaceholder")}
 				tabindex={replacerTabIndex}

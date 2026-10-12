@@ -8,6 +8,8 @@
 	"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",
 	"SynchronousRetry": "同步重试（可能阻塞）",
 	"CancelSearch": "取消并关闭",
+	"ReplacementPending": "正在计算替换… 尚未写入正文，可关闭或取消。",
+	"ReplacementRematching": "替换已完成，正在更新匹配… 取消不会撤销已提交的编辑。",
 	"ReadingPending": "正在准备搜索…",
 	"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
 	"StatusError": "查找暂不可用",

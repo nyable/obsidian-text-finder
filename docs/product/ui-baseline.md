@@ -33,6 +33,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 移动布局 | 居中，最大 416px；输入最小宽 100px；计数和关闭浮置上方；单独的操作区布局 | `src/SearchBox.svelte` 的 `.is-mobile` 样式 |
 | More | 右侧绝对定位，最小宽 180px、最大受视口限制；菜单与选项状态样式 | `src/Toolbar.svelte` |
 | 查找状态 | 编辑／阅读均使用面板外部提示，空间不足时上翻；等待文案不拦截指针，取消／重试／同步重试操作可点击 | `src/SearchStatus.svelte:position()` 及样式 |
+| 替换状态 | 候选计算显示尚未写入；提交后重算显示已完成、取消不撤销；失败文案区分提交前和提交后 | `src/SearchBox.svelte:replaceInWorker()`、`src/SearchStatus.svelte` |
 | 历史 | 容器 70vh／padding 24px；列表内部滚动、查询两行截断、选中高亮；操作在 hover／focus-within 显示，无 hover 设备常显 | `src/HistoryModal.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte` |
 | 历史详情 | 响应式元数据 Grid；正文 pre-wrap、等宽字体、可选中、独立滚动 | `src/HistoryDetail.svelte` |
 | 设置 | 原生 Obsidian 控件；分类 tabs、拖动半透明及插入线限定在 `.nya-settings` | `src/settings-tab.ts`、`src/styles/index.scss` |

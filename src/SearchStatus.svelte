@@ -11,6 +11,9 @@
 	export let nativeFind: () => void;
 	export let readingMode = true;
 	export let workerError = false;
+	export let committed = false;
+	export let replacing = false;
+	export let rematching = false;
 	export let synchronousRetry: () => void = () => {};
 	export let cancel: () => void = () => {};
 	let delayed = false;
@@ -26,8 +29,9 @@
 		if (show && !delayed && timer === undefined) timer = setTimeout(() => { timer = undefined; delayed = true; }, 400);
 	}
 	$: update(visible && pending, query, context);
-	$: message = workerError ? "search.WorkerFailed" : error ? (error === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed")
-		: unsupported ? "search.ReadingUnsupported" : readingMode ? "search.ReadingPending" : "search.MatchPending";
+	$: message = committed ? "search.ReplacedNavigationFailed" : workerError ? "search.WorkerFailed" : error ? (error === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed")
+		: unsupported ? "search.ReadingUnsupported" : replacing ? "search.ReplacementPending"
+		: rematching ? "search.ReplacementRematching" : readingMode ? "search.ReadingPending" : "search.MatchPending";
 	function position(node: HTMLElement) {
 		const parent = node.parentElement!;
 		const measure = () => {
