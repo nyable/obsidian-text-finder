@@ -16,6 +16,11 @@ const { ReadingSearch } = loadSource("../src/reading-search.ts", {
 	"./reading-text": loadSource("../src/reading-text.ts"),
 	"./util/text-helper": loadSource("../src/util/text-helper.ts"),
 });
+const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+	"./search-highlight": {}, "./SearchBox.svelte": {}, obsidian: { MarkdownView: class {} },
+	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
+	"./reading-search": { ReadingSearch },
+});
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const componentStyles = [];
@@ -71,7 +76,7 @@ function mount(t) {
 		scrollIntoView: (range) => scrolls.push(range),
 		cm: {
 			state: EditorState.create({ doc: "cat cat" }),
-			dispatch(spec) { specs.push(spec); this.state = this.state.update({ selection: spec.selection }).state; },
+			dispatch(spec) { specs.push(spec); this.state = this.state.update({ changes: spec.changes, selection: spec.selection }).state; },
 		},
 	};
 	view.editor = editor;
@@ -162,6 +167,7 @@ test("reading history reuse counts once; hidden and replacement actions are safe
 	const before = h.preview.innerHTML;
 	const matches = h.component.getSearchCache().matches.length;
 	assert.equal(h.component.replaceAllMatchedText("dog").changed, false);
+	assert.equal(h.component.replaceOnce().changed, false);
 	assert.equal(h.component.getSearchCache().matches.length, matches);
 	assert.equal(h.preview.innerHTML, before);
 	h.component.setVisible(false);
@@ -249,6 +255,140 @@ test("actual SearchBox navigation buttons use the owner context and update resul
 	await tick();
 	assert.equal(h.component.getSearchCache().index, 0);
 	assert.equal(h.scrolls.length, 2);
+});
+
+for (const signal of ["isComposing", "composition events", "legacy 229"]) {
+	for (const code of ["Enter", "NumpadEnter", "ArrowUp", "ArrowDown"]) {
+		test(`IME ${signal}: search ${code} does not navigate or change history`, async (t) => {
+			const h = mount(t); await tick();
+			h.plugin.history.record("dog");
+			const input = h.target.querySelector("textarea");
+			input.selectionStart = 0;
+			if (signal === "composition events") input.dispatchEvent(new window.CompositionEvent("compositionstart", { bubbles: true }));
+			const event = new window.KeyboardEvent("keydown", {
+				key: code === "NumpadEnter" ? "Enter" : code, code, bubbles: true, cancelable: true,
+				isComposing: signal === "isComposing", keyCode: signal === "legacy 229" ? 229 : 0,
+			});
+			const saves = h.saves();
+			input.dispatchEvent(event); await tick();
+			assert.equal(event.defaultPrevented, false);
+			assert.equal(h.component.getSearchCache().search, "cat");
+			assert.equal(h.component.getSearchCache().index, 0);
+			assert.equal(h.scrolls.length, 0);
+			assert.equal(h.saves(), saves);
+			input.dispatchEvent(new window.CompositionEvent("compositionend", { bubbles: true }));
+			input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+			await tick(); assert.equal(h.component.getSearchCache().index, 1);
+		});
+	}
+	for (const code of ["Enter", "NumpadEnter"]) {
+		test(`IME ${signal}: replacement ${code} does not write until composition ends`, async (t) => {
+			const h = mount(t); h.component.setCollapse(false); await tick();
+			const input = h.target.querySelector(".replacer textarea");
+			input.value = "DOG"; input.dispatchEvent(new window.Event("input", { bubbles: true }));
+			if (signal === "composition events") input.dispatchEvent(new window.CompositionEvent("compositionstart", { bubbles: true }));
+			const event = new window.KeyboardEvent("keydown", {
+				key: "Enter", code, bubbles: true, cancelable: true,
+				isComposing: signal === "isComposing", keyCode: signal === "legacy 229" ? 229 : 0,
+			});
+			input.dispatchEvent(event); await tick();
+			assert.equal(event.defaultPrevented, false);
+			assert.equal(h.view.editor.getValue(), "cat cat");
+			assert.equal(h.specs.filter((spec) => spec.changes).length, 0);
+			input.dispatchEvent(new window.CompositionEvent("compositionend", { bubbles: true }));
+			input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", code, bubbles: true }));
+			await tick(); assert.equal(h.view.editor.getValue(), "DOG cat");
+			assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+		});
+	}
+}
+
+function replacementCommand(h) {
+	const commands = new Map();
+	h.plugin.addCommand = (command) => commands.set(command.id, command);
+	h.plugin.registerEvent = () => {};
+	h.plugin.app = { workspace: { on: () => {} } };
+	const search = new EditorSearch(h.plugin);
+	search.getCommandFinder = () => h.component;
+	return () => commands.get("text-finder-replace").editorCallback(h.view.editor, h.view);
+}
+
+for (const { replacement, index = 0, query = "cat", content, next, scrollCount, range } of [
+	{ replacement: "cat!", content: "cat! cat", next: 1, scrollCount: 2, range: { from: 5, to: 8 } },
+	{ replacement: "cat", content: "cat cat", next: 1, scrollCount: 2, range: { from: 4, to: 7 } },
+	{ replacement: "DOG", content: "DOG cat", next: 0, scrollCount: 1, range: { from: 4, to: 7 } },
+	{ replacement: "cat!", index: 1, content: "cat cat!", next: 0, scrollCount: 2, range: { from: 0, to: 3 } },
+	{ replacement: "DOG", query: "fox", content: "cat cat", next: 0, scrollCount: 0 },
+]) {
+	for (const entry of ["button", "Enter", "command"]) {
+		test(`single replacement ${entry}: ${query} → ${replacement}, starting index ${index}`, async (t) => {
+			const h = mount(t); h.component.setCollapse(false); await tick();
+			h.component.setFindText(query, false);
+			h.component.getSearchCache().index = index;
+			const input = h.target.querySelector(".replacer textarea");
+			input.value = replacement; input.dispatchEvent(new window.Event("input", { bubbles: true }));
+			h.scrolls.length = 0; h.specs.length = 0;
+			if (entry === "command") replacementCommand(h)();
+			else if (entry === "Enter") input.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+			else h.target.querySelector('[aria-label="search.tip.Replace"]').click();
+			await tick();
+			assert.equal(h.view.editor.getValue(), content);
+			assert.equal(h.component.getSearchCache().index, next);
+			assert.equal(h.scrolls.length, scrollCount);
+			assert.equal(h.specs.filter((spec) => spec.changes).length, query === "fox" ? 0 : 1);
+			assert.deepEqual(h.scrolls.at(-1), range);
+		});
+	}
+}
+
+test("hidden Finder removes every control from tab order, rejects focus and restores selection on open", async (t) => {
+	const h = mount(t); h.component.setCollapse(false); await tick();
+	const root = h.target.querySelector(".nya-finder");
+	const input = root.querySelector("textarea");
+	input.focus(); assert.equal(document.activeElement, input);
+	h.component.setVisible(false); await tick();
+	assert.equal(root.getAttribute("aria-hidden"), "true");
+	assert.equal(window.getComputedStyle(root).visibility, "hidden");
+	assert.ok(!root.contains(document.activeElement));
+	for (const control of root.querySelectorAll('textarea, [role="button"], button')) {
+		assert.equal(control.tabIndex, -1);
+		control.focus(); assert.ok(!root.contains(document.activeElement));
+	}
+	h.component.setVisible(true, "cat");
+	assert.equal(document.activeElement, input, "opening must focus before the next Svelte flush");
+	await tick();
+	assert.equal(root.getAttribute("aria-hidden"), "false");
+	assert.equal(window.getComputedStyle(root).visibility, "visible");
+	assert.equal(input.selectionStart, 0); assert.equal(input.selectionEnd, 3);
+	assert.equal(input.tabIndex, 0);
+	h.component.setCollapse(false); await tick();
+	assert.equal(root.querySelector(".replacer textarea").tabIndex, 1);
+	h.component.resetAll(); await tick();
+	assert.ok(!root.contains(document.activeElement));
+	assert.equal(input.tabIndex, -1);
+});
+
+test("hiding Finder closes More without restoring focus into hidden controls", async (t) => {
+	const h = mount(t);
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => ({ ...item, placement: "more" }));
+	h.component.refreshToolbar(); await tick();
+	h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
+	assert.ok(h.target.querySelector('[role="menu"]'));
+	assert.ok(h.target.contains(document.activeElement));
+	h.component.setVisible(false); await tick();
+	assert.equal(h.target.querySelector('[role="menu"]'), null);
+	assert.ok(!h.target.contains(document.activeElement));
+	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]').tabIndex, -1);
+});
+
+test("reading Finder has no focusable hidden controls and reopens with the query selected", async (t) => {
+	const h = mountReading(t); await tick();
+	h.component.setVisible(false); await tick();
+	const root = h.target.querySelector(".nya-finder");
+	for (const control of root.querySelectorAll('textarea, [role="button"], button')) assert.equal(control.tabIndex, -1);
+	h.component.setVisible(true, "cat"); await tick();
+	assert.equal(document.activeElement, root.querySelector("textarea"));
+	assert.equal(root.querySelector("textarea").selectionEnd, 3);
 });
 
 test("exact query and whitespace queries are retained in actual input history", async (t) => {

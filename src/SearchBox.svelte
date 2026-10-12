@@ -62,12 +62,45 @@
 	};
 
 	$: isCollapsed = readingMode || cache.collapse;
-	$: finderTabIndex = isCollapsed ? 0 : 1;
-	$: commonTabIndex = isCollapsed ? 0 : 2;
-	$: replacerTabIndex = isCollapsed ? -1 : 1;
+	$: finderTabIndex = !cache.visible ? -1 : isCollapsed ? 0 : 1;
+	$: commonTabIndex = !cache.visible ? -1 : isCollapsed ? 0 : 2;
+	$: replacerTabIndex = !cache.visible || isCollapsed ? -1 : 1;
 	const isMobile = Platform.isMobile;
 	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
+	let finderEl: HTMLDivElement;
+	const syncFinderVisibility = () => {
+		if (!finderEl) return;
+		// Update synchronously: opening selects the input before Svelte's next flush.
+		finderEl.style.visibility = cache.visible ? "visible" : "hidden";
+		const focused = finderEl.ownerDocument.activeElement;
+		if (!cache.visible && focused && finderEl.contains(focused)) (focused as HTMLElement).blur();
+		finderEl.setAttribute("aria-hidden", String(!cache.visible));
+	};
+	function guardHiddenFocus(node: HTMLElement) {
+		// Reject late focus requests as well as removing hidden controls from Tab order.
+		const guard = (event: FocusEvent) => {
+			if (!cache.visible) (event.target as HTMLElement).blur();
+		};
+		node.addEventListener("focusin", guard);
+		return { destroy() { node.removeEventListener("focusin", guard); } };
+	}
+	const composingInputs = new WeakSet<EventTarget>();
+	function trackComposition(node: HTMLTextAreaElement) {
+		const start = () => composingInputs.add(node);
+		const end = () => composingInputs.delete(node);
+		node.addEventListener("compositionstart", start);
+		node.addEventListener("compositionend", end);
+		node.addEventListener("blur", end);
+		return { destroy() {
+			end();
+			node.removeEventListener("compositionstart", start);
+			node.removeEventListener("compositionend", end);
+			node.removeEventListener("blur", end);
+		} };
+	}
+	const isComposingInput = (event: KeyboardEvent) => event.isComposing || event.keyCode === 229
+		|| (event.currentTarget !== null && composingInputs.has(event.currentTarget));
 	let searchToolbar = defaultToolbar("search");
 	let replaceToolbar = defaultToolbar("replace");
 	let historyEnabled = true;
@@ -140,9 +173,11 @@
 		historyIndexOverride?: number,
 	) {
 		cache.visible = flag;
+		syncFinderVisibility();
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
 			setFindText(searchText !== undefined ? searchText : cache.search);
+			searchEl.focus();
 			searchEl.select();
 			// Set history index (either provided or reset to -1)
 			historyIndex =
@@ -196,6 +231,7 @@
 		cache.index = 0;
 		cache.matches = [];
 		cache.visible = false;
+		syncFinderVisibility();
 		cache.collapse = true;
 		cache.options = {
 			regexMode: false,
@@ -225,11 +261,18 @@
 		replaceAllMatchedText(cache.replace);
 	};
 
-	const replaceOnce = () => {
-		const { beforeCount, afterCount } = replaceMatchedText(cache.replace);
-		if (beforeCount === afterCount) {
+	// All user-facing single-replace entry points share the same navigation policy.
+	export const replaceOnce = () => {
+		const before = getEditorContext();
+		const result = replaceMatchedText(cache.replace);
+		const current = getEditorContext();
+		if (result.changed && result.beforeCount === result.afterCount && before && current
+			&& current.file === before.file && current.editor === before.editor
+			&& current.editorView === before.editorView && isCurrentContext(current)
+			&& matchedContext?.doc === current.doc && matchedQuery === queryKey()) {
 			toNextMatch();
 		}
+		return result;
 	};
 
 	export const closeFinder = () => {
@@ -460,11 +503,9 @@
 
 	const adjustReplaceText = (text: string) => {
 		if (editorSearch.plugin.settings.useEscapeCharInReplace) {
-			return text
-				.replace(/\\\\/g, "\0")
-				.replace(/\\n/g, "\n")
-				.replace(/\\t/g, "\t")
-				.replace(/\0/g, "\\");
+			// Decode once without reserving any character from the user's text.
+			return text.replace(/\\([\\nt])/g, (_, escaped: string) =>
+				escaped === "n" ? "\n" : escaped === "t" ? "\t" : "\\");
 		}
 		return text;
 	};
@@ -532,6 +573,7 @@
 	export const replaceAllMatchedText = (inputText: string): ReplaceResult =>
 		replaceText(inputText, true);
 	const onFinderKeyDown = (e: KeyboardEvent) => {
+		if (isComposingInput(e)) return;
 		const { enableInputHotkeys, enableHistory } =
 			editorSearch.plugin.settings;
 		// Use sorted history for navigation
@@ -611,6 +653,7 @@
 		}
 	};
 	const enterOnReplacer = (e: KeyboardEvent) => {
+		if (isComposingInput(e)) return;
 		const enableInputHotkeys =
 			editorSearch.plugin.settings.enableInputHotkeys;
 		const isEnterPress = ["Enter", "NumpadEnter"].includes(e.code);
@@ -652,6 +695,10 @@
 </script>
 
 <div
+	bind:this={finderEl}
+	use:guardHiddenFocus
+	style:visibility={cache.visible ? "visible" : "hidden"}
+	aria-hidden={!cache.visible}
 	data-cid={cid}
 	class={`nya-finder ${cache.visible ? "nya-finder--active" : "nya-finder--hidden"}`}
 	class:nya-finder--collapsed={isCollapsed}
@@ -670,7 +717,7 @@
 		class={`nya-toggle nya-focus`}
 		on:click={toggleCollapse}
 		role="button"
-		tabindex="0"
+		tabindex={cache.visible ? 0 : -1}
 		aria-label={i18n.t("search.tip.ToggleReplace")}
 		on:keydown={defaultEnterEvent}
 	>
@@ -684,6 +731,7 @@
 	<div class="main-part">
 		<div class="finder">
 			<textarea
+				use:trackComposition
 				wrap="off"
 				autocorrect="off"
 				autocapitalize="off"
@@ -763,6 +811,7 @@
 		</div>
 		<div class="replacer" style={isCollapsed ? "display: none" : ""}>
 			<textarea
+				use:trackComposition
 				wrap="off"
 				autocorrect="off"
 				autocapitalize="off"

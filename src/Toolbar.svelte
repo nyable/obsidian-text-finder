@@ -17,6 +17,7 @@
 	$: inline = items.filter((item) => item.placement === "inline");
 	$: more = items.filter((item) => item.placement === "more");
 	$: if (!visible || !more.length) open = false;
+	$: controlTabIndex = visible ? tabindex : -1;
 	$: activeIds = new Set<ToolbarAction>([...(regexMode ? ["regex" as const] : []), ...(caseSensitive ? ["case" as const] : [])]);
 	const execute = (id: ToolbarAction) => {
 		if (id !== "history" || historyEnabled) {
@@ -54,7 +55,7 @@
 <div class="nya-toolbar" bind:this={root} use:ownerEvents>
 	{#each inline as item (item.id)}
 		<div class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
-			role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : tabindex} aria-label={i18n.t(toolbarLabels[item.id])}
+			role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : controlTabIndex} aria-label={i18n.t(toolbarLabels[item.id])}
 			aria-pressed={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
 			aria-disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)} on:keydown={activate}>
 			<svelte:component this={icons[item.id]} size={18} />
@@ -62,7 +63,7 @@
 	{/each}
 	{#if more.length}
 		<div class="nya-toolbar-overflow">
-			<div class="nya-btn nya-focus" role="button" {tabindex} aria-label={i18n.t("search.tip.More")}
+			<div class="nya-btn nya-focus" role="button" tabindex={controlTabIndex} aria-label={i18n.t("search.tip.More")}
 				aria-haspopup="menu" aria-expanded={open} bind:this={trigger} on:click={toggle} on:keydown={activate}>
 				<Ellipsis size={18} />
 			</div>

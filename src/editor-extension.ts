@@ -342,7 +342,7 @@ export class EditorSearch {
 			editorCallback: (editor, ctx) => {
 				const finder = this.getCommandFinder(editor, ctx);
 				if (!finder) return;
-				finder.replaceMatchedText(finder.getSearchCache().replace);
+				finder.replaceOnce();
 			},
 		});
 		plugin.addCommand({

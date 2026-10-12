@@ -261,6 +261,33 @@ test("replacement completion does not scroll a new file opened in its owner view
 	assert.equal(h.fa.getSearchCache().matches.length, 0);
 });
 
+test("single replacement policy cannot navigate a file switched during dispatch", () => {
+	const h = environment();
+	h.fa.getSearchCache().replace = "cat!";
+	h.a.afterDispatch = (spec) => {
+		if (!spec.changes) return;
+		h.a.file = { path: "new.md" };
+		h.a.editor.cm.state = EditorState.create({ doc: "cat cat" });
+	};
+	h.commands.get("text-finder-replace").editorCallback(h.a.editor, h.a);
+	assert.equal(h.a.editor.getValue(), "cat cat");
+	assert.equal(h.a.scrolls.length, 0);
+	assert.equal(h.fa.getSearchCache().matches.length, 0);
+});
+
+test("hidden single replacement command still revalidates offsets and advances", () => {
+	const h = environment();
+	h.fa.setVisible(false);
+	h.fa.getSearchCache().replace = "cat!";
+	h.a.editor.cm.state = EditorState.create({ doc: "prefix cat cat" });
+	h.commands.get("text-finder-replace").editorCallback(h.a.editor, h.a);
+	assert.equal(h.a.editor.getValue(), "prefix cat! cat");
+	assert.equal(h.fa.isVisible(), false);
+	assert.equal(h.fa.getSearchCache().index, 1);
+	assert.deepEqual(h.a.scrolls.at(-1), { from: 12, to: 15 });
+	assert.equal(h.a.transactions.filter((spec) => spec.changes).length, 1);
+});
+
 test("editing regex context invalidates lookbehind matches and result highlights", () => {
 	const h = environment();
 	h.fa.getSearchCache().options.regexMode = true;

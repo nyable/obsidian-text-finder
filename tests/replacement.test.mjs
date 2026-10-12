@@ -99,6 +99,32 @@ for (const action of ["replaceMatchedText", "replaceAllMatchedText"]) {
 		}
 	});
 
+	for (const { name, replacement, expected } of [
+		{ name: "real NUL", replacement: "\0", expected: "\0" },
+		{ name: "NUL mixed with escapes", replacement: "\0\\n\\t\\\\\0", expected: "\0\n\t\\\0" },
+		{ name: "escaped newline stays literal", replacement: "\\\\n", expected: "\\n" },
+		{ name: "three backslashes before newline", replacement: "\\".repeat(3) + "n", expected: "\\\n" },
+		{ name: "four backslashes before newline", replacement: "\\".repeat(4) + "n", expected: "\\\\n" },
+		{ name: "unknown escapes", replacement: "\\r\\x00\\0", expected: "\\r\\x00\\0" },
+		{ name: "trailing backslash", replacement: "tail\\", expected: "tail\\" },
+		{ name: "capture template and NUL", replacement: "$1\0\\n", expected: "a\0\n" },
+	]) {
+		test(`${action}: replacement preserves ${name}`, () => {
+			for (const regexMode of [true, false]) {
+				for (const enabled of [true, false]) {
+					const h = createFinder("a a", regexMode ? "(a)" : "a", regexMode);
+					h.plugin.settings.useEscapeCharInReplace = enabled;
+					h.finder[action](replacement);
+					// Regex templates expand regardless of the backslash-escape setting.
+					const insert = regexMode && enabled ? expected
+						: regexMode ? replacement.replace("$1", "a") : replacement;
+					assert.equal(h.content(), action === "replaceAllMatchedText" ? `${insert} ${insert}` : `${insert} a`);
+					assert.equal(h.writes.length, 1);
+				}
+			}
+		});
+	}
+
 	test(`${action}: literal replacement stays literal`, () => {
 		const h = createFinder("a", "a");
 		h.finder[action]("$&\\n");
