@@ -16,6 +16,7 @@ git diff --check
 ## 主要覆盖
 
 - 阅读文本、跨格式匹配、离屏计数、大小写、正则和高亮端点。
+- 索引跳过显式排除子树的样式读取，只在 display:none 检查折叠例外；不跨索引缓存样式。查询／选项／虚拟挂载复用索引，正文及主题失效重新读取。
 - 虚拟化移出／挂回、离屏挂载后定位、跨块结果。
 - 渲染等待、保留用户导航意图、超时、异常及重试。
 - 隐藏文本、折叠正文、行尾空白和空表格单元格。
@@ -36,6 +37,7 @@ git diff --check
 ```sh
 node tests/reading-benchmark.mjs
 node --expose-gc tests/search-benchmark.mjs
+node tests/reading-index-benchmark.mjs HEAD
 ```
 
 脚本用 100／1,000／5,000 个分块与递增匹配数量，输出首次索引时间、导航中位时间及绘制 Range 数量。它不属于自动正确性测试套件，也不提供固定性能门槛。
@@ -44,6 +46,8 @@ jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘�
 
 `search-benchmark.mjs` 分别记录索引、正则、端点映射、Range、观察器、高亮与挂载定位的独占逻辑时间，覆盖无／低／高匹配密度、上下文正则、查询变化及正文变化；编辑部分只测匹配与单次／全部模板展开，不包含 CodeMirror 事务。heap delta 不是峰值内存，`otherMs` 包含未单独计时的分块和结果整理。
 
+`reading-index-benchmark.mjs [基线Git引用] [分块数] [inline|excluded|formatted] [样本数]` 对同一 DOM 交替运行基线与当前索引，先预热，再记录中位耗时；默认覆盖三种正文、三种规模，每项 3 个样本。单独插桩记录 computed style、selector 和 childNodes 调用，残余时间包含遍历、文本／span 整理及拼接；插桩时间不混入无插桩中位耗时。指定基线时逐项断言全文、span 坐标和 DOM 节点身份一致。基线通过 git show 只读获取，不更改工作区；完整矩阵可能需要数分钟。可以用 `node tests/reading-index-benchmark.mjs HEAD 100 formatted 9` 复测小文档噪声，不将单次耗时当作性能承诺。
+
 ## 可选宿主方法验证
 
 ```sh
@@ -51,6 +55,59 @@ node tests/host-contract-check.mjs /path/to/obsidian.asar
 ```
 
 脚本只读提取指定安装包中的存储、队列、布局和卸载方法，在内存文件系统和 UI 服务边界运行当前插件源码，输出 app.js 校验值与验证范围。宿主代码未打包进仓库，不在普通 CI 强制依赖本机安装；方法形状变化时显式失败。该验证不是完整 Obsidian GUI、移动存储或真实磁盘验收。
+
+## 隔离 Worker 实验（非生产功能）
+
+```sh
+node --test tests/worker-experiment.test.mjs
+node --expose-gc tests/worker-experiment-benchmark.mjs
+node tests/worker-experiment-browser-build.mjs
+```
+
+- Node 实验直接编译 `src/util/text-helper.ts`，Worker 内复用原生 RegExp 和现有模板实现，不维护另一套匹配算法。普通回归覆盖完整原文、flags、捕获、前后顾、UTF-16、零宽排除、无效正则、字面量和单次／全部替换的传输一致性。
+- test-only 请求携带 owner／file／documentVersion／queryVersion／lifecycle 标签；替换或取消待定任务会终止旧 Worker，旧连接／请求 ID／快照的回包不能发布。标签只是协议实验，不能替代实际 Editor、CodeMirror doc 和文件身份校验。
+- benchmark 分别测冷启动、小／大正文、无／密集匹配、单次后缀模板和线性全部替换，比较对象数组复制与 Float64 坐标缓冲区转移。报告计算、往返和主线程还原对象的时间；往返减计算包含排队、调度、消息和复制，不是纯传输时间。parent heap delta 不是 Worker 堆或峰值内存。
+- 浏览器构建在 `/tmp/opencode/text-finder-worker-browser/index.html` 生成自包含实验页，点击安全按钮运行差分。它使用 Blob URL Worker 并在终止时释放 URL；只有在实际浏览器执行后才有浏览器证据。独立页面通过也不能证明 Obsidian CSP、移动 WebView、owner 生命周期或替换事务集成兼容。
+
+危险正则只允许显式运行隔离脚本，不纳入常规回归或索引压力测试：
+
+```sh
+node tests/worker-experiment-cancel.mjs --dangerous
+```
+
+该脚本仅在 Node Worker 内执行故意构造的回溯输入，检查主线程计时器仍响应、显式终止、重建和实验 watchdog。浏览器页另有明确 opt-in 按钮，同样不做危险输入的同步比较。脚本中的 watchdog 时长只是实验安全措施，不是插件执行超时或新增产品限制。Worker 移出正则也不移出 DOM 索引、端点映射或高亮绘制；本实验未接入生产。
+
+## Obsidian 独立只读 Worker 探针
+
+```sh
+node tests/worker-probe-build.mjs
+node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
+```
+
+构建输出 `/tmp/opencode/text-finder-worker-probe/text-finder-worker-probe/`，包含 `main.js`、独立 `manifest.json` 和 `BUILD.json`。插件 ID 为 `text-finder-worker-probe`，不覆盖正式插件；构建不自动安装或启用。BUILD 的源码和产物校验值用于标识未提交实验代码，不能只用基础 commit 代表整个产物。
+
+### 安装和首次运行
+
+1. 使用临时测试 Vault，将输出目录复制到该库配置目录的 `plugins/text-finder-worker-probe/`。不要使用日常库；自定义配置目录不能默认写成 `.obsidian`。
+2. 在 Obsidian 社区插件设置重新加载列表并启用 **Text Finder Worker Probe**。它不联网、不持久化设置、不扫描 Vault，不执行 Editor／CodeMirror 写入、选区、滚动或高亮。
+3. 打开编辑模式 Markdown 笔记，执行命令 **Text Finder Worker Probe: Open read-only Worker probe**；面板独立打开并绑定原 Markdown owner。若没有绑定，激活目标 Markdown 再执行 **Bind active editor to Worker probe**，最后返回探针。
+4. 点击 **安全语义验证（368 次）**，贴回完整 JSON。期望 `passed: true` 和资源计数归零；无效 `[` 正则的捕获诊断是预期输出，不应通过吞掉所有日志伪装通过。
+
+### owner 和生命周期验证
+
+- 在绑定笔记写入简单样本 `cat cat`，点击 **只读 owner 快照（延迟 3 秒）** 并等待：应 `completed`／`published: true`，数量 2。只发布计数和字符数，不输出正文或给编辑器提交变化；这不是阅读正文索引验证。
+- 再次启动任务，在 3 秒内编辑正文、在同一 owner 换文件、切阅读模式、关闭 owner、修改探针查询或重新绑定；应取消并 `published: false`，原因分别反映 document／file／mode／owner／query 变化。任务只使用字面量查询，不允许将危险正则输入这个框。
+- 切到另一个活动视图本身不应把结果送给它。对同文件双分屏分别开探针并绑定，各自的任务必须独立；同一文件路径／文本不替代对象身份检查。
+- 任务中关闭探针或卸载插件，开发者控制台应打印 **Text Finder Worker probe cleanup**，Worker、URL、会话监听／计时器归零，迟到结果不再更新界面。重新启用插件再运行安全验证，确认恢复可用。
+- 在弹出窗口重复安全验证与只读快照；任务中迁移 owner／探针窗口或关闭窗口。窗口变化应取消旧代次，重新绑定后可以再运行。探针使用实际 owner Window 创建 Worker；不能由 jsdom 或主窗口通过推定迁移通过。
+
+### 隔离取消和性能
+
+- 勾选明确 opt-in 后点击 **隔离危险正则取消／重启**。危险输入只在 Worker 内执行，期望 `cancelled: true`、`restartSuccessful: true` 及计时器响应。实验时限不是产品执行限制。
+- 性能按钮仅用合成安全正文，记录冷启动、无／密集匹配、对象／缓冲区、单次后缀／线性全部替换候选的计算、往返和解码中位时间；不实际替换，不包含 DOM／高亮／撤销成本。不要与其他压力测试同时运行。
+- 结果文本框可选择并手动复制，含 owner 路径和环境信息，贴回前可脱敏。清理计数只表示探针持有的资源，不是底层线程／内存泄漏的完整证明。移动设备须单独记录实测；`isDesktopOnly: false` 仅允许安装，不是移动兼容承诺。
+
+自动测试运行实际探针 bundle／DOM，但 Obsidian API 是替身，浏览器 Worker 是 Node-backed 测试替身。真实 Worker 创建、CSP、窗口迁移及宿主卸载结果必须按上述步骤执行，不能把构建成功当作宿主通过。
 
 ## 实际应用验收
 

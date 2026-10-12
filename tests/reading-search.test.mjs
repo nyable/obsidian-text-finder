@@ -383,6 +383,32 @@ test("CSS style changes invalidate matches before the next action", () => {
 	h.search.destroy();
 });
 
+test("query/options and virtual mounting reuse the index, but content/theme changes rebuild it", async (t) => {
+	const h = environment(); t.after(() => { h.search.destroy(); h.dom.window.close(); });
+	let reads = 0; const original = h.dom.window.getComputedStyle;
+	t.mock.method(h.dom.window, "getComputedStyle", function (...args) { reads++; return original.apply(this, args); });
+	h.run("cat"); const initial = reads; assert.ok(initial > 0);
+	h.run("world"); h.run("CAT", { regexMode: false, caseSensitive: true });
+	h.run("c.t", { regexMode: true, caseSensitive: false }, 2, true);
+	assert.equal(reads, initial, "query/options and offscreen mounting do not rebuild text");
+	await Promise.resolve(); await Promise.resolve();
+	h.run("cat"); assert.equal(reads, initial);
+	h.sections[1].el.querySelector("p").firstChild.data = "tail dog";
+	assert.equal(h.run("cat").matches.length, 2); assert.ok(reads > initial);
+	const afterEdit = reads;
+	h.search.invalidate(); h.run("cat"); assert.ok(reads > afterEdit, "explicit theme invalidation rereads style");
+});
+
+test("excluded to visible and visible to excluded mutations recompute the accepted text", (t) => {
+	const h = environment(['<p>cat <span hidden>dog</span></p>']);
+	t.after(() => { h.search.destroy(); h.dom.window.close(); });
+	assert.equal(h.run("dog").matches.length, 0);
+	const span = h.root.querySelector("span"); span.removeAttribute("hidden");
+	assert.equal(h.run("dog").matches.length, 1);
+	span.setAttribute("aria-hidden", "true"); assert.equal(h.run("dog").matches.length, 0);
+	span.removeAttribute("aria-hidden"); assert.equal(h.run("dog").matches.length, 1);
+});
+
 test("trailing collapsible spaces and empty cells retain correct logical boundaries", () => {
 	const h = environment(["<p>cat <em> </em></p><table><tr><td>one</td><td></td><td>two</td></tr></table>"]);
 	const index = textSource.indexReadingText([h.sections[0].el]);

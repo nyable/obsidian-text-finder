@@ -96,11 +96,16 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 		}
 		if (node.nodeType !== 1) return;
 		const el = node as HTMLElement;
-		const style = el.ownerDocument.defaultView?.getComputedStyle(el);
-		const foldBody = el.matches("li.is-collapsed > ul, li.is-collapsed > ol, .callout.is-collapsed > .callout-content");
-		const cssHidden = style && ((style.display === "none" && !foldBody)
-			|| style.visibility === "hidden" || style.visibility === "collapse");
-		if (el.matches(excluded) || cssHidden) {
+		// Explicitly excluded subtrees never contribute text, regardless of CSS.
+		// Avoid computing their style; folding matters only for display:none.
+		let hidden = el.matches(excluded);
+		if (!hidden) {
+			const style = el.ownerDocument.defaultView?.getComputedStyle(el);
+			hidden = !!style && (style.visibility === "hidden" || style.visibility === "collapse"
+				|| (style.display === "none" && !el.matches(
+					"li.is-collapsed > ul, li.is-collapsed > ol, .callout.is-collapsed > .callout-content")));
+		}
+		if (hidden) {
 			if (blocks.has(el.tagName) || el.matches(".internal-embed, .markdown-embed, mjx-container, .math, svg, canvas, iframe")) separator("\n");
 			return;
 		}

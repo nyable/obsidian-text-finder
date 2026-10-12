@@ -55,9 +55,14 @@
 | 阅读 benchmark | 当前机器逻辑索引／导航开销及 Range 数量 | 固定性能门槛、实机绘制／滚动性能 |
 | CI 构建与产物检查 | 配置中的锁定安装、检查、构建链路 | 某次 CI 已成功；所有目标平台兼容 |
 | 可选宿主方法脚本 | 指定 ASAR 的真实 stat/read/write/queue、布局与卸载方法在内存边界中的行为 | 真实磁盘、移动适配器、完整宿主加载、GUI／滚动 |
+| Node Worker 实验 | 同一 Node/V8 的原生正则结果传输、快照标签／取消、线程终止及计算／复制开销 | 浏览器 Worker、Obsidian CSP、移动 WebView、CodeMirror owner／事务安全 |
+| 独立浏览器 Worker 实验页 | 在实际执行环境的 Blob Worker、传输与终止行为 | 未执行时没有兼容证据；执行通过也不证明 Obsidian 集成 |
+| 独立 Obsidian Worker 探针 | 实际执行时宿主 Worker／只读 owner 文档身份／生命周期证据 | 构建或替身测试不证明真实宿主；不覆盖正文替换、撤销、阅读 DOM 或未测试平台 |
 | 实际 Obsidian 验收／截图 | 记录环境中的表现 | 未测试平台和其他主题／版本 |
 
 依据：`tests/source-loader.mjs`、`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`、`tests/reading-benchmark.mjs`、`.github/workflows/ci.yml`。验证命令见 [testing](testing.md)。未见真实宿主 E2E／截图自动回归或覆盖率门槛，不能将这些列为已有保障。
+
+Worker 实验代码仅在 `tests/worker-experiment-*.mjs`，生产仍同步匹配。实验成功不授权新增执行时限、同步降级或匹配硬上限；接入前需验证真实浏览器／宿主资源策略、替换前文档重新校验、全部替换单事务与撤销、多个 owner 的任务调度，以及 Worker 不可用时的明确行为。仅忽略旧结果或发取消消息不能中断已经执行的同步正则，应终止对应 Worker；取消旧请求与超时仍有效请求不是同一种产品状态。
 
 ## 实机证据要求
 
