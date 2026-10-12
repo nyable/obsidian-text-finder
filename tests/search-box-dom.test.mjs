@@ -11,12 +11,16 @@ import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
 import { loadSource } from "./source-loader.mjs";
+import { matchEngineSource } from "./match-engine-source.mjs";
+import { matchWorkerPlugin } from "../tools/match-worker-build.mjs";
+import { installWorkerHost } from "./match-worker-host.mjs";
 
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
 	"./reading-text": loadSource("../src/reading-text.ts"),
 	"./util/text-helper": loadSource("../src/util/text-helper.ts"),
 });
 const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+	"./match-engine": matchEngineSource,
 	"./search-highlight": {}, "./SearchBox.svelte": {}, obsidian: { MarkdownView: class {} },
 	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	"./reading-search": { ReadingSearch },
@@ -25,9 +29,9 @@ const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const componentStyles = [];
 const bundle = await build({
-	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {tick} from 'svelte';`, resolveDir: root },
+	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte';`, resolveDir: root },
 	bundle: true, write: false, format: "cjs", platform: "browser",
-	plugins: [{
+	plugins: [matchWorkerPlugin(), {
 		name: "search-box-dom",
 		setup(build) {
 			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/(i18n|search-highlight)$/ }, ({ path }) => ({ path, namespace: "stub" }));
@@ -60,9 +64,9 @@ globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
-const { SearchBox, tick } = module.exports;
+const { SearchBox, MatchEngine, tick } = module.exports;
 
-function mount(t) {
+function mount(t, matcher) {
 	const target = document.createElement("div");
 	document.body.append(target);
 	const scrolls = [];
@@ -80,6 +84,7 @@ function mount(t) {
 		},
 	};
 	view.editor = editor;
+	view.containerEl = target;
 	const plugin = {
 		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], moveCursorToMatch: true },
 		reportError() {},
@@ -88,7 +93,7 @@ function mount(t) {
 	attachHistory(plugin);
 	const component = new SearchBox({ target, props: {
 		cid: "a", ownerView: view,
-		editorSearch: { plugin, getEditorContext: (owner) => {
+		editorSearch: { plugin, ...(matcher ? { getMatchEngine: () => matcher } : {}), getEditorContext: (owner) => {
 			assert.equal(owner, view);
 			return { view, editor, editorView: editor.cm, file: view.file, doc: editor.cm.state.doc };
 		} },
@@ -105,6 +110,99 @@ const deferred = () => {
 	return { promise, resolve, reject };
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+function delayedMatcher() {
+	const requests = [];
+	return { requests, cancel() { this.cancels = (this.cancels ?? 0) + 1; }, destroy() {},
+		match(source, query, options) { const pending = deferred(); requests.push({ source, query, options, ...pending }); return pending.promise; } };
+}
+const matchedCats = { status: "completed", synchronous: false, matches: [{ from: 0, to: 3, index: 0 }, { from: 4, to: 7, index: 1 }] };
+
+test("asynchronous editor find preserves queued user navigation across background refresh", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher); await tick();
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "…");
+	h.component.toNextMatch(); h.component.matchAgain(false); h.component.toNextMatch(); h.component.toPreviousMatch();
+	assert.equal(matcher.requests.length, 1);
+	matcher.requests[0].resolve(matchedCats); await settlePosition();
+	assert.equal(h.component.getSearchCache().index, 1); assert.equal(h.scrolls.at(-1).from, 4);
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+});
+
+for (const [name, invalidate] of [
+	["query away and back", (h) => { h.component.setFindText("dog", false); h.component.setFindText("cat", false); }],
+	["document identity", (h) => h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } })],
+	["file identity", (h) => { h.view.file = { path: "other.md" }; }],
+	["editor rebuild", (h) => { h.view.editor.cm = { state: EditorState.create({ doc: "cat cat" }), dispatch() { throw new Error("old result dispatched"); } }; }],
+	["close/reopen", (h) => { h.component.setVisible(false); h.component.setVisible(true, "cat"); }],
+	["destroy", (h) => h.component.$destroy()],
+]) {
+	test(`asynchronous editor result is rejected after ${name}`, async (t) => {
+		const matcher = delayedMatcher(), h = mount(t, matcher); await tick(); invalidate(h);
+		const before = h.specs.length, scrolls = h.scrolls.length;
+		matcher.requests[0].resolve(matchedCats); await settlePosition();
+		assert.equal(h.specs.length, before); assert.equal(h.scrolls.length, scrolls);
+	});
+}
+
+test("Worker execution failure is visible and sync retry requires explicit user action", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher);
+	matcher.requests[0].resolve({ status: "failed", error: new Error("Worker crash") }); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 0);
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "!");
+	assert.equal(h.target.querySelector(".nya-search-status span").textContent, "search.WorkerFailed");
+	const retry = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.SynchronousRetry");
+	assert.ok(retry); assert.equal(matcher.requests.length, 1); retry.click(); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 2); assert.equal(matcher.requests.length, 1);
+});
+
+test("production Worker computes actual component matches and closing terminates owned resources", async (t) => {
+	const host = installWorkerHost(window), engine = new MatchEngine(() => window);
+	t.after(async () => { engine.destroy(); await host.dispose(); delete window.Worker; });
+	const h = mount(t, engine);
+	// Await the exact controller result without introducing a sleep-based test.
+	const result = engine.pending;
+	assert.ok(result);
+	await new Promise((resolve) => { const original = result.resolve; result.resolve = (value) => { original(value); resolve(); }; });
+	await settlePosition(); assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.component.setVisible(false); assert.equal(host.blobs.size, 0); assert.equal(host.workers[0].terminated, true);
+});
+
+test("reading async match retains navigation, caches offsets and maps detached endpoints", async (t) => {
+	const matcher = delayedMatcher(), h = mountReading(t, matcher); await tick();
+	assert.equal(matcher.requests.length, 1);
+	h.component.toNextMatch(); h.component.matchAgain(false); h.component.toNextMatch();
+	const source = matcher.requests[0].source;
+	const helper = loadSource("../src/util/text-helper.ts");
+	matcher.requests[0].resolve({ status: "completed", synchronous: false, matches: helper.findTextOffsets(source, "cat", false, false) });
+	await settlePosition(); assert.equal(h.component.getSearchCache().matches.length, 3);
+	assert.equal(h.component.getSearchCache().index, 2); assert.equal(h.scrolls.at(-1), h.sections[1]);
+	h.component.toPreviousMatch(); await settlePosition(); assert.equal(matcher.requests.length, 1);
+});
+
+test("reading async result cannot paint or scroll a mutated DOM index", async (t) => {
+	const matcher = delayedMatcher(), h = mountReading(t, matcher); await tick();
+	h.sections[0].el.querySelector("p").textContent = "dog";
+	matcher.requests[0].resolve(matchedCats); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 0); assert.equal(h.scrolls.length, 0);
+	assert.equal(window.CSS.highlights.has("nya-reading-current"), false);
+});
+
+test("reading Worker execution error offers explicit synchronous retry without automatic replay", async (t) => {
+	const matcher = delayedMatcher(), h = mountReading(t, matcher);
+	matcher.requests[0].resolve({ status: "failed", error: new Error("Worker crash") }); await settlePosition();
+	assert.equal(h.target.querySelector(".nya-tip").textContent.trim(), "!");
+	const retry = [...h.target.querySelectorAll(".nya-search-status button")].find((button) => button.textContent === "search.SynchronousRetry");
+	assert.ok(retry); retry.click(); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 3); assert.equal(matcher.requests.length, 1);
+});
+
+test("reading query supersession and close refuse old worker offsets and endpoint mapping", async (t) => {
+	const matcher = delayedMatcher(), h = mountReading(t, matcher); await tick();
+	h.component.setFindText("tail", false); const old = matcher.requests[0];
+	old.resolve(matchedCats); await settlePosition(); assert.equal(h.component.getSearchCache().matches.length, 0);
+	h.component.setVisible(false); matcher.requests[1].resolve(matchedCats); await settlePosition();
+	assert.equal(window.CSS.highlights.has("nya-reading-matches"), false); assert.equal(h.scrolls.length, 0);
+});
 
 test("async replacement positioning commits once and advances only after success", async (t) => {
 	const h = mount(t); await tick(); const position = deferred();
@@ -196,7 +294,7 @@ test("hidden replacement retains safe async next-match behavior while the finder
 	assert.equal(h.component.isVisible(), false); assert.equal(h.component.getSearchCache().index, 1);
 });
 
-function mountReading(t) {
+function mountReading(t, matcher) {
 	window.CSS = { highlights: new Map() };
 	window.Highlight = class extends Set { priority = 0; };
 	const target = document.createElement("div");
@@ -223,7 +321,7 @@ function mountReading(t) {
 	};
 	attachHistory(plugin);
 	let component;
-	const search = new ReadingSearch(view, () => true, () => component.matchAgain(false));
+	const search = new ReadingSearch(view, () => true, () => component.matchAgain(false), 5000, matcher);
 	component = new SearchBox({ target, props: { cid: "reading", ownerView: view, editorSearch: {
 		plugin, getEditorContext: () => null, canSearchReading: () => true,
 		getReadingSearch: () => search, clearReadingSearch: () => search.clear(),
@@ -593,7 +691,7 @@ test("render waiting uses a compact count marker and delayed external status, cl
 	assert.equal(status.parentElement.classList.contains("nya-finder"), true);
 	assert.equal(window.getComputedStyle(status).position, "absolute");
 	assert.equal(window.getComputedStyle(status).pointerEvents, "none");
-	assert.equal(status.textContent.trim(), "search.ReadingPending");
+	assert.equal(status.querySelector("span").textContent.trim(), "search.ReadingPending");
 	h.renderer.rendered = null; h.component.matchAgain(false); await tick();
 	assert.equal(h.target.querySelector(".nya-search-status"), null);
 	assert.equal(h.component.getSearchCache().matches.length, 3);

@@ -9,6 +9,10 @@
 	export let context: unknown;
 	export let retry: () => void;
 	export let nativeFind: () => void;
+	export let readingMode = true;
+	export let workerError = false;
+	export let synchronousRetry: () => void = () => {};
+	export let cancel: () => void = () => {};
 	let delayed = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let previousQuery = "";
@@ -22,8 +26,8 @@
 		if (show && !delayed && timer === undefined) timer = setTimeout(() => { timer = undefined; delayed = true; }, 400);
 	}
 	$: update(visible && pending, query, context);
-	$: message = error ? (error === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed")
-		: unsupported ? "search.ReadingUnsupported" : "search.ReadingPending";
+	$: message = workerError ? "search.WorkerFailed" : error ? (error === "timeout" ? "search.ReadingTimeout" : "search.ReadingFailed")
+		: unsupported ? "search.ReadingUnsupported" : readingMode ? "search.ReadingPending" : "search.MatchPending";
 	function position(node: HTMLElement) {
 		const parent = node.parentElement!;
 		const measure = () => {
@@ -50,6 +54,12 @@
 				<button type="button" on:click={nativeFind}>{i18n.t("search.UseNativeFind")}</button>
 			</div>
 		{/if}
+		{#if workerError}
+			<div class="nya-status-actions"><button type="button" on:click={synchronousRetry}>{i18n.t("search.SynchronousRetry")}</button></div>
+		{/if}
+		{#if pending}
+			<div class="nya-status-actions"><button type="button" on:click={cancel}>{i18n.t("search.CancelSearch")}</button></div>
+		{/if}
 	</div>
 {/if}
 
@@ -63,6 +73,6 @@
 	}
 	.nya-search-status--above { top: auto; bottom: calc(100% + 6px); }
 	.nya-search-status--error { pointer-events: auto; color: var(--text-normal); }
-	.nya-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+	.nya-status-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; pointer-events: auto; }
 	.nya-status-actions button { font-size: 12px; height: auto; padding: 3px 6px; }
 </style>

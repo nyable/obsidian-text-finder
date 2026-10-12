@@ -63,6 +63,8 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 
 ## Regular expression replacement
 
+Find matching preferably runs in a Worker; close the finder to terminate pending work. Worker startup unavailability is reported and falls back to synchronous compatibility mode. Execution failures are not automatically replayed; retry in a Worker or explicitly choose synchronous retry. Complex regex can block the interface in synchronous mode. **Replacement and post-replacement matching remain synchronous, as does reading-mode DOM indexing.** No regex syntax or match-count restrictions are added.
+
 Enable regular expression mode to use capture groups in replacements: for example,
 find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 

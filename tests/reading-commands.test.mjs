@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { matchEngineSource } from "./match-engine-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 const readingSource = loadSource("../src/reading-search.ts", {
@@ -49,11 +50,14 @@ function environment() {
 		registerEvent() {}, addCommand: (command) => commands.set(command.id, command),
 	};
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./match-engine": matchEngineSource,
 		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": readingSource,
 		obsidian: { MarkdownView, Notice: class { constructor(text) { notices.push(text); } } },
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	});
 	const search = new EditorSearch(plugin);
+	// This suite checks command routing, not Worker dispatch (covered separately).
+	search.createMatchEngine = () => undefined;
 	let created = 0;
 	search.getFinder = (owner) => { assert.equal(owner, view); created++; return finder; };
 	return { dom, root, view, plugin, commands, events, calls, notices, search,
@@ -216,6 +220,7 @@ test("late layout callbacks do not initialize unloaded plugins and initializatio
 		app: { workspace: { onLayoutReady: (fn) => { callback = fn; }, on() {} } },
 		registerEvent() {}, addCommand() { commands++; }, registerEditorExtension() { extensions++; } };
 	const { editorExtensionProvider } = loadSource("../src/editor-extension.ts", {
+		"./match-engine": matchEngineSource,
 		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	});

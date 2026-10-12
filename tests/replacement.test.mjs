@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
+import { matchEngineSource } from "./match-engine-source.mjs";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
@@ -285,6 +286,7 @@ for (const commandId of ["text-finder-replace", "text-finder-replace-all"]) {
 		h.plugin.registerEvent = () => {};
 		h.plugin.app.workspace.on = () => {};
 		const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+			"./match-engine": matchEngineSource,
 			"./search-highlight": {},
 			obsidian: { MarkdownView: class {} },
 			"./SearchBox.svelte": {},

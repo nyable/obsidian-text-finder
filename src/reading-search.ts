@@ -1,6 +1,7 @@
 import type { MarkdownView, TFile } from "obsidian";
 import { indexReadingText, readingMatchEndpoints, endpointRange, type ReadingEndpoint, type ReadingTextIndex } from "./reading-text";
 import { findTextOffsets } from "./util/text-helper";
+import type { MatchExecutor, MatchResult } from "./match-protocol";
 
 /** Private bridge: public preview APIs cannot enumerate detached sections.
  * Shape checked against Obsidian 1.14.4; runtime failures must also fail closed. */
@@ -62,6 +63,7 @@ export interface ReadingResult {
 	pending: boolean;
 	unsupported: boolean;
 	error?: "failed" | "timeout";
+	workerError?: boolean;
 }
 
 export class ReadingSearch {
@@ -88,9 +90,14 @@ export class ReadingSearch {
 	private currentIndex = 0;
 	private paintScheduled = false;
 	private lifecycle = 0;
+	private computation: { request: Request; index: ReadingTextIndex; doc: Document; newDocument: boolean } | null = null;
+	private cachedNewDocument = false;
+	private synchronousRetry = false;
 
 	constructor(private view: MarkdownView, private isOpen: () => boolean, private changed: () => void,
-		private waitTimeoutMs = 5000) {}
+		private waitTimeoutMs = 5000, private matcher?: MatchExecutor) {}
+
+	retrySynchronously() { this.synchronousRetry = true; }
 
 	static supported(view: MarkdownView): boolean {
 		try {
@@ -127,6 +134,8 @@ export class ReadingSearch {
 			const key = JSON.stringify([text, options.regexMode, options.caseSensitive]);
 			let request = this.request;
 			if (!request || request.key !== key || request.renderer !== r || request.file !== this.view.file) {
+				if (this.computation) this.matcher?.cancel();
+				this.computation = null;
 				this.cancelWait();
 				request = { renderer: r, file: this.view.file, key, text, options: { ...options }, index, scroll, direction,
 					deadline: Date.now() + this.waitTimeoutMs, waiting: false, registered: false, done };
@@ -154,6 +163,7 @@ export class ReadingSearch {
 			const r = request.renderer;
 			this.watch(r);
 			if (!this.ready(r)) {
+				this.matcher?.cancel(); this.computation = null;
 				this.removeHighlights();
 				this.dirty = true;
 				request.waiting = true;
@@ -170,10 +180,14 @@ export class ReadingSearch {
 				return;
 			}
 			this.cancelWait();
+			if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) this.dirty = true;
+			if (this.computation && this.computation.request === request && !this.dirty
+				&& this.sections === r.sections && this.source === r.lastText) return;
 			request.waiting = false;
 			request.registered = false;
 			if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) this.dirty = true;
 			const newDocument = this.file !== request.file || this.renderer !== r;
+			if (newDocument) this.cachedNewDocument = true;
 			if (this.dirty || newDocument || this.sections !== r.sections || this.source !== r.lastText) {
 				this.renderer = r; this.file = request.file; this.sections = r.sections; this.source = r.lastText;
 				const roots = r.sections.filter((s) => s !== r.header && s !== r.footer
@@ -189,25 +203,30 @@ export class ReadingSearch {
 				this.dirty = false; this.queryKey = "";
 			}
 			if (request.key !== this.queryKey) {
-				this.results = findTextOffsets(this.textIndex!.text, request.text, request.options.regexMode, request.options.caseSensitive)
-					.map((match) => {
-						const endpoints = readingMatchEndpoints(this.textIndex!, match.from, match.to);
-						const sections = [...new Set(endpoints.map(({ node }) => this.nodeSections.get(node)).filter((s): s is PreviewSection => !!s))];
-						return sections.length ? { match, endpoints, sections } : null;
-					}).filter((result): result is ReadingMatch => result !== null);
-				this.queryKey = request.key;
-				this.matchOffsets = this.results.map(({ match }, index) => ({ ...match, index }));
-				this.sectionEndpoints.clear();
-				this.results.forEach((result, index) => {
-					for (const endpoint of result.endpoints) {
-						const section = this.nodeSections.get(endpoint.node)!;
-						let entries = this.sectionEndpoints.get(section);
-						if (!entries) { entries = []; this.sectionEndpoints.set(section, entries); }
-						entries.push({ endpoint, index });
-					}
-				});
+				const textIndex = this.textIndex!;
+				const result = this.matcher && !this.synchronousRetry ? this.matcher.match(textIndex.text, request.text, request.options)
+					: { status: "completed" as const, matches: findTextOffsets(textIndex.text, request.text, request.options.regexMode, request.options.caseSensitive), synchronous: true };
+				this.synchronousRetry = false;
+				if (result instanceof Promise) {
+					const computation = { request, index: textIndex, doc: this.doc!, newDocument };
+					this.computation = computation; request.waiting = true; this.removeHighlights();
+					request.done({ matches: [], index: request.index, pending: true, unsupported: false });
+					void result.then((value) => {
+						if (this.computation !== computation || !this.current(request)) return;
+						this.computation = null; request.waiting = false;
+						if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) this.dirty = true;
+						if (this.dirty || this.textIndex !== textIndex || this.doc !== computation.doc
+							|| r.previewEl.ownerDocument !== computation.doc || this.sections !== r.sections
+							|| this.source !== r.lastText || !this.ready(r)) { this.invalidate(); return; }
+						if (!this.acceptMatches(request, value)) return;
+						this.cachedNewDocument ||= computation.newDocument; this.run(request);
+					}).catch(() => { if (this.current(request)) this.fail("failed", request.done, true); });
+					return;
+				}
+				if (!this.acceptMatches(request, result)) return;
 			}
-			let index = newDocument ? 0 : request.index;
+			let index = newDocument || this.cachedNewDocument ? 0 : request.index;
+			this.cachedNewDocument = false;
 			index = index >= 0 && index < this.results.length ? index : 0;
 			if (this.results.length && request.direction) index = ((index + request.direction) % this.results.length + this.results.length) % this.results.length;
 			this.currentIndex = index;
@@ -218,6 +237,28 @@ export class ReadingSearch {
 			request.index = index; request.scroll = false; request.direction = 0;
 			request.done({ matches: this.matchOffsets, index, pending: false, unsupported: false });
 		} catch { if (this.request === request) this.fail("failed", request.done); }
+	}
+
+	private acceptMatches(request: Request, result: MatchResult): boolean {
+		if (result.status === "cancelled") return false;
+		if (result.status === "failed") { this.fail("failed", request.done, true); return false; }
+		this.results = result.matches.map((match) => {
+			const endpoints = readingMatchEndpoints(this.textIndex!, match.from, match.to);
+			const sections = [...new Set(endpoints.map(({ node }) => this.nodeSections.get(node)).filter((s): s is PreviewSection => !!s))];
+			return sections.length ? { match, endpoints, sections } : null;
+		}).filter((result): result is ReadingMatch => result !== null);
+		this.queryKey = request.key;
+		this.matchOffsets = this.results.map(({ match }, index) => ({ ...match, index }));
+		this.sectionEndpoints.clear();
+		this.results.forEach((result, index) => {
+			for (const endpoint of result.endpoints) {
+				const section = this.nodeSections.get(endpoint.node)!;
+				let entries = this.sectionEndpoints.get(section);
+				if (!entries) { entries = []; this.sectionEndpoints.set(section, entries); }
+				entries.push({ endpoint, index });
+			}
+		});
+		return true;
 	}
 
 	private contentMutation(record: MutationRecord): boolean {
@@ -246,6 +287,7 @@ export class ReadingSearch {
 
 	invalidate() {
 		if (!this.request || this.disposed) return;
+		this.matcher?.cancel(); this.computation = null;
 		this.dirty = true; this.removeHighlights();
 		if (this.timer === null) this.timer = this.doc!.defaultView!.setTimeout(() => {
 			this.timer = null;
@@ -328,8 +370,8 @@ export class ReadingSearch {
 		r.updateVirtualDisplay();
 	}
 
-	private fail(error: "failed" | "timeout", done: (result: ReadingResult) => void) {
-		this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false, error });
+	private fail(error: "failed" | "timeout", done: (result: ReadingResult) => void, workerError = false) {
+		this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false, error, workerError });
 	}
 	private removeHighlights() {
 		if (!this.doc) return;
@@ -352,6 +394,7 @@ export class ReadingSearch {
 		this.watchedRenderer = null; this.watchedSections = null;
 	}
 	clear() {
+		this.matcher?.cancel(); this.computation = null; this.cachedNewDocument = false;
 		this.lifecycle++; this.request = null; this.paintScheduled = false;
 		this.removeHighlights(); this.disconnect(); this.dirty = true;
 		this.results = []; this.matchOffsets = []; this.queryKey = ""; this.textIndex = null;
@@ -359,5 +402,5 @@ export class ReadingSearch {
 		this.nodeSections = new WeakMap(); this.sectionElements.clear();
 		this.sections = null; this.source = null; this.renderer = null; this.file = null;
 	}
-	destroy() { this.clear(); this.disposed = true; this.doc = null; }
+	destroy() { this.clear(); this.matcher?.destroy(); this.disposed = true; this.doc = null; }
 }

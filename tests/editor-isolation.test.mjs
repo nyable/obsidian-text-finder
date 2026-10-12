@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
+import { matchEngineSource } from "./match-engine-source.mjs";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
@@ -63,12 +64,16 @@ function environment() {
 	};
 	attachHistory(plugin);
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": {}, obsidian: { MarkdownView },
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 		"./reading-search": readingSearch,
 	});
 	const search = new EditorSearch(plugin);
+	// Existing routing/transaction tests explicitly exercise the sync path.
+	search.getMatchEngine = () => ({ match: (source, query, options) => ({ status: "completed",
+		matches: helper.findTextOffsets(source, query, options.regexMode, options.caseSensitive), synchronous: true }), cancel() {} });
 	const finder = (view) => {
 		const component = loadSource("../src/SearchBox.svelte", {
 			svelte: { onMount() {} }, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
@@ -365,6 +370,7 @@ test("creating a Finder passes its explicit owner even if another view is active
 	const h = environment();
 	const created = [];
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": { default: class {
 			constructor(options) { created.push(options); }

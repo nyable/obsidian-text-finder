@@ -3,6 +3,11 @@
     "name": "Text Finder"
   },
   "search": {
+	"WorkerCompatibility": "Worker unavailable. Using synchronous compatibility mode; complex regular expressions may block the interface.",
+	"WorkerFailed": "Search execution failed. Retry in a Worker, or explicitly retry synchronously (complex regex may block the interface).",
+	"MatchPending": "Searching… Close or cancel to stop the Worker.",
+	"SynchronousRetry": "Retry synchronously (may block)",
+	"CancelSearch": "Cancel and close",
 	"ReadingPending": "Preparing search…",
 	"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
 	"StatusError": "Find is temporarily unavailable",

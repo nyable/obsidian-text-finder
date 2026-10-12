@@ -14,6 +14,7 @@ import { i18n } from "./i18n";
 import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
 import { ReadingSearch } from "./reading-search";
+import { MatchEngine } from "./match-engine";
 
 export { CLS, searchCacheEffect } from "./search-highlight";
 
@@ -35,6 +36,7 @@ export class EditorSearch {
 	finderCache: Map<string, SearchBox> = new Map();
 	private finderViews: Map<MarkdownView, SearchBox> = new Map();
 	private readingSearches = new Map<MarkdownView, ReadingSearch>();
+	private matchEngines = new Map<MarkdownView, MatchEngine>();
 	private modeObservers = new Map<MarkdownView, MutationObserver>();
 	private finderEvents = new Map<MarkdownView, () => void>();
 	private disposed = false;
@@ -132,10 +134,23 @@ export class EditorSearch {
 	getReadingSearch(view: MarkdownView) {
 		let search = this.readingSearches.get(view);
 		if (!search) {
-			search = new ReadingSearch(view, () => this.isViewOpen(view), () => this.finderViews.get(view)?.matchAgain(false));
+			search = new ReadingSearch(view, () => this.isViewOpen(view), () => this.finderViews.get(view)?.matchAgain(false),
+				5000, this.createMatchEngine(view));
 			this.readingSearches.set(view, search);
 		}
 		return search;
+	}
+	private createMatchEngine(view: MarkdownView) {
+		return new MatchEngine(() => this.isViewOpen(view) ? view.containerEl?.ownerDocument.defaultView ?? null : null,
+			(error) => {
+				console.warn("Text Finder: Worker unavailable before query submission; using synchronous compatibility mode", error);
+				new Notice(i18n.t("search.WorkerCompatibility"));
+			});
+	}
+	getMatchEngine(view: MarkdownView) {
+		let engine = this.matchEngines.get(view);
+		if (!engine) { engine = this.createMatchEngine(view); this.matchEngines.set(view, engine); }
+		return engine;
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
 	refreshToolbars() { this.finderViews.forEach((finder) => finder.refreshToolbar()); }
@@ -168,6 +183,8 @@ export class EditorSearch {
 	 */
 	destoryAll() {
 		this.disposed = true;
+		this.matchEngines.forEach((engine) => engine.destroy());
+		this.matchEngines.clear();
 		this.historyModals.forEach((modal) => modal.close());
 		this.historyModals.clear();
 		this.readingSearches.forEach((search) => search.destroy());
@@ -238,6 +255,8 @@ export class EditorSearch {
 			this.finderViews.forEach((finder, view) => {
 				if (this.isViewOpen(view)) finder.matchAgain(false);
 				else {
+					this.matchEngines.get(view)?.destroy();
+					this.matchEngines.delete(view);
 					this.readingSearches.get(view)?.destroy();
 					this.readingSearches.delete(view);
 					this.modeObservers.get(view)?.disconnect();

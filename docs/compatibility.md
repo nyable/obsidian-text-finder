@@ -39,7 +39,7 @@
 - 等待渲染时不发布局部数量；默认 5 秒等待超时是渲染保护，不是正则或索引执行限时。
 - 定位私有接口返回失败、Highlight 异常等进入错误状态，不能报告成功导航。用户可重试或主动降级。
 - 离屏节点的 CSS 祖先／兄弟依赖可能与挂载后不同；索引规则不模拟任意 CSS 可见性。伪元素、公式、图表、嵌入及第三方动态输出边界见 [features](product/features.md#阅读模式正文)。
-- 首次全文索引和正则同步执行，大文档可能阻塞；没有 Worker 隔离，危险正则不能被渲染等待超时中断。
+- 首次全文 DOM 索引仍同步，大文档可能阻塞。查找匹配优先 Worker 隔离，关闭／取消可终止；同步兼容及当前替换路径仍可能阻塞，渲染等待超时不能中断它们。
 - 高亮注册表按 Document 合并视图所有权；正常关闭一个视图不清另一个视图。注册表异常清理是失败保护，不能承诺损坏宿主 API 下的完整多视图绘制。
 
 依据：`src/editor-extension.ts:showFinder()`／`openNativeSearch()`；`src/reading-search.ts` 的 `ready()`／`run()`／`scroll()`／`removeHighlights()`。内部机制见 [architecture](architecture.md#阅读索引与高亮机制)。
@@ -62,7 +62,9 @@
 
 依据：`tests/source-loader.mjs`、`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`、`tests/reading-benchmark.mjs`、`.github/workflows/ci.yml`。验证命令见 [testing](testing.md)。未见真实宿主 E2E／截图自动回归或覆盖率门槛，不能将这些列为已有保障。
 
-Worker 实验代码仅在 `tests/worker-experiment-*.mjs`，生产仍同步匹配。实验成功不授权新增执行时限、同步降级或匹配硬上限；接入前需验证真实浏览器／宿主资源策略、替换前文档重新校验、全部替换单事务与撤销、多个 owner 的任务调度，以及 Worker 不可用时的明确行为。仅忽略旧结果或发取消消息不能中断已经执行的同步正则，应终止对应 Worker；取消旧请求与超时仍有效请求不是同一种产品状态。
+生产查找使用 `src/match-engine.ts`／`src/match-worker.ts`，独立实验仍留在 tests，不直接导入生产。已批准启动不可用时同步兼容，执行中失败不自动重放；没有新增语法黑名单、匹配硬上限或查询执行期限。仅忽略旧结果或发取消消息不能中断正在执行的正则，应 terminate。替换隔离尚未接入，仍需独立验证替换候选、全部替换单事务和撤销。
+
+独立宿主探针已有用户提供的 Windows／API 1.14.4、Electron 39.8.3、Chrome 142 主窗口证据：368 次语义比较、7 字符／2 匹配快照、正文／查询／owner 失效和资源归零；用户确认该轮探针验证收口。该证据属于独立探针，不是新生产查找入口、弹窗／迁移或移动端的实机通过证明。
 
 ## 实机证据要求
 

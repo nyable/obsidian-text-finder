@@ -3,6 +3,11 @@
     "name": "Text Finder"
   },
   "search": {
+	"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
+	"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",
+	"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",
+	"SynchronousRetry": "同步重试（可能阻塞）",
+	"CancelSearch": "取消并关闭",
 	"ReadingPending": "正在准备搜索…",
 	"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
 	"StatusError": "查找暂不可用",

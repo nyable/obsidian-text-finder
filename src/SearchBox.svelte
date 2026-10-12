@@ -14,6 +14,7 @@
 	import { onMount } from "svelte";
 	import { getLivePreviewPreference } from "./util/obsidian-internal";
 	import type { TransactionSpec } from "@codemirror/state";
+	import type { MatchExecutor, MatchResult } from "./match-protocol";
 	import Toolbar from "./Toolbar.svelte";
 	import SearchStatus from "./SearchStatus.svelte";
 	import { defaultToolbar, type ToolbarAction } from "./toolbar";
@@ -28,6 +29,13 @@
 	let readingUnsupported = false;
 	let readingError: "failed" | "timeout" | undefined;
 	let readingRequest = 0;
+	let workerError = false;
+	let editingEngine: MatchExecutor | null = null;
+	let editingComputation: { context: EditorContext; key: string; window: Window | null; scroll: boolean; direction: number } | null = null;
+	const cancelEditing = () => {
+		editingComputation = null;
+		editingEngine?.cancel();
+	};
 	let positionRequest = 0;
 	let disposed = false;
 	let searchMode = "source";
@@ -61,7 +69,7 @@
 			const text = historyNavigation.reconcile(getSortedHistory());
 			if (text !== undefined) setFindText(text, false);
 		});
-		return () => { disposed = true; positionRequest++; unsubscribe(); };
+		return () => { disposed = true; positionRequest++; cancelEditing(); unsubscribe(); };
 	});
 
 	// Continuous navigation counts once; explicit history reuse starts a new use.
@@ -193,6 +201,7 @@
 			if (historyIndexOverride !== undefined) historyNavigation.select(cache.search, getSortedHistory());
 			else historyNavigation.reset();
 		} else {
+			cancelEditing();
 			readingRequest++;
 			readingPending = false;
 			readingUnsupported = false;
@@ -229,6 +238,7 @@
 	}
 
 	export function resetAll() {
+		cancelEditing();
 		positionRequest++;
 		historyNavigation.reset();
 		readingRequest++;
@@ -378,7 +388,7 @@
 		}
 	};
 
-	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0) => {
+	export const setFindText = (text: string, scroll: boolean = true, activeEditor = getEditorContext(), direction = 0, synchronous = false) => {
 		positionRequest++;
 		statusContext = ownerView.file;
 		// Svelte's bind:value may update cache.search before the input handler.
@@ -390,7 +400,9 @@
 		if (searchMode !== mode) { cache.matches = []; cache.index = 0; matchedContext = null; searchMode = mode; }
 		readingUnsupported = false;
 		readingError = undefined;
+		workerError = false;
 		if (readingMode) {
+			cancelEditing();
 			if (!cache.visible) {
 				readingRequest++;
 				editorSearch.clearReadingSearch?.(ownerView);
@@ -407,37 +419,63 @@
 				readingPending = result.pending;
 				readingUnsupported = result.unsupported;
 				readingError = result.error;
+				workerError = result.workerError ?? false;
 			}, direction);
 			return;
 		}
 		readingRequest++;
-		readingPending = false;
 		editorSearch.clearReadingSearch?.(ownerView);
 		if (activeEditor && isCurrentContext(activeEditor)) {
 			const { editor } = activeEditor;
 
 			if (text) {
-				const content = editor.getValue();
-				cache.matches = findTextOffsets(
-					content,
-					text,
-					cache.options.regexMode,
-					cache.options.caseSensitive,
-				);
-				rememberMatches(activeEditor);
-				if (cache.matches.length > 0) {
-					if (scroll) {
-						scrollToMatch(activeEditor);
-					} else {
-						emitChange(true, undefined, activeEditor);
-					}
-				} else {
-					resetMatches();
+				const key = queryKey();
+				const pending = editingComputation;
+				const win = ownerView.containerEl?.ownerDocument.defaultView ?? null;
+				if (!synchronous && pending && pending.key === key && pending.window === win
+					&& pending.context.doc === activeEditor.doc && pending.context.file === activeEditor.file
+					&& pending.context.editor === activeEditor.editor && pending.context.editorView === activeEditor.editorView) {
+					if (scroll) { pending.scroll = true; pending.direction += direction; }
+					return;
 				}
+				if (editingComputation) cancelEditing();
+				readingPending = false;
+				const content = editor.getValue();
+				const apply = (result: MatchResult, shouldScroll: boolean, requestedDirection: number) => {
+					if (disposed || !isCurrentContext(activeEditor) || queryKey() !== key
+						|| (ownerView.containerEl?.ownerDocument.defaultView ?? null) !== win || win?.closed) return;
+					readingPending = false;
+					if (result.status === "cancelled") return;
+					if (result.status === "failed") {
+						cache.matches = []; cache.index = 0; matchedContext = null;
+						readingError = "failed"; workerError = true; emitChange(); return;
+					}
+					cache.matches = result.matches; rememberMatches(activeEditor);
+					if (cache.matches.length && requestedDirection) cache.index = ((cache.index + requestedDirection)
+						% cache.matches.length + cache.matches.length) % cache.matches.length;
+					if (cache.matches.length && shouldScroll) scrollToMatch(activeEditor);
+					else { if (!cache.matches.length) cache.index = 0; emitChange(true, undefined, activeEditor); }
+				};
+				if (!synchronous && editorSearch.getMatchEngine) editingEngine = editorSearch.getMatchEngine(ownerView);
+				const result = !synchronous && editingEngine ? editingEngine.match(content, text, cache.options)
+					: { status: "completed" as const, matches: findTextOffsets(content, text, cache.options.regexMode, cache.options.caseSensitive), synchronous: true };
+				if (result instanceof Promise) {
+					const computation = { context: activeEditor, key, window: win, scroll, direction };
+					editingComputation = computation; readingPending = true;
+					cache.matches = []; emitChange(true, undefined, activeEditor);
+					void result.then((value) => {
+						if (editingComputation !== computation) return;
+						editingComputation = null; apply(value, computation.scroll, computation.direction);
+					}).catch((error) => {
+						if (editingComputation !== computation) return;
+						editingComputation = null; apply({ status: "failed", error }, false, 0);
+					});
+				} else apply(result, scroll, direction);
 			} else {
 				resetMatches(true);
 			}
 		} else {
+			cancelEditing(); readingPending = false;
 			cache.matches = [];
 			cache.index = 0;
 			matchedContext = null;
@@ -453,8 +491,10 @@
 		const context = getEditorContext();
 		if (!context) return;
 		if (matchedContext?.doc !== context.doc || matchedContext.file !== context.file
-			|| matchedContext.editorView !== context.editorView || matchedQuery !== queryKey()) {
-			setFindText(cache.search, false, context);
+			|| matchedContext.editorView !== context.editorView || matchedQuery !== queryKey() || editingComputation) {
+			setFindText(cache.search, true, context, direction);
+			if (cache.search) recordSearchToHistory(cache.search);
+			return;
 		}
 		if (cache.index < 0 || cache.index >= cache.matches.length) cache.index = 0;
 		const matchSize = cache.matches.length;
@@ -475,7 +515,8 @@
 			if (!activeEditor || !isCurrentContext(activeEditor)) return false;
 			if (matchedContext?.doc !== activeEditor.doc || matchedQuery !== queryKey()
 				|| matchedContext.file !== activeEditor.file || matchedContext.editorView !== activeEditor.editorView) {
-				setFindText(cache.search, false, activeEditor);
+				setFindText(cache.search, true, activeEditor);
+				return false;
 			}
 			const matched = cache.matches[cache.index];
 			if (!matched) return true;
@@ -520,6 +561,7 @@
 	};
 
 	export const resetMatches = (clearSearch = false, clearReplace = false) => {
+		cancelEditing();
 		positionRequest++;
 		readingRequest++;
 		readingPending = false;
@@ -549,6 +591,7 @@
 
 	const prepareReplacement = (inputText: string) => {
 		if (isReading()) return null;
+		cancelEditing(); readingPending = false;
 		const activeEditor = getEditorContext();
 		if (!activeEditor) {
 			cache.matches = [];
@@ -597,7 +640,9 @@
 				const current = getEditorContext();
 				if (current && current.file === prepared.activeEditor.file
 					&& current.editorView === prepared.activeEditor.editorView) {
-					setFindText(search, false, current);
+					// Replacement remains synchronous in this first integration stage,
+					// including its post-commit count/navigation contract.
+					setFindText(search, false, current, 0, true);
 					const positioned = scrollToMatch(current, true);
 					if (typeof positioned === "boolean") result.navigationFailed = !positioned;
 					else result.navigationCompletion = positioned.then((success) => {
@@ -706,6 +751,7 @@
 		if (cache.visible) {
 			setFindText(search, scroll);
 		} else {
+			cancelEditing();
 			readingRequest++;
 			readingMode = isReading();
 			readingPending = false;
@@ -714,6 +760,10 @@
 			cache.index = 0;
 			matchedContext = null;
 		}
+	};
+	const retrySynchronously = () => {
+		if (isReading()) editorSearch.getReadingSearch(ownerView).retrySynchronously();
+		setFindText(cache.search, true, getEditorContext(), 0, true);
 	};
 </script>
 
@@ -730,8 +780,9 @@
 	class:nya-finder--custom-toolbar={customToolbar}
 	use:alignRows={[isCollapsed, customToolbar, searchToolbar, replaceToolbar]}
 >
-	<SearchStatus visible={cache.visible && readingMode} pending={readingPending} unsupported={readingUnsupported}
+	<SearchStatus visible={cache.visible} pending={readingPending} unsupported={readingUnsupported}
 		error={readingError} query={cache.search} context={statusContext} retry={() => setFindText(cache.search)}
+		{readingMode} {workerError} synchronousRetry={retrySynchronously} cancel={() => setVisible(false)}
 		nativeFind={() => editorSearch.openNativeSearch(ownerView)} />
 	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
 	<div class="nya-dragger"></div>
@@ -772,7 +823,7 @@
 				<div class="nya-float-act">
 					<div class="nya-float-tip">
 						{#if readingPending || readingUnsupported || readingError}
-							<div aria-label={i18n.t(readingPending ? "search.ReadingPending" : "search.StatusError")} title={i18n.t(readingPending ? "search.ReadingPendingDetail" : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
+							<div aria-label={i18n.t(readingPending ? (readingMode ? "search.ReadingPending" : "search.MatchPending") : "search.StatusError")} title={i18n.t(readingPending ? (readingMode ? "search.ReadingPendingDetail" : "search.MatchPending") : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
 						{:else if cache.matches.length > 0}
 							<div>
 								{i18n.t("search.tip.HasResults", {
@@ -800,7 +851,7 @@
 			{:else}
 				<div class="nya-tip">
 					{#if readingPending || readingUnsupported || readingError}
-						<div aria-label={i18n.t(readingPending ? "search.ReadingPending" : "search.StatusError")} title={i18n.t(readingPending ? "search.ReadingPendingDetail" : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
+						<div aria-label={i18n.t(readingPending ? (readingMode ? "search.ReadingPending" : "search.MatchPending") : "search.StatusError")} title={i18n.t(readingPending ? (readingMode ? "search.ReadingPendingDetail" : "search.MatchPending") : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
 					{:else if cache.matches.length > 0}
 						<div>
 							{i18n.t("search.tip.HasResults", {

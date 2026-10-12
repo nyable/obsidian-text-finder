@@ -94,6 +94,7 @@ assert.deepEqual(JSON.parse(h.disk.get(path)), { value: "NEW" });
 let commands = 0, extensions = 0;
 class Plugin { addSettingTab() {} registerEvent() {} addCommand() { commands++; } registerEditorExtension() { extensions++; } }
 const provider = loadSource("../src/editor-extension.ts", {
+	"./match-engine": {},
 	"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
 	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 });

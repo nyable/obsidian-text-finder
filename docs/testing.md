@@ -79,6 +79,10 @@ node tests/worker-experiment-cancel.mjs --dangerous
 
 ## Obsidian 独立只读 Worker 探针
 
+生产查找的自动验证另见 `tests/match-engine.test.mjs` 与 `tests/search-box-dom.test.mjs`：运行正式 bundle／Worker 源码，覆盖语义差分、启动降级／执行失败、旧请求、同查询导航、文档／文件／编辑器身份和阅读端点失效；Node-backed 浏览器替身不能证明真实宿主 CSP。
+
+生产产物只需既有 `main.js`／`styles.css`／`manifest.json`，Worker 字符串嵌入 main。实际验收须使用临时库中的正式插件入口，而非只读探针：先做字面量／正则／大小写、连续输入与 Enter、编辑／阅读切换、同文件双分屏、关闭／重开、卸载／重载及弹窗迁移。替换仍同步，不使用危险正则替换；正式危险查找测试需要明确 opt-in，不能由安全测试通过自动推出通过。生产入口尚无本轮真实宿主结果。
+
 ```sh
 node tests/worker-probe-build.mjs
 node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
