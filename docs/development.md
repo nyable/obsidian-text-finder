@@ -5,7 +5,7 @@
 ## 环境
 
 - Node.js 24.21.0，见 [`.node-version`](../.node-version)。
-- pnpm 12.3.4，见 [`package.json`](../package.json) 的 `packageManager`。安装方式见 [pnpm 安装指南](https://pnpm.io/installation)。
+- pnpm，版本见 [`package.json`](../package.json) 的 `packageManager`。安装方式见 [pnpm 安装指南](https://pnpm.io/installation)。
 - 使用 TypeScript、Svelte 4、CodeMirror 6 和 esbuild。
 
 ## 源码构建与安装
