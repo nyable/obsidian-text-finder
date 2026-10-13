@@ -24,6 +24,15 @@
 
 依据：`src/editor-extension.ts` 的视图资源管理、`src/SearchBox.svelte` 的上下文校验／替换操作、`src/reading-search.ts`、`src/history.ts`、`src/main.ts`。
 
+## UI 命名与悬浮提示
+
+- Obsidian 会将 `aria-label` 用作自动悬浮提示，不能把它仅当作读屏属性。不要在分类导航、滚动区、预览、弹出面板或菜单等非操作容器上添加不必要的 `aria-label`。
+- 需要无障碍名称的容器使用 `aria-labelledby` 引用标题或触发器；引用 ID 必须在所属 Document 中有效，新增实例 ID 避免重名。没有可见标题时可使用读屏专用文本，不能用 `aria-hidden` 隐藏需要读屏访问的容器。
+- 纯装饰／预览图标可用 `aria-hidden="true"`；真实操作控件与有意义的状态提示保留名称和必要说明，不为消除悬浮提示一刀切删除无障碍标签。
+- UI 变更须检查 `aria-label`、`title` 与 `setTooltip` 的提示范围及重复提示，并覆盖容器标签引用与真实控件名称回归；jsdom 标签检查不能代替 Obsidian 实机悬浮提示验收。
+
+依据：用户确认的“外观／设置分类”区域提示；`src/settings-tab.ts`、`src/color-picker.ts`、`src/Toolbar.svelte`、`src/ToolbarPreview.svelte`；具体规范与回归入口见 [development](docs/development.md#ui-命名与悬浮提示规范)。
+
 ## 工具与验证
 
 - Node 和 pnpm 版本以 `.node-version`、`package.json` 为准；依赖安装／更新使用 pnpm，不混用 npm 或 Yarn。
