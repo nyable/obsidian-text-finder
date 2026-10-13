@@ -68,14 +68,14 @@ export class MatchEngine implements MatchExecutor {
 		try {
 			if (request.operation) {
 				const prepared = prepareReplacements(request.source, request.query, request.replacement ?? "",
-					request.options.regexMode, request.options.caseSensitive);
+					request.options.regexMode, request.options.caseSensitive, request.options.wholeWord);
 				const index = this.replacementIndex(request, prepared.matches.length);
 				const selected = request.operation === "replaceOne" ? prepared.one(index) : undefined;
 				return { status: "completed", synchronous: true, matches: prepared.matches,
 					changes: request.operation === "replaceAll" ? prepared.all() : selected ? [selected] : [] };
 			}
 			return { status: "completed", synchronous: true, matches: findTextOffsets(
-				request.source, request.query, request.options.regexMode, request.options.caseSensitive) };
+				request.source, request.query, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord) };
 		}
 		catch (error) { return { status: "failed", error }; }
 	}

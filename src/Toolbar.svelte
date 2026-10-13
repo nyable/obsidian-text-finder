@@ -4,19 +4,21 @@
 
 <script lang="ts">
 	import { tick } from "svelte";
-	import { ArrowDown, ArrowUp, ReplaceAll, Replace, Regex, CaseSensitive, History, Ellipsis } from "lucide-svelte";
+	import { ArrowDown, ArrowUp, ReplaceAll, Replace, Regex, CaseSensitive, WholeWord, History, Ellipsis } from "lucide-svelte";
 	import { i18n } from "./i18n";
 	import { toolbarLabels, type ToolbarItem, type ToolbarAction } from "./toolbar";
 	export let items: ToolbarItem[];
 	export let run: (action: ToolbarAction) => void;
 	export let regexMode = false;
 	export let caseSensitive = false;
+	export let wholeWord = false;
 	export let historyEnabled = true;
 	export let tabindex = 0;
 	export let visible = true;
 	// Presentation-only branch: no controls, menu or document listeners.
 	export let preview = false;
-	const icons = { regex: Regex, case: CaseSensitive, previous: ArrowUp, next: ArrowDown, history: History, replace: Replace, replaceAll: ReplaceAll };
+	const icons = { regex: Regex, case: CaseSensitive, wholeWord: WholeWord, previous: ArrowUp, next: ArrowDown, history: History, replace: Replace, replaceAll: ReplaceAll };
+	const isToggle = (id: ToolbarAction) => id === "regex" || id === "case" || id === "wholeWord";
 	let open = false;
 	let root: HTMLDivElement;
 	let trigger: HTMLDivElement;
@@ -25,7 +27,7 @@
 	$: more = items.filter((item) => item.placement === "more");
 	$: if (!visible || !more.length) open = false;
 	$: controlTabIndex = visible ? tabindex : -1;
-	$: activeIds = new Set<ToolbarAction>([...(regexMode ? ["regex" as const] : []), ...(caseSensitive ? ["case" as const] : [])]);
+	$: activeIds = new Set<ToolbarAction>([...(regexMode ? ["regex" as const] : []), ...(caseSensitive ? ["case" as const] : []), ...(wholeWord ? ["wholeWord" as const] : [])]);
 	const execute = (id: ToolbarAction) => {
 		if (preview) return;
 		if (id !== "history" || historyEnabled) {
@@ -76,7 +78,7 @@
 		{#each inline as item (item.id)}
 			<div class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
 				role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : controlTabIndex} aria-label={i18n.t(toolbarLabels[item.id])}
-				aria-pressed={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
+				aria-pressed={isToggle(item.id) ? activeIds.has(item.id) : undefined}
 				aria-disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)} on:keydown={activate}>
 				<svelte:component this={icons[item.id]} size={18} />
 			</div>
@@ -91,8 +93,8 @@
 				{#if open}
 					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-labelledby={triggerId} on:keydown={menuKeys}>
 						{#each more as item (item.id)}
-							<button type="button" role={item.id === "regex" || item.id === "case" ? "menuitemcheckbox" : "menuitem"}
-								aria-checked={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
+							<button type="button" role={isToggle(item.id) ? "menuitemcheckbox" : "menuitem"}
+								aria-checked={isToggle(item.id) ? activeIds.has(item.id) : undefined}
 								disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)}>
 								<svelte:component this={icons[item.id]} size={18} />
 								<span>{i18n.t(toolbarLabels[item.id])}</span><span class="nya-menu-check">{activeIds.has(item.id) ? "✓" : ""}</span>

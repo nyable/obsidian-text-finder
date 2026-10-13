@@ -14,6 +14,38 @@ const { MatchEngine } = module.exports;
 const helper = loadSource("../src/util/text-helper.ts");
 const options = { regexMode: true, caseSensitive: false };
 
+test("whole word shares match and replacement semantics across Worker and startup fallback", async (t) => {
+	t.mock.method(console, "log", () => {});
+	const host = installWorkerHost({ URL: {} }), fallbackWindow = {}, worker = new MatchEngine(() => host.win), fallback = new MatchEngine(() => fallbackWindow);
+	t.after(async () => { worker.destroy(); fallback.destroy(); await host.dispose(); });
+	await fallback.match("cat", "cat", options);
+	const cases = [...workerCases,
+		{ source: "xcat cat Cat cat_name cat2", query: "cat", replacement: "dog" },
+		{ source: "xcat cat Cat cat_name cat2", query: "(?<c>c)(at)", replacement: "$<c>:$2:$&:$`:$'" },
+		{ source: "中文 中文内容 中文，内容", query: "中文", replacement: "词" },
+		{ source: "C++ C++17 XC++", query: "C++", replacement: "C#" },
+		{ source: "😀 e\u0301 xcafé café", query: "café", replacement: "tea" },
+		{ source: "x\ncat \ncat", query: "\ncat", replacement: "dog" },
+		{ source: "cat\nx cat\n ", query: "cat\n", replacement: "dog" },
+	];
+	for (const entry of cases) for (const regexMode of [false, true]) for (const caseSensitive of [false, true]) for (const wholeWord of [false, true]) {
+		const options = { regexMode, caseSensitive, wholeWord };
+		const prepared = helper.prepareReplacements(entry.source, entry.query, entry.replacement, regexMode, caseSensitive, wholeWord);
+		for (const [engine, synchronous] of [[worker, false], [fallback, true]]) {
+			const matched = await engine.match(entry.source, entry.query, options);
+			assert.equal(matched.status, "completed"); assert.equal(matched.synchronous, synchronous);
+			assert.deepEqual(matched.matches, prepared.matches);
+			for (const all of [false, true]) {
+				const index = Math.max(0, prepared.matches.length - 1), one = prepared.one(index);
+				const replaced = await engine.replace(entry.source, entry.query, entry.replacement, options, index, all);
+				assert.equal(replaced.status, "completed"); assert.equal(replaced.synchronous, synchronous);
+				assert.deepEqual(replaced.matches, prepared.matches);
+				assert.deepEqual(replaced.changes, all ? prepared.all() : one ? [one] : []);
+			}
+		}
+	}
+});
+
 test("production bundle reuses exact helper semantics across 92 Worker comparisons", async (t) => {
 	t.mock.method(console, "log", () => {});
 	const host = installWorkerHost({ URL: {} });

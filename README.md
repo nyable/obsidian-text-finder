@@ -15,6 +15,7 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Show number of matches
 -   Supports regular expressions
 -   Supports case sensitivity
+-   Supports whole-word matching
 -   Input history
 
 ## To Do
@@ -53,11 +54,19 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Assign shortcuts to Text Finder commands in Obsidian's hotkey settings.
 -   Run “Open search in current file”, enter a query, and use the previous/next buttons or Enter to navigate matches.
 -   In editing mode, use “Open search & replace in current file” for replacements. Press Escape or the close button to hide the finder.
--   All closing commands use the same behavior. Queries and regex/match-case options are retained by default; “Clear search and replacement text” clears both inputs, not the options. Escape has no finder effect while it is hidden.
+-   All closing commands use the same behavior. Queries and regex/match-case/whole-word options are retained by default; “Clear search and replacement text” clears both inputs, not the options. Escape has no finder effect while it is hidden.
+
+## Whole-word matching
+
+- Toggle “Match whole word” beside the regex and match-case controls. It is off by default and applies to editing search, reading search and editing replacements; it can be combined with regex.
+- Boundaries follow VS Code's default editor word separators, not JavaScript `\b` or language-aware segmentation. `cat` matches `(cat)` and `cat-dog`, but not `cat2`, `cat_name` or `concatenate`.
+- Chinese text is not automatically segmented: `中文` does not match part of `中文内容`. Full-width punctuation and NBSP are not default separators.
+- Punctuation at the start/end of the match can itself satisfy that boundary: `C++` also matches `C++17`. Regex checks use the actual complete match without changing captures or replacement templates.
+- Reading search checks the continuous rendered text, not individual DOM nodes; its results can differ from Markdown source search. Native-find fallback keeps Obsidian's own semantics.
 
 ## Reading-mode search
 
--   Run “Open search in current file” in reading mode for case-sensitive search, regex, highlights and match navigation. Replacement is not available.
+-   Run “Open search in current file” in reading mode for case-sensitive search, whole-word matching, regex, highlights and match navigation. Replacement is not available.
 -   Searches rendered body text, not hidden Markdown markers. Embedded notes and some plugin-generated content are not supported.
 -   If native find still opens after upgrading, disable “Using Obsidian's native search in reading” in settings.
 
@@ -94,8 +103,8 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 - Colors, search toolbar and replacement toolbar sections fold independently and start collapsed. An undo-style icon beside each heading shows a Restore default settings tooltip. Clicking directly restores that section; individual color resets affect only that color, with no confirmation dialog. All resets show the same brief “Default settings restored” notice.
 - The preview uses the fixed query `text` and an empty replacement field. The English sample below shows current and other match highlights using the existing highlight colors and CSS customizations.
 - Customize the focus border, accent strip, and text/background colors of current and other matches. Click a swatch to open the color/opacity picker; adjustments only affect the preview until you click Apply. Canceling or leaving settings discards the draft. Unset colors inherit existing CSS; resetting a color or the color section removes overrides without changing toolbar configuration.
-- Set “Enabled by default” on the regex and match-case items. These defaults initialize new finders for each Markdown view; existing finders and reopening or switching files/modes retain manual choices.
-- Restore defaults affects only its toolbar: search restores the layout and turns off both default options; replace restores its layout. Existing finders keep their options. Hiding a button does not turn its mode off.
+- Set “Enabled by default” on the regex, match-case and whole-word items. These defaults initialize new finders for each Markdown view; existing finders and reopening or switching files/modes retain manual choices. Upgrading preserves existing toolbar order/placements and appends the new whole-word action.
+- Restore defaults affects only its toolbar: search restores the layout and turns off all three default options; replace restores its layout. Existing finders keep their options. Hiding a button does not turn its mode off.
 
 ## Customize Style
 

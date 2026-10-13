@@ -26,6 +26,7 @@
       "HasResults": "{{current}} of {{total}}",
       "ToggleReplace": "Toggle replace",
       "MatchCase": "Match case",
+      "MatchWholeWord": "Match whole word",
       "UseRegularExpression": "Use regular expression",
       "PreviousMatch": "Previous match",
       "NextMatch": "Next match",
@@ -93,7 +94,7 @@
     },
     "ClearAfterHidden": {
       "name": "Clear search and replacement text",
-      "desc": "Clear both inputs when closing the finder. Regex and match-case options are retained."
+      "desc": "Clear both inputs when closing the finder. Regex, match-case and whole-word options are retained."
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",
@@ -113,7 +114,7 @@
     },
     "UseObsidianSearchInRead": {
       "name": "Using Obsidian's native search in reading",
-      "desc": "When enabled, Open search uses Obsidian's native find in reading mode. Disable for plugin search with match case and regex; unsupported environments are notified and fall back to native find. Existing preferences are preserved."
+      "desc": "When enabled, Open search uses Obsidian's native find in reading mode. Disable for plugin search with match case, whole word and regex; unsupported environments are notified and fall back to native find. Existing preferences are preserved."
     },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",

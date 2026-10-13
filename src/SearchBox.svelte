@@ -68,6 +68,7 @@
 		options: {
 			regexMode: editorSearch?.plugin.settings.defaultRegexMode ?? false,
 			caseSensitive: editorSearch?.plugin.settings.defaultCaseSensitive ?? false,
+			wholeWord: editorSearch?.plugin.settings.defaultWholeWord ?? false,
 		},
 	};
 
@@ -190,6 +191,7 @@
 	const runToolbarAction = (action: ToolbarAction) => {
 		if (action === "regex") toggleRegexMode();
 		else if (action === "case") toggleMatchCaseMode();
+		else if (action === "wholeWord") toggleWholeWordMode();
 		else if (action === "previous") toPreviousMatch();
 		else if (action === "next") toNextMatch();
 		else if (action === "history") editorSearch.openHistory();
@@ -274,6 +276,7 @@
 		cache.options = {
 			regexMode: false,
 			caseSensitive: false,
+			wholeWord: false,
 		};
 		emitChange();
 	}
@@ -353,7 +356,13 @@
 		setFindText(cache.search);
 	};
 
-	const queryKey = () => JSON.stringify([cache.search, cache.options.regexMode, cache.options.caseSensitive]);
+	export const toggleWholeWordMode = () => {
+		cache.options.wholeWord = !cache.options.wholeWord;
+		searchEl.focus();
+		setFindText(cache.search);
+	};
+
+	const queryKey = () => JSON.stringify([cache.search, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord]);
 
 	export const getEditorContext = () => {
 		const context = editorSearch.getEditorContext(ownerView);
@@ -481,7 +490,7 @@
 				};
 				if (!synchronous && editorSearch.getMatchEngine) editingEngine = editorSearch.getMatchEngine(ownerView);
 				const result = !synchronous && editingEngine ? editingEngine.match(content, text, cache.options)
-					: { status: "completed" as const, matches: findTextOffsets(content, text, cache.options.regexMode, cache.options.caseSensitive), synchronous: true };
+					: { status: "completed" as const, matches: findTextOffsets(content, text, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord), synchronous: true };
 				if (result instanceof Promise) {
 					const computation = { context: activeEditor, key, window: win, scroll, direction };
 					editingComputation = computation; readingPending = true;
@@ -632,6 +641,7 @@
 			cache.options.regexMode ? adjustReplaceText(inputText) : inputText,
 			cache.options.regexMode,
 			cache.options.caseSensitive,
+			cache.options.wholeWord,
 		);
 		cache.matches = replacements.matches;
 		rememberMatches(activeEditor);
@@ -791,7 +801,7 @@
 			try {
 				emitChange(true, undefined, current);
 				const matched = synchronous ? { status: "completed" as const, matches: findTextOffsets(current.doc.toString(),
-					cache.search, options.regexMode, options.caseSensitive), synchronous: true }
+					cache.search, options.regexMode, options.caseSensitive, options.wholeWord), synchronous: true }
 					: editingEngine!.match(current.doc.toString(), cache.search, options);
 				const positioned = matched instanceof Promise ? matched.then(finishPosition) : finishPosition(matched);
 				if (positioned instanceof Promise) result.navigationCompletion = positioned.then((success) => {
@@ -808,7 +818,7 @@
 			const source = context.doc.toString();
 			let prepared: MatchResult | Promise<MatchResult>;
 			if (synchronous) {
-				const replacements = prepareReplacements(source, cache.search, replacement, options.regexMode, options.caseSensitive);
+				const replacements = prepareReplacements(source, cache.search, replacement, options.regexMode, options.caseSensitive, options.wholeWord);
 				const selectedIndex = index >= 0 && index < replacements.matches.length ? index : 0;
 				const selected = all ? undefined : replacements.one(selectedIndex);
 				prepared = { status: "completed", synchronous: true, matches: replacements.matches,
@@ -1038,7 +1048,7 @@
 			{/if}
 			<div class="finder-act">
 				<Toolbar items={searchToolbar} run={runToolbarAction} regexMode={cache.options.regexMode}
-					caseSensitive={cache.options.caseSensitive} {historyEnabled} tabindex={commonTabIndex} visible={cache.visible} />
+					caseSensitive={cache.options.caseSensitive} wholeWord={cache.options.wholeWord} {historyEnabled} tabindex={commonTabIndex} visible={cache.visible} />
 				{#if !isMobile}
 					<div
 						class="nya-btn nya-focus"
@@ -1253,7 +1263,8 @@
 			}
 			.finder-act {
 				min-width: unset;
-				width: 112px;
+				width: auto;
+				flex-shrink: 0;
 			}
 			.replacer-act {
 				min-width: unset;

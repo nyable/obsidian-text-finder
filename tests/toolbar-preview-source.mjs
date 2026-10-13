@@ -20,7 +20,7 @@ const bundle = await build({
 			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
 				if (path === "./i18n") return { contents: `export const i18n = {t: (key, values) => key + (values?.name ? ': ' + values.name : '')};` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as Replace, Component as Regex, Component as CaseSensitive, Component as History, Component as Ellipsis, Component as ChevronDown, Component as ChevronRight, Component as X};`, resolveDir: root };
+				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as History, Component as Ellipsis, Component as ChevronDown, Component as ChevronRight, Component as X};`, resolveDir: root };
 			});
 			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
 				const source = readFileSync(filename, "utf8")

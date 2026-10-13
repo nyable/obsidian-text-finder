@@ -10,6 +10,42 @@ const { ReadingSearch } = loadSource("../src/reading-search.ts", {
 });
 const options = { regexMode: false, caseSensitive: false };
 
+test("whole word uses full reading text across inline nodes, blocks and detached sections", (t) => {
+	const h = environment(["<p>ca<strong>t</strong> xca<em>t</em> cat<span>2</span> cat_name</p>", "<p>cat</p><p>cat-dog</p>"]);
+	t.after(() => { h.search.destroy(); h.dom.window.close(); });
+	const original = h.sections.map((section) => section.el.innerHTML);
+	assert.equal(h.run("cat").matches.length, 6);
+	const index = h.search.textIndex;
+	assert.equal(h.run("cat", { ...options, wholeWord: true }).matches.length, 3);
+	assert.equal(h.search.textIndex, index, "option changes reuse the full text index, not old results");
+	assert.equal([...h.dom.window.CSS.highlights.get("nya-reading-current")].map((range) => range.toString()).join(""), "cat");
+	assert.equal(h.run("c(at)", { ...options, regexMode: true, wholeWord: true }).matches.length, 3);
+	assert.equal(h.run("cat").matches.length, 6);
+	assert.deepEqual(h.sections.map((section) => section.el.innerHTML), original, "search does not rewrite rendered content");
+});
+
+test("whole word changes cancel pending reading matches and reject late results", async (t) => {
+	const h = environment(["<p>cat cat2</p>"]);
+	h.search.destroy();
+	const requests = []; let cancels = 0;
+	const matcher = { cancel() { cancels++; }, destroy() {}, match(source, query, options) {
+		return new Promise((resolve) => requests.push({ source, query, options, resolve }));
+	} };
+	const search = new ReadingSearch(h.view, () => true, () => {}, 5000, matcher);
+	t.after(() => { search.destroy(); h.dom.window.close(); });
+	const results = [];
+	search.search("cat", { ...options, wholeWord: false }, 0, false, (value) => results.push(["old", value]));
+	search.search("cat", { ...options, wholeWord: true }, 0, false, (value) => results.push(["new", value]));
+	assert.equal(requests.length, 2); assert.ok(cancels > 0);
+	const completed = (request) => ({ status: "completed", synchronous: false,
+		matches: helper.findTextOffsets(request.source, request.query, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord) });
+	requests[1].resolve(completed(requests[1])); await Promise.resolve(); await Promise.resolve();
+	assert.equal(results.at(-1)[0], "new"); assert.equal(results.at(-1)[1].matches.length, 1);
+	const count = results.length;
+	requests[0].resolve(completed(requests[0])); await Promise.resolve(); await Promise.resolve();
+	assert.equal(results.length, count);
+});
+
 function environment(html = ["<p>hello <strong>world</strong> Cat cat</p>", "<p>tail cat</p>"], sharedDom) {
 	const dom = sharedDom ?? new JSDOM("<!doctype html><html><body></body></html>");
 	const doc = dom.window.document;

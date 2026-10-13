@@ -12,6 +12,7 @@
 	export let replaceToolbar: ToolbarItem[];
 	export let defaultRegexMode = false;
 	export let defaultCaseSensitive = false;
+	export let defaultWholeWord = false;
 	export let historyEnabled = true;
 	const noop = () => {};
 	const titleId = `nya-toolbar-preview-title-${++nextPreviewId}`;
@@ -28,7 +29,7 @@
 				<div class="nya-preview-count">{i18n.t("search.tip.HasResults", { current: 1, total: 3 })}</div>
 				<div class="nya-preview-search-actions">
 					<Toolbar items={searchToolbar} run={noop} regexMode={defaultRegexMode} caseSensitive={defaultCaseSensitive}
-						{historyEnabled} preview />
+						wholeWord={defaultWholeWord} {historyEnabled} preview />
 					<div class="nya-preview-close" aria-hidden="true"><X size={18} /></div>
 				</div>
 				<div class="nya-preview-input nya-preview-replace"><span class="nya-preview-placeholder">{i18n.t("search.tip.ReplacePlaceholder")}</span></div>

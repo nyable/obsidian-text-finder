@@ -131,7 +131,7 @@ export class ReadingSearch {
 				this.clear(); done({ matches: [], index: 0, pending: false, unsupported: true }); return;
 			}
 			if (!text) { this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return; }
-			const key = JSON.stringify([text, options.regexMode, options.caseSensitive]);
+			const key = JSON.stringify([text, options.regexMode, options.caseSensitive, options.wholeWord]);
 			let request = this.request;
 			if (!request || request.key !== key || request.renderer !== r || request.file !== this.view.file) {
 				if (this.computation) this.matcher?.cancel();
@@ -205,7 +205,7 @@ export class ReadingSearch {
 			if (request.key !== this.queryKey) {
 				const textIndex = this.textIndex!;
 				const result = this.matcher && !this.synchronousRetry ? this.matcher.match(textIndex.text, request.text, request.options)
-					: { status: "completed" as const, matches: findTextOffsets(textIndex.text, request.text, request.options.regexMode, request.options.caseSensitive), synchronous: true };
+					: { status: "completed" as const, matches: findTextOffsets(textIndex.text, request.text, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord), synchronous: true };
 				this.synchronousRetry = false;
 				if (result instanceof Promise) {
 					const computation = { request, index: textIndex, doc: this.doc!, newDocument };

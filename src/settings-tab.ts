@@ -14,7 +14,7 @@ type SettingsPage = "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
 const pages: SettingsPage[] = ["find", "replace", "history", "toolbar"];
 const actionIcons: Record<ToolbarAction, string> = {
-	regex: "regex", case: "case-sensitive", previous: "arrow-up", next: "arrow-down",
+	regex: "regex", case: "case-sensitive", wholeWord: "whole-word", previous: "arrow-up", next: "arrow-down",
 	history: "history", replace: "replace", replaceAll: "replace-all",
 };
 
@@ -38,8 +38,8 @@ export class SettingTab extends PluginSettingTab {
 		this.preview?.$destroy(); this.preview = undefined; this.previewRoot = undefined;
 	}
 	private refreshPreview() {
-		const { searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, enableHistory } = this.plugin.settings;
-		this.preview?.$set({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, historyEnabled: enableHistory });
+		const { searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, enableHistory } = this.plugin.settings;
+		this.preview?.$set({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, historyEnabled: enableHistory });
 	}
 
 	constructor(app: App, public plugin: TextFinderPlugin) { super(app, plugin); }
@@ -204,6 +204,7 @@ export class SettingTab extends PluginSettingTab {
 			this.preview = new ToolbarPreview({ target: preview, props: {
 				searchToolbar: this.plugin.settings.searchToolbar, replaceToolbar: this.plugin.settings.replaceToolbar,
 				defaultRegexMode: this.plugin.settings.defaultRegexMode, defaultCaseSensitive: this.plugin.settings.defaultCaseSensitive,
+				defaultWholeWord: this.plugin.settings.defaultWholeWord,
 				historyEnabled: this.plugin.settings.enableHistory,
 			} });
 			const controls = root.ownerDocument.createElement("div"); controls.className = "nya-appearance-controls";
@@ -274,6 +275,7 @@ export class SettingTab extends PluginSettingTab {
 				const defaults = defaultSettings();
 				this.plugin.settings.defaultRegexMode = defaults.defaultRegexMode;
 				this.plugin.settings.defaultCaseSensitive = defaults.defaultCaseSensitive;
+				this.plugin.settings.defaultWholeWord = defaults.defaultWholeWord;
 			}
 			commit(defaultToolbar(kind)); render();
 		}, () => this.cleanupDrag?.());
@@ -317,8 +319,8 @@ export class SettingTab extends PluginSettingTab {
 					change: (value) => commit(this.plugin.settings[key].map((entry) => entry.id === item.id ? { ...entry, placement: value } : entry)),
 				});
 				selectControls.add(select); this.selectControls.add(select);
-				if (kind === "search" && (item.id === "regex" || item.id === "case")) {
-					const defaultKey = item.id === "regex" ? "defaultRegexMode" : "defaultCaseSensitive";
+				if (kind === "search" && (item.id === "regex" || item.id === "case" || item.id === "wholeWord")) {
+					const defaultKey = item.id === "regex" ? "defaultRegexMode" : item.id === "case" ? "defaultCaseSensitive" : "defaultWholeWord";
 					const option = new Setting(options).setName(i18n.t("settings.Toolbar.defaultEnabled"));
 					option.settingEl.classList.add("nya-toolbar-default");
 					option.addToggle((toggle) => {

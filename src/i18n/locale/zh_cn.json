@@ -26,6 +26,7 @@
       "HasResults": "第{{current}}项，共{{total}}项",
       "ToggleReplace": "切换替换",
       "MatchCase": "区分大小写",
+      "MatchWholeWord": "全字匹配",
       "UseRegularExpression": "使用正则表达式",
       "PreviousMatch": "上一个匹配项",
       "NextMatch": "下一个匹配项",
@@ -93,7 +94,7 @@
     },
     "ClearAfterHidden": {
       "name": "清空查找和替换文本",
-      "desc": "关闭查找器时清空两个输入框，保留正则和大小写选项。"
+      "desc": "关闭查找器时清空两个输入框，保留正则、大小写和全字匹配选项。"
     },
     "EnableInputHotkeys": {
       "name": "启用输入框的快捷键",
@@ -113,7 +114,7 @@
     },
     "UseObsidianSearchInRead": {
       "name": "阅读模式下使用Obsidian搜索",
-      "desc": "开启后，阅读模式的“打开查找”命令使用 Obsidian 原生查找。关闭后使用插件查找，支持大小写和正则；不兼容的环境会提示并回退原生查找。已有设置会保留。"
+      "desc": "开启后，阅读模式的“打开查找”命令使用 Obsidian 原生查找。关闭后使用插件查找，支持大小写、全字匹配和正则；不兼容的环境会提示并回退原生查找。已有设置会保留。"
     },
     "UseEscapeCharInReplace": {
       "name": "支持替换输入框中使用转义字符",

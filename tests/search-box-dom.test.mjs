@@ -40,7 +40,7 @@ const bundle = await build({
 				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
 				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value};` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
+				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
 			});
 			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
 				const source = readFileSync(filename, "utf8")
@@ -111,26 +111,76 @@ const deferred = () => {
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
 
+test("whole word toolbar toggle filters counts and synchronous replacement against the current document", async (t) => {
+	const h = mount(t); await tick();
+	h.view.editor.cm.state = EditorState.create({ doc: "cat cat2 cat_name xcat cat-dog" });
+	h.component.matchAgain(false);
+	assert.equal(h.component.getSearchCache().matches.length, 5);
+	const button = h.target.querySelector('[aria-label="search.tip.MatchWholeWord"]');
+	assert.equal(button.getAttribute("aria-pressed"), "false");
+	button.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })); await tick();
+	assert.equal(button.getAttribute("aria-pressed"), "true");
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(document.activeElement, h.target.querySelector("textarea"));
+	h.component.setVisible(false);
+	h.view.editor.cm.dispatch({ changes: { from: 0, insert: "cat2 " } });
+	const result = h.component.replaceAllMatchedText("dog");
+	assert.equal(result.changeCount, 2); assert.equal(result.changed, true);
+	assert.equal(h.view.editor.getValue(), "cat2 dog cat2 cat_name xcat dog-dog");
+	assert.equal(h.specs.filter((spec) => Array.isArray(spec.changes)).length, 1);
+});
+
+test("whole word is a checked More action and hiding it does not reset the query option", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "wholeWord" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]');
+	more.click(); await tick();
+	let option = h.target.querySelector('[role="menuitemcheckbox"]');
+	assert.equal(option.textContent.trim(), "search.tip.MatchWholeWord"); assert.equal(option.getAttribute("aria-checked"), "false");
+	option.click(); await tick();
+	assert.equal(h.component.getSearchCache().options.wholeWord, true);
+	more.click(); await tick(); option = h.target.querySelector('[role="menuitemcheckbox"]');
+	assert.equal(option.getAttribute("aria-checked"), "true");
+	h.plugin.settings.searchToolbar = h.plugin.settings.searchToolbar.map((item) => item.id === "wholeWord" ? { ...item, placement: "hidden" } : item);
+	h.component.refreshToolbar(); await tick();
+	assert.equal(h.target.querySelector('[aria-label="search.tip.MatchWholeWord"]'), null);
+	assert.equal(h.component.getSearchCache().options.wholeWord, true);
+	h.component.resetAll(); assert.equal(h.component.getSearchCache().options.wholeWord, false);
+});
+
+test("whole word changes replace pending editor queries and late results cannot publish", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher); await tick();
+	h.component.toggleWholeWordMode();
+	assert.equal(matcher.requests.length, 2); assert.equal(matcher.requests[1].options.wholeWord, true);
+	matcher.requests[1].resolve({ ...matchedCats, matches: [matchedCats.matches[0]] }); await settlePosition();
+	const count = h.specs.length, scrolls = h.scrolls.length;
+	matcher.requests[0].resolve(matchedCats); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 1);
+	assert.equal(h.specs.length, count); assert.equal(h.scrolls.length, scrolls);
+});
+
 test("finder initializes global default options once and keeps manual choices across close, file and mode changes", async (t) => {
-	const h = mount(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true });
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	const h = mount(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true, defaultWholeWord: true });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true, wholeWord: true });
 	await tick();
 	h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]').click();
 	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
+	h.target.querySelector('[aria-label="search.tip.MatchWholeWord"]').click();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false, wholeWord: false });
 	h.component.setVisible(false); h.component.setVisible(true);
 	h.view.file = { path: "b.md" }; h.component.matchAgain(false);
 	h.view.getMode = () => "preview"; h.component.setCollapse(false);
 	h.view.getMode = () => "source"; h.component.matchAgain(false);
 	h.component.refreshToolbar();
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
-	h.plugin.settings.defaultRegexMode = false; h.plugin.settings.defaultCaseSensitive = false;
-	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false, wholeWord: false });
+	h.plugin.settings.defaultRegexMode = false; h.plugin.settings.defaultCaseSensitive = false; h.plugin.settings.defaultWholeWord = false;
+	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode(); h.component.toggleWholeWordMode();
 	h.component.refreshToolbar();
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true, wholeWord: true });
 	const fresh = mount(t, undefined, h.plugin.settings);
-	assert.deepEqual(fresh.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true }, "same-file owners stay independent");
+	assert.deepEqual(fresh.component.getSearchCache().options, { regexMode: false, caseSensitive: false, wholeWord: false });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true, wholeWord: true }, "same-file owners stay independent");
 });
 
 function delayedMatcher() {
@@ -190,6 +240,8 @@ test("all replacement is one immutable CodeMirror transaction with inverse undo/
 for (const [name, invalidate] of [
 	["query away and back", (h) => { h.component.setFindText("dog", false); h.component.setFindText("cat", false); }],
 	["option change", (h) => { h.component.getSearchCache().options.regexMode = true; }],
+	["whole word identity change", (h) => { h.component.getSearchCache().options.wholeWord = true; }],
+	["whole word toggle away and back", (h) => { h.component.toggleWholeWordMode(); h.component.toggleWholeWordMode(); }],
 	["document edit", (h) => { h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false); }],
 	["equal-text new doc", (h) => { h.view.editor.cm.state = EditorState.create({ doc: "cat cat" }); }],
 	["file identity", (h) => { h.view.file = { path: "a.md" }; }],
@@ -283,6 +335,23 @@ test("production Worker drives single and all component replacements including p
 	h.component.setVisible(false); assert.equal(host.blobs.size, 0);
 });
 
+test("production Worker whole word filters both single and all replacements and post-commit counts", async (t) => {
+	const host = installWorkerHost(window), engine = new MatchEngine(() => window);
+	t.after(async () => { engine.destroy(); await host.dispose(); delete window.Worker; });
+	const h = mount(t, engine, { defaultWholeWord: true }), initial = engine.pending;
+	await new Promise((resolve) => { const original = initial.resolve; initial.resolve = (value) => { original(value); resolve(); }; });
+	await settlePosition();
+	h.view.editor.cm.state = EditorState.create({ doc: "cat2 cat cat_name cat" });
+	h.component.getSearchCache().replace = "dog";
+	const one = await h.component.replaceOnce();
+	assert.equal(one.changeCount, 1); assert.equal(one.beforeCount, 2);
+	await one.navigationCompletion;
+	assert.equal(one.afterCount, 1); assert.equal(h.view.editor.getValue(), "cat2 dog cat_name cat");
+	const all = await h.component.replaceAllMatchedText("dog"); await all.navigationCompletion;
+	assert.equal(all.changeCount, 1); assert.equal(all.afterCount, 0);
+	assert.equal(h.view.editor.getValue(), "cat2 dog cat_name dog");
+});
+
 test("post-commit host positioning rejection never advances and keeps applied write", async (t) => {
 	const h = await mountReplacement(t), position = deferred(), errors = [];
 	h.view.setState = () => position.promise; h.plugin.reportError = (key) => errors.push(key);
@@ -304,6 +373,7 @@ test("normal replacement retry recomputes candidates in Worker and does not sile
 for (const [name, invalidate] of [
 	["document edit", (h) => { h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false); }],
 	["query change", (h) => h.component.setFindText("dog", false)],
+	["whole word toggle", (h) => h.component.toggleWholeWordMode()],
 	["file change", (h) => { h.view.file = { path: "b.md" }; h.component.matchAgain(false); }],
 	["editor rebuild", (h) => { h.view.editor.cm = { state: EditorState.create({ doc: "cat! cat" }), dispatch() {} }; h.component.matchAgain(false); }],
 	["destroy", (h) => h.component.$destroy()],
@@ -579,9 +649,20 @@ function mountReading(t, matcher, settings = {}) {
 	return { component, target, preview, view, sections, plugin, scrolls, renderer, search };
 }
 
+test("reading whole word control uses logical boundaries, not inline formatting boundaries", async (t) => {
+	const h = mountReading(t); await tick();
+	h.sections[0].el.innerHTML = "<p>ca<strong>t</strong> cat<span>2</span> xcat cat_name</p>";
+	h.component.matchAgain(false); assert.equal(h.component.getSearchCache().matches.length, 5);
+	h.target.querySelector('[aria-label="search.tip.MatchWholeWord"]').click(); await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.component.getSearchCache().options.wholeWord, true);
+	h.component.toNextMatch(); await tick();
+	assert.equal(h.scrolls.at(-1), h.sections[1]);
+});
+
 test("reading finder initializes defaults and preserves manual options across actual mode changes", async (t) => {
-	const h = mountReading(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true }); await tick();
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	const h = mountReading(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true, defaultWholeWord: true }); await tick();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true, wholeWord: true });
 	assert.equal(h.component.getSearchCache().matches.length, 2);
 	h.component.setFindText("c.t", false); await tick();
 	assert.equal(h.component.getSearchCache().matches.length, 2, "default regex is used by the reading matcher");
@@ -589,7 +670,7 @@ test("reading finder initializes defaults and preserves manual options across ac
 	h.view.getMode = () => "source"; h.component.matchAgain(false); await tick();
 	h.view.getMode = () => "preview"; h.component.matchAgain(false); await tick();
 	h.component.setVisible(false); h.component.setVisible(true); await tick();
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: false });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: false, wholeWord: true });
 	assert.equal(h.component.getSearchCache().matches.length, 3);
 });
 
@@ -915,7 +996,7 @@ test("history reuse navigates from its new sorted position after usage reorders"
 test("default toolbar keeps order, button geometry and active styling without More", async (t) => {
 	const h = mount(t); await tick();
 	assert.deepEqual([...h.target.querySelectorAll('.finder-act [role="button"]')].map((el) => el.getAttribute("aria-label")),
-		["search.tip.UseRegularExpression", "search.tip.MatchCase", "search.tip.PreviousMatch", "search.tip.NextMatch", "search.tip.Close"]);
+		["search.tip.UseRegularExpression", "search.tip.MatchCase", "search.tip.MatchWholeWord", "search.tip.PreviousMatch", "search.tip.NextMatch", "search.tip.Close"]);
 	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]'), null);
 	const button = h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]');
 	const style = window.getComputedStyle(button);
@@ -925,6 +1006,15 @@ test("default toolbar keeps order, button geometry and active styling without Mo
 	assert.equal(button.getAttribute("aria-pressed"), "true");
 	assert.equal(window.getComputedStyle(button).backgroundColor, "rgba(36, 137, 219, 0.51)");
 	button.click(); await tick(); assert.ok(!button.classList.contains("nya-btn--active"));
+});
+
+test("mobile search actions size to their buttons rather than the old four-button width", async (t) => {
+	const h = mount(t); await tick();
+	document.body.classList.add("is-mobile"); h.target.querySelector(".nya-finder").classList.add("nya-mobile");
+	t.after(() => document.body.classList.remove("is-mobile"));
+	const style = window.getComputedStyle(h.target.querySelector(".finder-act"));
+	assert.equal(style.width, "auto"); assert.equal(style.flexShrink, "0");
+	assert.equal(window.getComputedStyle(h.target.querySelector(".replacer-act")).width, "112px");
 });
 
 test("configured toolbars update immediately, More toggles preserve state and Escape does not close Finder", async (t) => {
@@ -1087,9 +1177,9 @@ for (const [name, vault, expected] of [
 	});
 }
 
-test("close clears both inputs only when configured, preserving regex and case preferences", async (t) => {
+test("close clears both inputs only when configured, preserving all match preferences", async (t) => {
 	const h = mount(t); await tick();
-	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode();
+	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode(); h.component.toggleWholeWordMode();
 	h.component.getSearchCache().replace = "dog";
 	h.component.closeFinder();
 	assert.equal(h.component.getSearchCache().search, "cat");
@@ -1098,7 +1188,7 @@ test("close clears both inputs only when configured, preserving regex and case p
 	h.component.closeFinder(); await tick();
 	assert.equal(h.component.getSearchCache().search, "");
 	assert.equal(h.component.getSearchCache().replace, "");
-	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true, wholeWord: true });
 	h.component.setVisible(true); assert.equal(h.component.getSearchCache().replace, "");
 });
 

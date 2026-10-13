@@ -25,11 +25,12 @@
 
 ## 查找与替换
 
-- 输入即重新匹配；支持大小写选项、数量、当前项、循环导航及高亮。
+- 输入即重新匹配；支持大小写、全字匹配选项、数量、当前项、循环导航及高亮。
 - 编辑／阅读查找优先在所属窗口的 Worker 执行匹配，不限制正则语法或匹配数量。启动不可用时提示并使用同步兼容路径；执行中故障显示错误，不自动在主线程重跑。用户可明确选择同步重试。
 - 替换候选与替换后重算同样优先 Worker；正文写入仍为同步 CodeMirror 事务。阅读 DOM 索引／端点／绘制、结果解码和事务仍在主线程，不能承诺所有操作都不会阻塞。
 - 普通文本按字面量搜索，非重叠匹配；不先把原文转成小写，偏移为原文 UTF-16 坐标。
-- 正则使用 JavaScript `RegExp`，flags 为 `g`、正则模式下的 `m` 和大小写不敏感时的 `i`。没有单独 flags 输入或整词选项。
+- 正则使用 JavaScript `RegExp`，flags 为 `g`、正则模式下的 `m` 和大小写不敏感时的 `i`。没有单独 flags 输入；全字匹配可与正则组合。
+- 全字匹配默认关闭，在共享匹配循环中按 VS Code 默认 `editor.wordSeparators` 过滤完整匹配的两端，不改写正则、捕获组或 UTF-16 坐标。首尾、空格／Tab／CR／LF 和默认 ASCII 分隔标点构成边界；匹配自身首尾的分隔符也满足对应边界。下划线、全角标点、NBSP、中文及组合标记不作为分隔符，不执行中文分词。例如 `cat` 匹配 `cat-dog` 但不匹配 `cat_name`，`中文` 不匹配 `中文内容`，`C++` 匹配 `C++17`。编辑／阅读／替换及 Worker／同步路径共用判定。
 - 空查询、空正文、无结果、无效正则均返回空匹配；零宽匹配不计数、不替换。无效正则当前没有独立语法错误界面。
 - 单次替换和全部替换基于当前原文重新计算。全部替换通过一个 CodeMirror changes 事务提交，不递归处理新插入文本。
 - 单次替换只展开目标模板，不预先创建所有候选插入文本；不限制既有捕获、前缀／后缀或转义能力。
@@ -37,6 +38,10 @@
 - 正则模式且转义设置开启时，替换输入单次解析 `\n`、`\t`、`\\`；未知转义、末尾反斜杠和真实 NUL 保留。普通文本替换不展开美元模板或反斜杠转义。
 
 依据：`src/util/text-helper.ts` 的 `findTextMatches()`／`prepareReplacements()`／`expandReplacement()`；`src/SearchBox.svelte` 的 `adjustReplaceText()`／`replaceText()`。回归：`tests/text-helper.test.mjs`、`tests/regex-replacement.test.mjs`、`tests/replacement.test.mjs`。
+
+全字边界依据：`src/util/text-helper.ts:isWholeWordMatch()`；上游对照 [VS Code `isValidMatch()`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/model/textModelSearch.ts) 和 [`USUAL_WORD_SEPARATORS`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/core/wordHelper.ts)。这是默认边界规则对照，不表示整个正则引擎／flags 与 VS Code 完全一致。
+
+多行边界细节：CR／LF 在匹配范围外时形成边界；若换行本身属于匹配首尾，不单凭该换行放行，需要继续满足外侧字符／正文首尾边界。回归见 `tests/text-helper.test.mjs` 的多行样例。
 
 ## 阅读模式正文
 
@@ -58,7 +63,7 @@
 - 禁用历史保留已有记录，停止记录／统计及输入框上下键历史导航；命令仍可打开弹窗，已有记录仍可操作。工具栏历史按钮禁用。
 - 搜索／替换工具栏分别支持顺序及 `inline`（常驻）、`more`（更多）、`hidden`（隐藏）；隐藏按钮不移除命令能力。
 - 支持拖动、上下按钮、手柄方向键排序和单栏恢复默认；关闭按钮与展开替换入口固定。
-- “外观”设置页顶部固定完整实时纯展示预览，下方颜色及工具栏配置独立滚动；颜色、搜索栏按钮、替换栏按钮三个分组可独立折叠，默认全部折叠，预览始终展开两行，无任何操作。分类 Tab 提供悬停、选中、按下及键盘聚焦样式。每个按钮使用独立配置块，左侧整高拖动区，上层身份／排序、下层显示位置／默认开关；正则及大小写项支持默认开启。分组标题旁的回退图标提示“恢复默认设置”，点击直接恢复，仅作用于本组；搜索栏同时恢复布局及两个默认选项，替换栏仅恢复布局，不改变已有 Finder 或颜色。颜色整组和单项恢复也直接执行，无确认框，统一提示“已恢复默认设置”。
+- “外观”设置页顶部固定完整实时纯展示预览，下方颜色及工具栏配置独立滚动；颜色、搜索栏按钮、替换栏按钮三个分组可独立折叠，默认全部折叠，预览始终展开两行，无任何操作。分类 Tab 提供悬停、选中、按下及键盘聚焦样式。每个按钮使用独立配置块，左侧整高拖动区，上层身份／排序、下层显示位置／默认开关；正则、大小写及全字匹配项支持默认开启。分组标题旁的回退图标提示“恢复默认设置”，点击直接恢复，仅作用于本组；搜索栏同时恢复布局及三个默认选项，替换栏仅恢复布局，不改变已有 Finder 或颜色。颜色整组和单项恢复也直接执行，无确认框，统一提示“已恢复默认设置”。
 - 外观页按钮显示位置使用主题化自定义下拉，支持鼠标／键盘、当前项勾选和视口边缘上翻；导航不修改配置，明确选择不同值才保存，保持现有显示位置含义。“默认开启”文字与开关采用局部居中布局；历史分类的排序下拉不变。依据：`src/settings-select.ts`、`src/settings-tab.ts`、`tests/settings-select.test.mjs`、`tests/main-settings.test.mjs`。
 - 预览查找词固定为 `text`，替换框无内容、显示 placeholder；下方正文区随文字实际行数自适应高度，以固定英文展示一个当前匹配和两个普通匹配，复用编辑高亮的 CSS 类及颜色变量，不执行真实匹配。
 - 外观页提供聚焦边框／装饰条、普通匹配背景／文字、当前匹配背景／文字六项颜色；点击色块打开 vanilla-colorful 的颜色／色相／透明度面板，支持 alpha 十六进制输入。调色只更新预览草稿，点击“应用”才一次更新真实编辑／阅读样式及保存；取消或离开页面丢弃草稿。单项或颜色分组恢复移除覆盖，继续继承 CSS snippet／Style Settings／主题，不影响工具栏配置。
@@ -81,10 +86,11 @@
 | 历史 | `enableHistory` | 默认开启 |
 | 历史 | `historyMaxCount` | 默认 10；1–200，Enter／blur 提交 |
 | 历史 | `historySortOrder` | 默认 `lastUsedAt` |
-| 外观 | `searchToolbar` | 正则、大小写、上一项、下一项常驻；历史隐藏 |
+| 外观 | `searchToolbar` | 新安装正则、大小写、全字匹配、上一项、下一项常驻；历史隐藏。旧布局保留顺序及位置并追加缺失新动作 |
 | 外观 | `replaceToolbar` | 单次替换、全部替换常驻 |
 | 外观 | `defaultRegexMode` | 默认关闭；仅初始化新建视图查找器的正则选项 |
 | 外观 | `defaultCaseSensitive` | 默认关闭；仅初始化新建视图查找器的大小写选项 |
+| 外观 | `defaultWholeWord` | 默认关闭；仅初始化新建视图查找器的全字匹配选项 |
 | 外观 | `appearanceColors` | 默认 `{}`，仅保存显式设置的六项十六进制颜色；空项目继续继承现有公开 CSS 变量 |
 
 设置页控件是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现；预览挂载 `src/ToolbarPreview.svelte` 并复用 `src/Toolbar.svelte`。依据：`src/settings-tab.ts`。

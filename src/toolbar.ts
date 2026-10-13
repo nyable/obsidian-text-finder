@@ -1,17 +1,18 @@
 export type ToolbarKind = "search" | "replace";
 export type ToolbarPlacement = "inline" | "more" | "hidden";
-export type ToolbarAction = "regex" | "case" | "previous" | "next" | "history" | "replace" | "replaceAll";
+export type ToolbarAction = "regex" | "case" | "wholeWord" | "previous" | "next" | "history" | "replace" | "replaceAll";
 export interface ToolbarItem { id: ToolbarAction; placement: ToolbarPlacement; }
 
 export const toolbarLabels: Record<ToolbarAction, string> = {
 	regex: "search.tip.UseRegularExpression", case: "search.tip.MatchCase",
+	wholeWord: "search.tip.MatchWholeWord",
 	previous: "search.tip.PreviousMatch", next: "search.tip.NextMatch",
 	history: "commands.ShowSearchHistory.name", replace: "search.tip.Replace", replaceAll: "search.tip.ReplaceAll",
 };
 
 export function defaultToolbar(kind: ToolbarKind): ToolbarItem[] {
 	return kind === "search"
-		? ["regex", "case", "previous", "next", "history"].map((id) => ({ id: id as ToolbarAction, placement: id === "history" ? "hidden" : "inline" }))
+		? ["regex", "case", "wholeWord", "previous", "next", "history"].map((id) => ({ id: id as ToolbarAction, placement: id === "history" ? "hidden" : "inline" }))
 		: ["replace", "replaceAll"].map((id) => ({ id: id as ToolbarAction, placement: "inline" }));
 }
 

@@ -19,6 +19,7 @@ export interface PluginSettings {
 	replaceToolbar: ToolbarItem[];
 	defaultRegexMode: boolean;
 	defaultCaseSensitive: boolean;
+	defaultWholeWord: boolean;
 	appearanceColors: AppearanceColors;
 }
 
@@ -29,7 +30,7 @@ export function defaultSettings(): PluginSettings {
 		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
-		defaultRegexMode: false, defaultCaseSensitive: false,
+		defaultRegexMode: false, defaultCaseSensitive: false, defaultWholeWord: false,
 		appearanceColors: {},
 	};
 }
@@ -41,7 +42,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	for (const key of [
 		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
 		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
-		"defaultRegexMode", "defaultCaseSensitive",
+		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord",
 	] as const) {
 		if (typeof input[key] === "boolean") settings[key] = input[key];
 	}

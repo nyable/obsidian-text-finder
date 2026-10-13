@@ -24,6 +24,8 @@ interface SearchOptions {
 	 * 启用大小写敏感
 	 */
 	caseSensitive: boolean;
+	/** Check both match boundaries with VS Code's default word separators. */
+	wholeWord: boolean;
 }
 
 interface SearchCache {

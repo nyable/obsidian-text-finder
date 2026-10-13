@@ -32,8 +32,9 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 桌面 Finder | 绝对定位 top 88px／right 48px；展开 72px、折叠 38px；4px 圆角、阴影、边框；隐藏 transform／opacity 动画，同时同步 visibility | `src/SearchBox.svelte` 的 `.nya-finder`／`syncFinderVisibility()` |
 | 输入与按钮 | 输入高 28px、桌面最小宽 177px；图标 18px；工具栏按钮 24×24px、margin 2px、padding 4px | `src/SearchBox.svelte`、`src/Toolbar.svelte` |
 | 默认／自定义布局 | 默认替换行测量当前计数和操作区做补偿；自定义工具栏用 Grid，阅读／移动／折叠不使用默认补偿 | `src/SearchBox.svelte:alignRows()` 及 `.nya-finder--custom-toolbar` |
-| 移动布局 | 居中，最大 416px；输入最小宽 100px；计数和关闭浮置上方；单独的操作区布局 | `src/SearchBox.svelte` 的 `.is-mobile` 样式 |
+| 移动布局 | 居中，最大 416px；输入最小宽 100px；计数和关闭浮置上方；查找操作区按内容宽度、不收缩，替换操作区保留 112px；单独的操作区布局 | `src/SearchBox.svelte` 的 `.is-mobile` 样式；jsdom 尺寸规则检查不代替触屏／窄宽实测 |
 | More | 右侧绝对定位，最小宽 180px、最大受视口限制；菜单与选项状态样式 | `src/Toolbar.svelte` |
+| 全字匹配控件 | `WholeWord`／`whole-word` 图标，复用既有 18px 图标、按钮几何、激活／聚焦和 More 勾选样式；新默认顺序为正则、大小写、全字匹配、上一项、下一项。设置支持默认开启和纯展示激活预览；不改变公开宽度变量 | `src/toolbar.ts`、`src/Toolbar.svelte`、`src/settings-tab.ts`、`src/ToolbarPreview.svelte`；窄分屏、移动端与宿主悬浮提示待实测 |
 | 查找状态 | 编辑／阅读均使用面板外部提示，空间不足时上翻；等待文案不拦截指针，取消／重试／同步重试操作可点击 | `src/SearchStatus.svelte:position()` 及样式 |
 | 替换状态 | 候选计算显示尚未写入；提交后重算显示已完成、取消不撤销；失败文案区分提交前和提交后 | `src/SearchBox.svelte:replaceInWorker()`、`src/SearchStatus.svelte` |
 | 历史 | 容器 70vh／padding 24px；列表内部滚动、查询两行截断、选中高亮；操作在 hover／focus-within 显示，无 hover 设备常显 | `src/HistoryModal.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte` |
@@ -60,7 +61,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 | 分类 | 主要状态 | 源码依据 |
 | --- | --- | --- |
-| 编辑查找 | 空查询、有结果、非空无结果；输入 focus；正则／大小写激活 | `src/SearchBox.svelte` |
+| 编辑查找 | 空查询、有结果、非空无结果；输入 focus；正则／大小写／全字匹配激活 | `src/SearchBox.svelte` |
 | 编辑替换 | 展开、替换 focus、替换后当前项；计数从长变短后的行对齐 | `src/SearchBox.svelte:replaceOnce()`／`alignRows()` |
 | 自定义工具栏 | 重排、More 展开／勾选、历史禁用；隐藏操作后固定入口仍存在 | `src/Toolbar.svelte`、`src/toolbar.ts` |
 | 阅读查找 | 无替换入口；普通／当前高亮；跨格式／跨块结果；导航展开目标正文 | `src/reading-search.ts`、`src/reading-text.ts` |

@@ -390,7 +390,7 @@ test("toolbar defaults update the real preview and restore defaults resets only 
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
 	const root = tab.containerEl, preview = root.querySelector(".nya-toolbar-preview");
 	const row = (id) => root.querySelector(`[data-action="${id}"]`);
-	assert.equal(root.querySelectorAll(".nya-toolbar-default").length, 2);
+	assert.equal(root.querySelectorAll(".nya-toolbar-default").length, 3);
 	const regex = row("regex").querySelector(".nya-toolbar-default button");
 	regex.click(); await tick();
 	assert.equal(p.settings.defaultRegexMode, true);
@@ -401,23 +401,30 @@ test("toolbar defaults update the real preview and restore defaults resets only 
 	assert.equal(preview.querySelector('[data-preview-action="regex"]'), null);
 	assert.equal(p.settings.defaultRegexMode, true);
 	row("case").querySelector(".nya-toolbar-default button").click();
+	row("wholeWord").querySelector(".nya-toolbar-default button").click(); await tick();
+	assert.equal(p.settings.defaultWholeWord, true);
+	assert.equal(preview.querySelector('[data-preview-action="wholeWord"]').dataset.active, "true");
 	setPlacement(root, 'replace', 'more');
 	await p.flushSettings();
 	resetSection(root.querySelectorAll(".nya-toolbar-settings")[1]); await tick(); await p.flushSettings();
 	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, true, "replace reset does not reset search defaults");
+	assert.equal(p.settings.defaultWholeWord, true);
 	assert.equal(p.settings.searchToolbar[0].placement, "hidden");
 	assert.deepEqual(p.settings.replaceToolbar, toolbarSource.defaultToolbar("replace"));
 	setPlacement(root, 'replace', 'more');
 	await p.flushSettings(); const writes = p.writes.length;
 	resetSection(root.querySelector(".nya-toolbar-settings")); await tick();
 	assert.equal(p.settings.defaultRegexMode, false); assert.equal(p.settings.defaultCaseSensitive, false);
+	assert.equal(p.settings.defaultWholeWord, false);
 	assert.deepEqual(p.settings.searchToolbar, toolbarSource.defaultToolbar("search"));
 	assert.equal(p.settings.replaceToolbar[0].placement, "more", "search reset leaves replace configuration unchanged");
 	assert.equal(row("regex").querySelector(".nya-toolbar-warning"), null);
 	assert.equal(preview.querySelector('[data-preview-action="regex"]').dataset.active, "false");
+	assert.equal(preview.querySelector('[data-preview-action="wholeWord"]').dataset.active, "false");
 	await p.flushSettings();
 	assert.equal(p.writes.length, writes + 1, "reset saves layout and default options together");
 	assert.equal(p.writes.at(-1).defaultRegexMode, false); assert.equal(p.writes.at(-1).defaultCaseSensitive, false);
+	assert.equal(p.writes.at(-1).defaultWholeWord, false);
 	p.data = p.writes.at(-1); await p.loadSettings();
 	assert.equal(p.settings.defaultRegexMode, false);
 	tab.hide();
@@ -442,6 +449,8 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	doc.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true })); await tick();
 	assert.equal(preview().querySelector('[role="menu"]'), null);
 	preview().querySelector('[data-preview-action="case"]').click(); await tick();
+	preview().querySelector('[data-preview-action="wholeWord"]').click(); await tick();
+	assert.equal(p.settings.defaultWholeWord, false);
 	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, false);
 	assert.equal(p.writes.length, saved, "inspecting preview never saves settings");
 	assert.equal(preview().querySelectorAll(".nya-preview-input").length, 2);
@@ -451,7 +460,7 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	trigger.focus(); assert.notEqual(doc.activeElement, trigger);
 	root.querySelector('[data-action="next"] [data-control="up"]').click(); await tick();
 	const actions = [...preview().querySelectorAll('.nya-preview-search-actions .nya-toolbar > span')].map((button) => button.dataset.previewAction);
-	assert.deepEqual(actions, ["case", "next", "previous", "more"]);
+	assert.deepEqual(actions, ["case", "wholeWord", "next", "previous", "more"]);
 	assert.ok(p.writes.length >= writes);
 	assert.equal(listeners.size, 0, "presentation does not register pointer listeners");
 	tab.hide(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
@@ -466,7 +475,7 @@ test("toolbar blocks separate identity/reorder from configuration and omit expla
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
 	const root = tab.containerEl;
 	assert.equal(root.querySelectorAll('.nya-settings-panel p').length, 0);
-	const blocks = [...root.querySelectorAll('.nya-toolbar-row')]; assert.equal(blocks.length, 7);
+	const blocks = [...root.querySelectorAll('.nya-toolbar-row')]; assert.equal(blocks.length, 8);
 	for (const block of blocks) {
 		const header = block.querySelector('.nya-toolbar-row-controls'), options = block.querySelector('.nya-toolbar-row-options');
 		assert.ok(header.querySelector('.nya-toolbar-name'));
@@ -479,7 +488,7 @@ test("toolbar blocks separate identity/reorder from configuration and omit expla
 		assert.equal(options.querySelector('[role="combobox"]').dataset.width, 'content');
 		assert.equal(options.querySelector('.nya-toolbar-placement').children.length, 1, "only the select trigger is shown");
 		assert.equal(options.querySelector('.nya-toolbar-select-arrow').dataset.icon, "chevron-down");
-		assert.equal(options.querySelectorAll('.nya-toolbar-default').length, ['regex', 'case'].includes(block.dataset.action) ? 1 : 0);
+		assert.equal(options.querySelectorAll('.nya-toolbar-default').length, ['regex', 'case', 'wholeWord'].includes(block.dataset.action) ? 1 : 0);
 	}
 	assert.ok(root.querySelector('.nya-toolbar-default button').title, "default timing remains available as a tooltip");
 	tab.hide();
@@ -813,7 +822,7 @@ test("mouse/touch pointer drag previews insertion, saves once on drop and cancel
 	assert.equal(p.settings.searchToolbar[0].id, "regex");
 	assert.equal(p.writes.length, writes);
 	pointer(root.ownerDocument, "pointerup", 100);
-	assert.deepEqual(p.settings.searchToolbar.slice(0, 3).map((i) => i.id), ["case", "previous", "regex"]);
+	assert.deepEqual(p.settings.searchToolbar.slice(0, 3).map((i) => i.id), ["case", "wholeWord", "regex"]);
 	await p.flushSettings(); assert.equal(p.writes.length, writes + 1);
 	for (const cancel of ["escape", "pointercancel", "hide", "switch"]) {
 		mockRects(); const before = JSON.stringify(p.settings.searchToolbar);
