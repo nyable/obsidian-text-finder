@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting, setIcon, setTooltip } from "obsidian";
 import type TextFinderPlugin from "./main";
 import { defaultSettings, type PluginSettings } from "./settings";
 import { i18n } from "./i18n";
@@ -17,12 +17,17 @@ const actionIcons: Record<ToolbarAction, string> = {
 	history: "history", replace: "replace", replaceAll: "replace-all",
 };
 
+let nextSettingsId = 0;
+
 export class SettingTab extends PluginSettingTab {
 	private page: SettingsPage = "find";
 	private cleanupDrag?: () => void;
 	private preview?: ToolbarPreview;
 	private previewRoot?: HTMLElement;
 	private cleanupColor?: () => void;
+	private labelId = `nya-settings-categories-${++nextSettingsId}`;
+	private collapsed = new Set<"colors" | ToolbarKind>(["colors", "search", "replace"]);
+	private sectionId = 0;
 
 	private clearPreview() {
 		this.cleanupColor?.(); this.cleanupColor = undefined;
@@ -49,7 +54,10 @@ export class SettingTab extends PluginSettingTab {
 		const tabs = doc.createElement("div");
 		tabs.className = "nya-settings-tabs";
 		tabs.setAttribute("role", "tablist");
-		tabs.setAttribute("aria-label", i18n.t("settings.Tabs.label"));
+		// Obsidian turns aria-label into hover tooltips, even on containers.
+		const tabsLabel = doc.createElement("span"); tabsLabel.id = this.labelId; tabsLabel.className = "nya-settings-sr";
+		tabsLabel.textContent = i18n.t("settings.Tabs.label"); layout.append(tabsLabel);
+		tabs.setAttribute("aria-labelledby", tabsLabel.id);
 		layout.append(tabs);
 		const panel = doc.createElement("div");
 		panel.className = "nya-settings-panel";
@@ -98,9 +106,46 @@ export class SettingTab extends PluginSettingTab {
 	hide() {
 		this.cleanupDrag?.();
 		this.clearPreview();
+		this.collapsed = new Set(["colors", "search", "replace"]);
 		this.containerEl.classList.remove("nya-settings--appearance");
 		const focused = this.containerEl.ownerDocument.activeElement;
 		if (focused && this.containerEl.contains(focused)) (focused as HTMLElement).blur();
+	}
+
+	private reset(trigger: HTMLButtonElement, action: () => void) {
+		if (!this.preview || this.page !== "toolbar" || !trigger.isConnected || !this.containerEl.contains(trigger)) return;
+		this.cleanupColor?.(); this.cleanupDrag?.(); action();
+		// Settings have been restored in memory; persistence is queued separately.
+		new Notice(i18n.t("settings.Toolbar.resetDone"), 2000);
+	}
+
+	private section(root: HTMLElement, kind: "colors" | ToolbarKind, className: string, title: string,
+		reset: () => void, cancelGesture: () => void) {
+		const doc = root.ownerDocument;
+		const section = doc.createElement("section"); section.className = className; section.dataset.section = kind; root.append(section);
+		const header = doc.createElement("div"); header.className = "nya-settings-section-header"; section.append(header);
+		const heading = doc.createElement("h3"); header.append(heading);
+		const toggle = doc.createElement("button"); toggle.type = "button"; toggle.className = "nya-settings-section-toggle"; heading.append(toggle);
+		const arrow = doc.createElement("span"); arrow.className = "nya-settings-section-arrow"; arrow.setAttribute("aria-hidden", "true");
+		setIcon(arrow, "chevron-down"); toggle.append(arrow);
+		const label = doc.createElement("span"); label.textContent = title; toggle.append(label);
+		const restore = doc.createElement("button"); restore.type = "button"; restore.className = "nya-settings-section-reset";
+		restore.setAttribute("aria-label", i18n.t("settings.Toolbar.reset"));
+		setIcon(restore, "undo-2"); setTooltip(restore, i18n.t("settings.Toolbar.reset")); header.append(restore);
+		restore.addEventListener("click", () => this.reset(restore, reset));
+		const body = doc.createElement("div"); body.className = "nya-settings-section-body";
+		body.id = `nya-settings-section-${kind}-${++this.sectionId}`; section.append(body); toggle.setAttribute("aria-controls", body.id);
+		const sync = () => { body.hidden = this.collapsed.has(kind); toggle.setAttribute("aria-expanded", String(!body.hidden)); };
+		toggle.addEventListener("click", () => {
+			if (this.collapsed.has(kind)) this.collapsed.delete(kind);
+			else {
+				cancelGesture();
+				if (body.contains(doc.activeElement)) toggle.focus();
+				this.collapsed.add(kind);
+			}
+			sync();
+		});
+		sync(); return body;
 	}
 
 	private toggle(root: HTMLElement, key: ToggleKey, name: string) {
@@ -158,7 +203,7 @@ export class SettingTab extends PluginSettingTab {
 			} });
 			const controls = root.ownerDocument.createElement("div"); controls.className = "nya-appearance-controls";
 			controls.tabIndex = 0; controls.setAttribute("role", "region");
-			controls.setAttribute("aria-label", i18n.t("settings.Tabs.toolbar")); root.append(controls);
+			controls.setAttribute("aria-labelledby", "nya-settings-tab-toolbar"); root.append(controls);
 			this.colors(controls);
 			this.toolbar(controls, "search"); this.toolbar(controls, "replace");
 		}
@@ -166,9 +211,11 @@ export class SettingTab extends PluginSettingTab {
 
 	private colors(root: HTMLElement) {
 		const doc = root.ownerDocument;
-		const section = doc.createElement("section"); section.className = "nya-color-settings"; root.append(section);
-		const title = doc.createElement("h3"); title.textContent = i18n.t("settings.Appearance.colors"); section.append(title);
 		const updates = new Map<AppearanceColorKey, () => void>();
+		const section = this.section(root, "colors", "nya-color-settings", i18n.t("settings.Appearance.colors"), () => {
+			this.plugin.settings.appearanceColors = {};
+			this.plugin.refreshAppearance(); updates.forEach((update) => update()); this.plugin.requestSaveSettings();
+		}, () => this.cleanupColor?.());
 		const commit = (key: AppearanceColorKey, color: string | null) => {
 			if (color === null) delete this.plugin.settings.appearanceColors[key];
 			else this.plugin.settings.appearanceColors[key] = color;
@@ -189,7 +236,7 @@ export class SettingTab extends PluginSettingTab {
 				const value = doc.createElement("span"); value.className = "nya-color-code"; controls.append(value);
 				const reset = doc.createElement("button"); reset.type = "button"; reset.className = "nya-color-reset";
 				reset.setAttribute("aria-label", i18n.t("settings.Appearance.resetColor", { name: accessibleName }));
-				reset.title = i18n.t("settings.Appearance.resetColor", { name: accessibleName }); setIcon(reset, "rotate-ccw"); controls.append(reset);
+				setTooltip(reset, i18n.t("settings.Toolbar.reset")); setIcon(reset, "undo-2"); controls.append(reset);
 				let current = "";
 				const update = () => {
 					current = this.plugin.settings.appearanceColors[key] ?? resolvedAppearanceColor(root, key);
@@ -209,22 +256,21 @@ export class SettingTab extends PluginSettingTab {
 						apply: (color) => { if (this.plugin.settings.appearanceColors[key] !== color) commit(key, color); update(); },
 					});
 				});
-				reset.addEventListener("click", () => { this.cleanupColor?.(); commit(key, null); update(); });
+				reset.addEventListener("click", () => this.reset(reset, () => { commit(key, null); update(); }));
 			}
 		}
-		const reset = doc.createElement("button"); reset.type = "button"; reset.textContent = i18n.t("settings.Toolbar.reset"); section.append(reset);
-		reset.addEventListener("click", () => {
-			this.cleanupColor?.();
-			this.plugin.settings.appearanceColors = {};
-			this.plugin.refreshAppearance(); updates.forEach((update) => update()); this.plugin.requestSaveSettings();
-		});
 	}
 
 	private toolbar(root: HTMLElement, kind: ToolbarKind) {
 		const doc = root.ownerDocument;
-		const section = doc.createElement("section");
-		section.className = "nya-toolbar-settings"; root.append(section);
-		const title = doc.createElement("h3"); title.textContent = i18n.t(`settings.Toolbar.${kind}`); section.append(title);
+		const section = this.section(root, kind, "nya-toolbar-settings", i18n.t(`settings.Toolbar.${kind}`), () => {
+			if (kind === "search") {
+				const defaults = defaultSettings();
+				this.plugin.settings.defaultRegexMode = defaults.defaultRegexMode;
+				this.plugin.settings.defaultCaseSensitive = defaults.defaultCaseSensitive;
+			}
+			commit(defaultToolbar(kind)); render();
+		}, () => this.cleanupDrag?.());
 		const list = doc.createElement("div"); list.className = "nya-toolbar-list"; section.append(list);
 		const live = doc.createElement("div"); live.className = "nya-settings-sr";
 		live.setAttribute("role", "status"); live.setAttribute("aria-live", "polite"); section.append(live);
@@ -335,16 +381,5 @@ export class SettingTab extends PluginSettingTab {
 			}
 		};
 		render();
-		const reset = doc.createElement("button"); reset.type = "button";
-		reset.textContent = i18n.t("settings.Toolbar.reset"); section.append(reset);
-		reset.addEventListener("click", () => {
-			this.cleanupDrag?.();
-			if (kind === "search") {
-				const defaults = defaultSettings();
-				this.plugin.settings.defaultRegexMode = defaults.defaultRegexMode;
-				this.plugin.settings.defaultCaseSensitive = defaults.defaultCaseSensitive;
-			}
-			commit(defaultToolbar(kind)); render();
-		});
 	}
 }

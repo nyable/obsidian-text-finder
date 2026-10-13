@@ -1,3 +1,7 @@
+<script context="module">
+	let nextPreviewId = 0;
+</script>
+
 <script lang="ts">
 	import { ChevronDown, X } from "lucide-svelte";
 	import { i18n } from "./i18n";
@@ -10,12 +14,13 @@
 	export let defaultCaseSensitive = false;
 	export let historyEnabled = true;
 	const noop = () => {};
+	const titleId = `nya-toolbar-preview-title-${++nextPreviewId}`;
 </script>
 
 <div class="nya-toolbar-preview">
-	<h3>{i18n.t("settings.Toolbar.preview")}</h3>
+	<h3 id={titleId}>{i18n.t("settings.Toolbar.preview")}</h3>
 	<div class="nya-preview-stage">
-		<div class="nya-finder-preview" role="img" aria-label={i18n.t("settings.Toolbar.preview")}>
+		<div class="nya-finder-preview" role="img" aria-labelledby={titleId}>
 			<div class="nya-preview-dragger" aria-hidden="true"></div>
 			<div class="nya-preview-toggle" aria-hidden="true"><ChevronDown size={18} /></div>
 			<div class="nya-preview-main">

@@ -1,3 +1,7 @@
+<script context="module">
+	let nextToolbarId = 0;
+</script>
+
 <script lang="ts">
 	import { tick } from "svelte";
 	import { ArrowDown, ArrowUp, ReplaceAll, Replace, Regex, CaseSensitive, History, Ellipsis } from "lucide-svelte";
@@ -16,6 +20,7 @@
 	let open = false;
 	let root: HTMLDivElement;
 	let trigger: HTMLDivElement;
+	const triggerId = `nya-toolbar-more-${++nextToolbarId}`;
 	$: inline = items.filter((item) => item.placement === "inline");
 	$: more = items.filter((item) => item.placement === "more");
 	$: if (!visible || !more.length) open = false;
@@ -60,12 +65,12 @@
 	{#if preview}
 		{#each inline as item (item.id)}
 			<span class="nya-btn" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
-				aria-label={i18n.t(toolbarLabels[item.id])} data-active={activeIds.has(item.id)}>
+				aria-hidden="true" data-preview-action={item.id} data-active={activeIds.has(item.id)}>
 				<svelte:component this={icons[item.id]} size={18} />
 			</span>
 		{/each}
 		{#if more.length}
-			<span class="nya-btn" aria-label={i18n.t("search.tip.More")}><Ellipsis size={18} /></span>
+			<span class="nya-btn" aria-hidden="true" data-preview-action="more"><Ellipsis size={18} /></span>
 		{/if}
 	{:else}
 		{#each inline as item (item.id)}
@@ -79,11 +84,12 @@
 		{#if more.length}
 			<div class="nya-toolbar-overflow">
 				<div class="nya-btn nya-focus" role="button" tabindex={controlTabIndex} aria-label={i18n.t("search.tip.More")}
+					id={triggerId}
 					aria-haspopup="menu" aria-expanded={open} bind:this={trigger} on:click={toggle} on:keydown={activate}>
 					<Ellipsis size={18} />
 				</div>
 				{#if open}
-					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-label={i18n.t("search.tip.More")} on:keydown={menuKeys}>
+					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-labelledby={triggerId} on:keydown={menuKeys}>
 						{#each more as item (item.id)}
 							<button type="button" role={item.id === "regex" || item.id === "case" ? "menuitemcheckbox" : "menuitem"}
 								aria-checked={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}

@@ -831,6 +831,9 @@ test("hiding Finder closes More without restoring focus into hidden controls", a
 	h.component.refreshToolbar(); await tick();
 	h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
 	assert.ok(h.target.querySelector('[role="menu"]'));
+	const menu = h.target.querySelector('[role="menu"]');
+	assert.equal(menu.hasAttribute('aria-label'), false, 'menu container does not create a hover tooltip');
+	assert.equal(h.target.ownerDocument.getElementById(menu.getAttribute('aria-labelledby')), h.target.querySelector('[aria-label="search.tip.More"]'));
 	assert.ok(h.target.contains(document.activeElement));
 	h.component.setVisible(false); await tick();
 	assert.equal(h.target.querySelector('[role="menu"]'), null);

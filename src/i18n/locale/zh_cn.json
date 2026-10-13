@@ -85,7 +85,7 @@
       "inline": "常驻", "more": "更多", "hidden": "隐藏",
       "drag": "拖动排序：{{name}}", "placement": "显示位置：{{name}}",
       "up": "上移：{{name}}", "down": "下移：{{name}}",
-      "moved": "已调整{{name}}的位置", "reset": "恢复默认配置",
+      "moved": "已调整{{name}}的位置", "reset": "恢复默认设置", "resetDone": "已恢复默认设置",
       "preview": "预览",
       "defaultsDesc": "默认选项用于各 Markdown 视图首次创建查找器时。重新打开、切换文件或编辑／阅读模式均保留手动选择；修改设置不影响已有查找器。",
       "defaultEnabled": "默认开启",

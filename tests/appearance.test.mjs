@@ -86,8 +86,25 @@ test("appearance defaults agree with public variables and pinned preview has a s
 	assert.match(css, /\.nya-settings-layout\s*\{[^}]*display: flex[^}]*height: 100%/s);
 	assert.match(css, /\.nya-appearance-preview\s*\{[^}]*flex-shrink: 0/s);
 	assert.match(css, /\.nya-appearance-controls\s*\{[^}]*min-height: 0[^}]*overflow-y: auto/s);
+	assert.match(css, /\.nya-settings-section-body\[hidden\]\s*\{[^}]*display: none/s);
+	assert.match(css, /\.nya-settings-section-reset\s*\{[^}]*width: 32px[^}]*height: 32px/s);
+	assert.match(css, /aria-expanded=(?:"false"|false)[^}]*transform: rotate\(-90deg\)/s);
 	for (const [path, name] of [['en', 'Appearance'], ['zh_cn', '外观']]) {
 		const locale = JSON.parse(readFileSync(new URL(`../src/i18n/locale/${path}.json`, import.meta.url), 'utf8'));
 		assert.equal(locale.settings.Tabs.toolbar, name);
+		if (path === 'zh_cn') assert.equal(locale.settings.Toolbar.reset, '恢复默认设置');
+		if (path === 'zh_cn') assert.equal(locale.settings.Toolbar.resetDone, '已恢复默认设置');
 	}
+});
+
+test("settings tabs have scoped hover, selected, pressed and focus styles; folded sections keep compact spacing", () => {
+	const css = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
+	assert.match(css, /\.nya-settings \.nya-settings-tabs button:hover\s*\{[^}]*background: var\(--background-modifier-hover\)[^}]*color: var\(--text-normal\)/s);
+	assert.match(css, /\.nya-settings \.nya-settings-tabs button\[aria-selected=(?:"true"|true)\]\s*\{[^}]*border-bottom-color: var\(--interactive-accent\)[^}]*color: var\(--text-accent\)/s);
+	assert.match(css, /\.nya-settings \.nya-settings-tabs button:active\s*\{[^}]*background: var\(--background-modifier-active-hover,/s);
+	assert.match(css, /\.nya-settings \.nya-settings-tabs button:focus-visible\s*\{[^}]*outline: 2px solid var\(--interactive-accent\)/s);
+	for (const kind of ['color', 'toolbar']) assert.match(css, new RegExp(`\\.nya-settings \\.nya-${kind}-settings\\s*\\{[^}]*margin-bottom: 8px`, 's'));
+	assert.match(css, /\.nya-settings-section-header\s*\{[^}]*margin: 0/s);
+	assert.match(css, /\.nya-settings-section-toggle\s*\{[^}]*min-height: 32px/s);
+	assert.match(css, /\.nya-settings-section-body\s*\{[^}]*padding-top: 6px/s);
 });

@@ -85,7 +85,7 @@
       "inline": "Toolbar", "more": "More", "hidden": "Hidden",
       "drag": "Drag to reorder: {{name}}", "placement": "Placement: {{name}}",
       "up": "Move up: {{name}}", "down": "Move down: {{name}}",
-      "moved": "Moved {{name}}", "reset": "Restore defaults",
+      "moved": "Moved {{name}}", "reset": "Restore default settings", "resetDone": "Default settings restored",
       "preview": "Preview",
       "defaultsDesc": "Default options apply when a finder is first created for a Markdown view. Reopening, switching files or changing modes keeps your manual choices; existing finders are not changed.",
       "defaultEnabled": "Enabled by default",

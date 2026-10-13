@@ -21,6 +21,7 @@ class Plugin {
 }
 class PluginSettingTab {
 	constructor(app, plugin) {
+		this.app = app;
 		this.plugin = plugin;
 		this.containerEl = dom.window.document.createElement("div");
 		dom.window.document.body.append(this.containerEl);
@@ -55,7 +56,7 @@ class Setting {
 		callback(dropdown); fields.set(this.name, dropdown); return this;
 	}
 }
-const obsidian = { Plugin, PluginSettingTab, Setting, setIcon: (element, name) => { element.dataset.icon = name; }, normalizePath: (path) => path, Notice: class { constructor(message) { notices.push(message); } } };
+const obsidian = { Plugin, PluginSettingTab, Setting, setTooltip: (element, text) => { element.dataset.tooltip = text; }, setIcon: (element, name) => { element.dataset.icon = name; }, normalizePath: (path) => path, Notice: class { constructor(message) { notices.push(message); } } };
 const translations = { i18n: { t: (key) => key } };
 const settingsTabSource = loadSource("../src/settings-tab.ts", {
 	obsidian, "./i18n": translations, "./constants": constants, "./history": historySource, "./toolbar": toolbarSource,
@@ -83,6 +84,9 @@ function plugin(data) {
 	return p;
 }
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+function resetSection(section) {
+	section.querySelector('.nya-settings-section-reset').click();
+}
 
 test("malformed persisted JSON blocks writes even when host loadData would swallow the error", async (t) => {
 	t.mock.method(console, "error", () => {});
@@ -300,7 +304,7 @@ test("toolbar placement changes compose, reorder supports keys/buttons, reset af
 	root.querySelector('[data-action="regex"] [data-control="handle"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
 	assert.equal(p.settings.searchToolbar[0].id, "regex");
 	const replace = root.querySelector('[data-action="replace"] select'); replace.value = "more"; replace.dispatchEvent(new dom.window.Event("change"));
-	const sections = root.querySelectorAll(".nya-toolbar-settings"); sections[0].lastElementChild.click();
+	const sections = root.querySelectorAll(".nya-toolbar-settings"); resetSection(sections[0]);
 	assert.deepEqual(p.settings.searchToolbar, toolbarSource.defaultToolbar("search"));
 	assert.equal(p.settings.replaceToolbar[0].placement, "more");
 	assert.equal(refreshes, 6);
@@ -323,30 +327,30 @@ test("toolbar defaults update the real preview and restore defaults resets only 
 	const regex = row("regex").querySelector(".nya-toolbar-default button");
 	regex.click(); await tick();
 	assert.equal(p.settings.defaultRegexMode, true);
-	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]').dataset.active, "true");
+	assert.equal(preview.querySelector('[data-preview-action="regex"]').dataset.active, "true");
 	assert.equal(refreshes, 0, "default changes do not update existing finders");
 	const placement = row("regex").querySelector("select"); placement.value = "hidden";
 	placement.dispatchEvent(new dom.window.Event("change")); await tick();
 	assert.equal(row("regex").querySelector(".nya-toolbar-warning"), null);
-	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]'), null);
+	assert.equal(preview.querySelector('[data-preview-action="regex"]'), null);
 	assert.equal(p.settings.defaultRegexMode, true);
 	row("case").querySelector(".nya-toolbar-default button").click();
 	const replace = row("replace").querySelector("select"); replace.value = "more";
 	replace.dispatchEvent(new dom.window.Event("change"));
 	await p.flushSettings();
-	root.querySelectorAll(".nya-toolbar-settings")[1].lastElementChild.click(); await tick(); await p.flushSettings();
+	resetSection(root.querySelectorAll(".nya-toolbar-settings")[1]); await tick(); await p.flushSettings();
 	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, true, "replace reset does not reset search defaults");
 	assert.equal(p.settings.searchToolbar[0].placement, "hidden");
 	assert.deepEqual(p.settings.replaceToolbar, toolbarSource.defaultToolbar("replace"));
 	row("replace").querySelector("select").value = "more";
 	row("replace").querySelector("select").dispatchEvent(new dom.window.Event("change"));
 	await p.flushSettings(); const writes = p.writes.length;
-	root.querySelector(".nya-toolbar-settings").lastElementChild.click(); await tick();
+	resetSection(root.querySelector(".nya-toolbar-settings")); await tick();
 	assert.equal(p.settings.defaultRegexMode, false); assert.equal(p.settings.defaultCaseSensitive, false);
 	assert.deepEqual(p.settings.searchToolbar, toolbarSource.defaultToolbar("search"));
 	assert.equal(p.settings.replaceToolbar[0].placement, "more", "search reset leaves replace configuration unchanged");
 	assert.equal(row("regex").querySelector(".nya-toolbar-warning"), null);
-	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]').dataset.active, "false");
+	assert.equal(preview.querySelector('[data-preview-action="regex"]').dataset.active, "false");
 	await p.flushSettings();
 	assert.equal(p.writes.length, writes + 1, "reset saves layout and default options together");
 	assert.equal(p.writes.at(-1).defaultRegexMode, false); assert.equal(p.writes.at(-1).defaultCaseSensitive, false);
@@ -368,13 +372,13 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	placement.dispatchEvent(new dom.window.Event("change"));
 	root.querySelector('[data-action="regex"] .nya-toolbar-default button').click(); await tick();
 	const writes = p.writes.length; await p.flushSettings(); const saved = p.writes.length;
-	const trigger = preview().querySelector('[aria-label="search.tip.More"]');
+	const trigger = preview().querySelector('[data-preview-action="more"]');
 	trigger.click(); await tick();
 	trigger.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await tick();
 	assert.equal(preview().querySelector('[role="menu"]'), null);
 	doc.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true })); await tick();
 	assert.equal(preview().querySelector('[role="menu"]'), null);
-	preview().querySelector('[aria-label="search.tip.MatchCase"]').click(); await tick();
+	preview().querySelector('[data-preview-action="case"]').click(); await tick();
 	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, false);
 	assert.equal(p.writes.length, saved, "inspecting preview never saves settings");
 	assert.equal(preview().querySelectorAll(".nya-preview-input").length, 2);
@@ -383,8 +387,8 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	assert.equal(preview().querySelectorAll('textarea, input, button, [role="button"], [tabindex], [contenteditable]').length, 0);
 	trigger.focus(); assert.notEqual(doc.activeElement, trigger);
 	root.querySelector('[data-action="next"] [data-control="up"]').click(); await tick();
-	const labels = [...preview().querySelectorAll('.nya-preview-search-actions .nya-toolbar > span')].map((button) => button.getAttribute("aria-label"));
-	assert.deepEqual(labels, ["search.tip.MatchCase", "search.tip.NextMatch", "search.tip.PreviousMatch", "search.tip.More"]);
+	const actions = [...preview().querySelectorAll('.nya-preview-search-actions .nya-toolbar > span')].map((button) => button.dataset.previewAction);
+	assert.deepEqual(actions, ["case", "next", "previous", "more"]);
 	assert.ok(p.writes.length >= writes);
 	assert.equal(listeners.size, 0, "presentation does not register pointer listeners");
 	tab.hide(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
@@ -512,12 +516,12 @@ test("appearance drafts stay local, apply saves once, and resets leave toolbar/s
 	assert.deepEqual(p.settings.appearanceColors, { currentMatchText: '#aabbcc' });
 	assert.equal(JSON.stringify(p.settings.searchToolbar), before);
 	assert.equal(p.settings.defaultRegexMode, false);
-	root.querySelector('.nya-toolbar-settings').lastElementChild.click();
+	resetSection(root.querySelector('.nya-toolbar-settings'));
 	assert.deepEqual(p.settings.appearanceColors, { currentMatchText: '#aabbcc' }, 'toolbar reset leaves colors alone');
 	p.settings.defaultRegexMode = true;
 	open('currentMatchText'); change('#123456'); flushFrame();
 	await p.flushSettings(); const resetWrites = p.writes.length;
-	controls.querySelector('.nya-color-settings').lastElementChild.click();
+	resetSection(controls.querySelector('.nya-color-settings'));
 	assert.equal(dialog(), null); assert.equal(preview.style.getPropertyValue('--nya-match-curColor'), '');
 	assert.deepEqual(p.settings.appearanceColors, {});
 	assert.equal(p.settings.defaultRegexMode, true, 'color reset leaves defaults alone');
@@ -575,6 +579,159 @@ test("plugin propagates appearance colors to existing/new popup documents and un
 	assert.equal(popup.window.document.querySelector('style'), null);
 	assert.equal(document.querySelector('style[data-nya-appearance]'), null);
 	popup.window.close();
+});
+
+test("appearance sections fold independently without saving, retain state on navigation and keep the preview visible", async () => {
+	const p = plugin(null); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl;
+	await p.flushSettings(); const writes = p.writes.length, before = JSON.stringify(p.settings);
+	const sections = [...root.querySelectorAll('[data-section]')];
+	assert.equal(sections.length, 3);
+	for (const section of sections) {
+		const toggle = section.querySelector('.nya-settings-section-toggle'), body = section.querySelector('.nya-settings-section-body');
+		assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(body.hidden, true);
+		assert.equal(toggle.getAttribute('aria-controls'), body.id);
+		const reset = section.querySelector('.nya-settings-section-reset');
+		assert.equal(reset.parentElement, section.querySelector('.nya-settings-section-header'));
+		assert.equal(reset.dataset.icon, 'undo-2'); assert.equal(reset.textContent, '');
+		assert.equal(reset.dataset.tooltip, 'settings.Toolbar.reset'); assert.equal(reset.getAttribute('aria-label'), 'settings.Toolbar.reset');
+		assert.equal(toggle.contains(reset), false, 'restore is a separate button, not nested in disclosure');
+	}
+	sections[0].querySelector('.nya-settings-section-toggle').click();
+	sections[1].querySelector('.nya-settings-section-toggle').click();
+	assert.deepEqual(sections.map((section) => section.querySelector('.nya-settings-section-body').hidden), [false, false, true]);
+	assert.equal(root.querySelector('.nya-appearance-preview').closest('[hidden]'), null);
+	root.querySelector('#nya-settings-tab-find').click(); root.querySelector('#nya-settings-tab-toolbar').click();
+	assert.deepEqual([...root.querySelectorAll('.nya-settings-section-body')].map((body) => body.hidden), [false, false, true]);
+	tab.display(); assert.equal(root.querySelector('[data-section="colors"] .nya-settings-section-body').hidden, false);
+	await p.flushSettings(); assert.equal(p.writes.length, writes); assert.equal(JSON.stringify(p.settings), before);
+	tab.hide(); tab.display();
+	assert.ok([...root.querySelectorAll('.nya-settings-section-body')].every((body) => body.hidden), 'new settings visit starts folded');
+	p.onunload();
+});
+
+test("folding a section discards color drafts and cancels toolbar drag without changing applied settings", async (t) => {
+	const p = plugin({ appearanceColors: { matchText: '#123456' } }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl, frames = new Map(); let next = 0;
+	root.querySelectorAll('.nya-settings-section-toggle').forEach((toggle) => toggle.click());
+	t.mock.method(dom.window, 'requestAnimationFrame', (fn) => { frames.set(++next, fn); return next; });
+	t.mock.method(dom.window, 'cancelAnimationFrame', (id) => frames.delete(id));
+	await p.flushSettings(); const writes = p.writes.length, before = JSON.stringify(p.settings);
+	root.querySelector('[data-color="matchText"] .nya-color-picker').click();
+	const input = document.querySelector('.nya-color-popover input'); input.value = '#abcdef80'; input.dispatchEvent(new dom.window.Event('input'));
+	root.querySelector('[data-section="colors"] .nya-settings-section-toggle').click();
+	assert.equal(frames.size, 0); assert.equal(document.querySelector('.nya-color-popover'), null);
+	assert.equal(root.querySelector('.nya-appearance-preview').style.getPropertyValue('--nya-match-color'), '');
+	const rows = [...root.querySelector('[data-section="search"]').querySelectorAll('.nya-toolbar-row')];
+	rows.forEach((row, index) => { row.getBoundingClientRect = () => ({ top: index * 40, height: 40 }); });
+	pointer(rows[0].querySelector('[data-control="handle"]'), 'pointerdown', 10); pointer(document, 'pointermove', 180);
+	assert.ok(root.querySelector('.nya-toolbar-dragging'));
+	root.querySelector('[data-section="search"] .nya-settings-section-toggle').click(); pointer(document, 'pointerup', 180);
+	assert.equal(root.querySelector('.nya-toolbar-dragging'), null); assert.equal(root.querySelector('.nya-drop-before, .nya-drop-after'), null);
+	const toggle = root.querySelector('[data-section="replace"] .nya-settings-section-toggle');
+	root.querySelector('[data-action="replace"] select').focus(); toggle.click();
+	assert.equal(document.activeElement, toggle, 'focus cannot remain in folded content');
+	await p.flushSettings(); assert.equal(JSON.stringify(p.settings), before); assert.equal(p.writes.length, writes);
+	p.onunload();
+});
+
+test("settings containers and preview retain accessible names without Obsidian hover labels", async () => {
+	const p = plugin(null); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl;
+	for (const node of [root.querySelector('[role="tablist"]'), root.querySelector('.nya-appearance-controls'), root.querySelector('.nya-finder-preview')]) {
+		assert.equal(node.hasAttribute('aria-label'), false);
+		const label = document.getElementById(node.getAttribute('aria-labelledby'));
+		assert.ok(label?.textContent, 'container has a valid named reference');
+	}
+	assert.equal(root.querySelector('.nya-toolbar-preview [aria-label]'), null, 'presentation-only preview does not create hover labels');
+	for (const node of root.querySelectorAll('[aria-label]')) {
+		assert.ok(node.matches('button, select, input, [role="button"], [role="switch"]'), 'only real controls keep hover labels');
+	}
+	assert.ok(root.querySelector('[data-action="regex"] select').getAttribute('aria-label'));
+	assert.ok(root.querySelector('[data-action="regex"] [data-control="handle"]').getAttribute('aria-label'));
+	p.onunload();
+});
+
+test("direct reset rejects old controls after switch, redraw, hide and unload", async () => {
+	const p = plugin({ defaultRegexMode: true, appearanceColors: { matchText: '#123456' } }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	await p.flushSettings(); const writes = p.writes.length, before = JSON.stringify(p.settings);
+	const noticeCount = notices.length;
+	for (const reason of ['switch', 'redraw', 'hide', 'unload']) {
+		const trigger = tab.containerEl.querySelector('[data-section="search"] .nya-settings-section-reset');
+		if (reason === 'switch') tab.containerEl.querySelector('#nya-settings-tab-find').click();
+		if (reason === 'redraw') tab.display();
+		if (reason === 'hide') tab.hide();
+		if (reason === 'unload') p.onunload();
+		trigger.click();
+		assert.equal(JSON.stringify(p.settings), before); await p.flushSettings(); assert.equal(p.writes.length, writes);
+		assert.equal(notices.length, noticeCount, 'ignored stale reset does not claim success');
+		if (reason !== 'unload') { tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click(); }
+	}
+});
+
+test("reset from a folded section applies directly without unfolding and color single reset is scoped", async () => {
+	const p = plugin({ appearanceColors: { matchText: '#123456', accentStrip: '#abcdef' } }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl, section = root.querySelector('[data-section="colors"]');
+	section.querySelector('.nya-settings-section-toggle').click();
+	const single = section.querySelector('[data-color="matchText"] .nya-color-reset');
+	await p.flushSettings(); let writes = p.writes.length;
+	assert.equal(single.dataset.icon, 'undo-2'); assert.equal(single.dataset.tooltip, 'settings.Toolbar.reset');
+	single.click(); await p.flushSettings();
+	assert.deepEqual(p.settings.appearanceColors, { accentStrip: '#abcdef' }); assert.equal(p.writes.length, ++writes);
+	section.querySelector('.nya-settings-section-toggle').click();
+	section.querySelector('.nya-settings-section-reset').click();
+	assert.equal(section.querySelector('.nya-settings-section-body').hidden, true, 'restore does not toggle disclosure');
+	assert.deepEqual(p.settings.appearanceColors, {}, 'click applies without a confirmation modal');
+	await p.flushSettings(); assert.equal(p.writes.length, writes + 1); assert.deepEqual(p.settings.appearanceColors, {});
+	assert.equal(section.querySelector('.nya-settings-section-body').hidden, true);
+	p.onunload();
+});
+
+test("all section and single color restores give one uniform notice without waiting for persistence", async () => {
+	const p = plugin({ appearanceColors: { matchText: '#123456' }, defaultRegexMode: true }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl; await p.flushSettings();
+	let release;
+	p.saveData = (snapshot) => new Promise((resolve) => { p.writes.push(snapshot); release = resolve; });
+	const restore = async (button) => {
+		const count = notices.length, writes = p.writes.length;
+		button.click();
+		assert.deepEqual(notices.slice(count), ['settings.Toolbar.resetDone'], 'one immediate notice per restore');
+		await settle(); assert.equal(typeof release, 'function');
+		assert.equal(p.writes.length, writes + 1, 'only the original restore snapshot is queued');
+		release(); release = undefined; await p.flushSettings();
+	};
+	root.querySelector('[data-section="colors"] .nya-settings-section-toggle').click();
+	await restore(root.querySelector('[data-color="matchText"] .nya-color-reset'));
+	assert.deepEqual(p.settings.appearanceColors, {});
+	for (const kind of ['colors', 'search', 'replace']) {
+		const section = root.querySelector(`[data-section="${kind}"]`), body = section.querySelector('.nya-settings-section-body');
+		const hidden = body.hidden;
+		await restore(section.querySelector('.nya-settings-section-reset'));
+		assert.equal(body.hidden, hidden, 'notice and restore do not change folding');
+	}
+	assert.equal(p.settings.defaultRegexMode, false);
+	p.onunload();
+});
+
+test("restore notice does not hide or replace a subsequent save failure", async (t) => {
+	t.mock.method(console, 'error', () => {});
+	const p = plugin({ defaultRegexMode: true }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	await p.flushSettings();
+	p.saveData = async () => { throw new Error('disk failed'); };
+	const count = notices.length;
+	resetSection(tab.containerEl.querySelector('[data-section="search"]'));
+	assert.equal(p.settings.defaultRegexMode, false);
+	assert.deepEqual(notices.slice(count), ['settings.Toolbar.resetDone']);
+	await assert.rejects(p.flushSettings(), /disk failed/);
+	assert.deepEqual(notices.slice(count), ['settings.Toolbar.resetDone', 'history.SaveFailed']);
+	p.onunload();
 });
 
 test("mouse/touch pointer drag previews insertion, saves once on drop and cancels safely", async () => {

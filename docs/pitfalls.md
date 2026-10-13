@@ -19,6 +19,7 @@
 | 替换行补偿测量其自身影响的行宽；形成宽度反馈 | 只测当前计数／操作控件，自定义／移动／阅读／折叠布局不留默认 spacer | `c4a5dc1`；`src/SearchBox.svelte:alignRows()`；`tests/search-box-dom.test.mjs` 的 spacer 测试 |
 | 只用 keydown Enter 或只检查 isComposing；输入法候选会误触 | 多信号 composition 防护，结束后恢复普通快捷操作 | `13e8c2e`；`src/SearchBox.svelte:trackComposition()`／`isComposingInput()`；`tests/search-box-dom.test.mjs` 的 IME 测试 |
 | 只隐藏透明度／指针事件；键盘或晚到回焦仍进入隐藏控件 | visibility／aria-hidden／tabindex 同步，blur＋隐藏焦点防护，关闭 More | `13e8c2e`；`src/SearchBox.svelte:syncFinderVisibility()`／`guardHiddenFocus()`、`src/Toolbar.svelte`；组件焦点测试 |
+| 把 aria-label 只当作读屏名称，放在大块非操作容器上；Obsidian 会自动产生悬浮提示 | 容器用 aria-labelledby 引用标题／触发器，预览装饰图标 aria-hidden；真实操作与状态提示保留，不一刀切移除名称 | 用户反馈“外观／设置分类”区域提示；`src/settings-tab.ts`、`src/color-picker.ts`、`src/Toolbar.svelte`；`tests/main-settings.test.mjs` 的 container names、`tests/color-picker.test.mjs` 和 `tests/search-box-dom.test.mjs` 的菜单命名检查（结构回归，非宿主绘制验证） |
 | 各替换入口各自导航；无写入或切文件后也前进 | 按钮／Enter／命令共享 `replaceOnce()`，成功且上下文有效才额外前进 | `13e8c2e`；`src/SearchBox.svelte:replaceOnce()`、`src/editor-extension.ts`；组件与编辑隔离测试 |
 | 用真实 NUL 作转义哨兵；用户 NUL 被替换破坏 | 单次无哨兵解析，只识别支持的转义 | `13e8c2e`；`src/SearchBox.svelte:adjustReplaceText()`；`tests/replacement.test.mjs` 的 NUL／连续反斜杠测试 |
 | 只测试 loadData／saveData 抛错，假定宿主 JSON 包装会传播异常 | 使用公开 adapter stat／read／write，解析失败禁止保存，写失败可见；不存在与权限失败分开 | `src/settings-storage.ts`；`tests/settings-storage.test.mjs`、`tests/main-settings.test.mjs` 的 malformed JSON／I/O 测试 |

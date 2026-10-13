@@ -91,6 +91,7 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 ## Appearance settings
 
 - Reorder actions and choose Toolbar, More or Hidden in individual action blocks in the Appearance settings tab. The full preview stays at the top while configuration scrolls below; it always displays both find and replace rows and has no interactive controls.
+- Colors, search toolbar and replacement toolbar sections fold independently and start collapsed. An undo-style icon beside each heading shows a Restore default settings tooltip. Clicking directly restores that section; individual color resets affect only that color, with no confirmation dialog. All resets show the same brief “Default settings restored” notice.
 - The preview uses the fixed query `text` and an empty replacement field. The English sample below shows current and other match highlights using the existing highlight colors and CSS customizations.
 - Customize the focus border, accent strip, and text/background colors of current and other matches. Click a swatch to open the color/opacity picker; adjustments only affect the preview until you click Apply. Canceling or leaving settings discards the draft. Unset colors inherit existing CSS; resetting a color or the color section removes overrides without changing toolbar configuration.
 - Set “Enabled by default” on the regex and match-case items. These defaults initialize new finders for each Markdown view; existing finders and reopening or switching files/modes retain manual choices.

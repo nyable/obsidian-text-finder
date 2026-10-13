@@ -39,6 +39,8 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 历史 | 容器 70vh／padding 24px；列表内部滚动、查询两行截断、选中高亮；操作在 hover／focus-within 显示，无 hover 设备常显 | `src/HistoryModal.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte` |
 | 历史详情 | 响应式元数据 Grid；正文 pre-wrap、等宽字体、可选中、独立滚动 | `src/HistoryDetail.svelte` |
 | 设置 | 原生 Obsidian 控件；分类 tabs、拖动半透明及插入线限定在 `.nya-settings` | `src/settings-tab.ts`、`src/styles/index.scss` |
+| 设置分类交互 | Tab 最小 32px 高；悬停为主题 hover 背景／正文色，当前项为 2px 主题色下划线／主题色文字，按下为主题 active-hover 背景（缺失时回退 hover），键盘 focus-visible 保留 2px 焦点框；不添加悬浮容器标签、不改其他宿主 Tab | `src/styles/index.scss`；`tests/appearance.test.mjs`；真实主题与触屏反馈待验收 |
+| 外观配置标题 | 三个分组独立折叠，默认全收起；分组底部间距 8px、标题无额外上下 margin，展开正文距标题 6px，标题及恢复图标仍有 32px 点击高度；标题前 16px 箭头，折叠时朝右，标题与恢复按钮分离；`undo-2` 回退图标紧邻标题，16px 图标／32px 点击区域，常显，提示“恢复默认设置”。内容 hidden 时 display none，无折叠动画；顶部预览不折叠。恢复直接执行，无确认框，统一 2 秒 Notice“已恢复默认设置”；容器通过 `aria-labelledby` 命名，避免 Obsidian 的 `aria-label` 自动提示覆盖整个区域 | `src/settings-tab.ts:section()`／`reset()`、`src/styles/index.scss`；`tests/main-settings.test.mjs`；宿主提示、触屏与布局待实测 |
 | 工具栏配置块 | 各按钮使用主题次级背景、8px 圆角、10px 块间距，无列表分割线和阴影；左侧整高 32px 拖动区，上层图标／名称／排序，下层原生位置下拉／默认开关；标准两行约 76px 高，320px 以下下层纵向排列；下拉 96×28px、透明背景／主题细边框、5px 圆角／14px 装饰箭头，无阴影，不重复显示位置标签；不显示说明段落 | `src/settings-tab.ts`、`src/styles/index.scss` |
 | 工具栏预览 | 顶部固定展开两行面板，真实 Toolbar 图标／激活／More 图标；容器宽度不超过 480px 时计数另占一行，输入缩窄，不缩放按钮；纯展示、不聚焦／点击／悬停／选择，不灰化，历史禁用样式保留 | `src/ToolbarPreview.svelte`、`src/Toolbar.svelte` |
 | 设置字体层级 | 工具栏配置名称／下拉／开关／恢复按钮及模拟输入统一 UI 字体／`--font-ui-small`；预览和栏目标题用 `--font-ui-medium`／半粗；空替换框 placeholder 继承模拟输入字号／行高，仅颜色用 `--text-faint`；不调整真实 Finder 输入字体 | `src/styles/index.scss`、`src/ToolbarPreview.svelte` |

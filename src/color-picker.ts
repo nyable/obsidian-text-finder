@@ -2,6 +2,8 @@ import { createColorPicker } from "virtual:color-picker";
 import { normalizeColor } from "./appearance";
 import { i18n } from "./i18n";
 
+let nextPickerId = 0;
+
 // Only the library owns color/alpha gestures. This shell owns draft, confirmation
 // and lifecycle, and never receives the plugin settings or persistence objects.
 export function openColorPicker(options: {
@@ -11,8 +13,9 @@ export function openColorPicker(options: {
 	const { trigger, preview, apply } = options;
 	const doc = trigger.ownerDocument, win = doc.defaultView!;
 	const panel = doc.createElement("div"); panel.className = "nya-color-popover";
-	panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", options.name);
+	panel.setAttribute("role", "dialog");
 	const heading = doc.createElement("div"); heading.className = "nya-color-popover-title"; heading.textContent = options.name; panel.append(heading);
+	heading.id = `nya-color-popover-title-${++nextPickerId}`; panel.setAttribute("aria-labelledby", heading.id);
 	const picker = createColorPicker(doc); picker.className = "nya-color-library"; picker.color = options.color; panel.append(picker);
 	for (const part of ["saturation", "hue", "alpha"]) {
 		picker.shadowRoot!.querySelector(`[part="${part}"]`)?.setAttribute("aria-label", i18n.t(`settings.Appearance.${part}`));
@@ -21,7 +24,7 @@ export function openColorPicker(options: {
 	// use the same scale (the upstream default is 1 with values from 0 to 100).
 	picker.shadowRoot!.querySelector('[part="alpha"]')?.setAttribute("aria-valuemax", "100");
 	const value = doc.createElement("input"); value.type = "text"; value.className = "nya-color-value";
-	value.value = options.color; value.spellcheck = false; value.setAttribute("aria-label", options.name);
+	value.value = options.color; value.spellcheck = false; value.setAttribute("aria-labelledby", heading.id);
 	value.title = i18n.t("settings.Appearance.hexHint"); panel.append(value);
 	const actions = doc.createElement("div"); actions.className = "nya-color-popover-actions"; panel.append(actions);
 	const cancel = doc.createElement("button"); cancel.type = "button"; cancel.textContent = i18n.t("settings.Appearance.cancel"); actions.append(cancel);

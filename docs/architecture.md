@@ -6,7 +6,7 @@
 
 ```text
 TextFinderPlugin                         加载、设置、错误与持久化
-├─ SettingTab                            原生 Obsidian／DOM 设置 UI
+├─ SettingTab                            原生 Obsidian／DOM 设置 UI、会话折叠与局部恢复
 │  └─ ToolbarPreview.svelte              无笔记行为的外观预览，复用 Toolbar
 │     color-picker.ts                    颜色草稿／确认壳，vanilla-colorful 提供交互
 ├─ HistoryController                     共享历史、同步订阅通知
@@ -122,6 +122,8 @@ interface PluginSettings {
 颜色样式不重算查询／移动当前项，只更新公开变量。主窗口、布局就绪／变化时的已有 leaf Document、`window-open` 新窗口及设置 owner Document 注册到 `AppearanceStyles`；`window-close`／`pagehide` 清对应资源，卸载清所有样式和监听，迟到布局回调不重建资源。未覆盖的颜色通过 computed color 探针显示继承值；不改写宿主 style。设置页显示名称改为“外观”，保留内部 `toolbar` 分类 ID／翻译键以免不必要的标识变化。
 
 `src/color-picker.ts` 仅维护单项草稿、局部预览帧、确认／取消及焦点；不持有插件设置或保存队列。`SettingTab` 在应用回调才写设置与全局样式；`clearPreview()` 先销毁选择器，恢复草稿变量、取消帧，再销毁预览。库代码通过 `tools/color-picker-build.mjs`／`virtual:color-picker` 打包为 owner-window 工厂（无 eval／CDN），提供正确 realm 的 HTMLElement、Document、Window、CustomEvent，并跟踪库的拖动监听；元素断开或主动 release 清自己的 Document 监听。版本化私有 custom element 名称注册可重载复用；默认样式留在库 Shadow DOM。颜色转换及手势不自行实现。
+
+`SettingTab.section()` 统一三个分组的折叠标题和独立恢复按钮；`collapsed` Set 默认包含三个分组，仅在本次设置访问中使用，隐藏后重置为全部折叠，不进入持久化字段。`reset()` 校验当前页面、预览存活及触发器归属，先取消调色／拖动，再直接沿用原分组保存路径并立即发统一 2 秒 Notice，不等待磁盘写入、不额外保存，不持有恢复确认 Modal；折叠不保存。非操作容器通过实例唯一标题 ID 的 `aria-labelledby` 保留读屏名称，避免宿主的 `aria-label` 自动悬浮提示；More 菜单引用所在 Toolbar 的独立触发器 ID。
 
 依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
 

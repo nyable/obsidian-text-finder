@@ -41,11 +41,10 @@ body {
 		&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
 	}
 	.nya-color-settings {
-		margin-bottom: 24px; font-family: var(--font-interface); font-size: var(--font-ui-small); container-type: inline-size;
-		h3 { font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
-		> button { font-family: inherit; font-size: inherit; }
+		margin-bottom: 8px; font-family: var(--font-interface); font-size: var(--font-ui-small); container-type: inline-size;
 	}
 	.nya-color-group { background: var(--background-secondary); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+	.nya-color-group:last-child { margin-bottom: 0; }
 	.nya-color-group h4 { margin: 0 0 10px; color: var(--text-muted); font-size: var(--font-ui-small); font-weight: var(--font-semibold); }
 	.nya-color-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; & + & { margin-top: 12px; } }
 	.nya-color-controls { display: flex; align-items: center; gap: 6px; }
@@ -71,21 +70,44 @@ body {
 		border-bottom: 1px solid var(--background-modifier-border);
 		button {
 			flex-shrink: 0;
+			border: 0; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0;
+			min-height: 32px; cursor: pointer;
 			background: transparent;
 			box-shadow: none;
 			color: var(--text-muted);
-			&[aria-selected="true"] { background: var(--background-modifier-hover); color: var(--text-normal); }
+			&:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+			&[aria-selected="true"] { border-bottom-color: var(--interactive-accent); color: var(--text-accent); }
+			&:active { background: var(--background-modifier-active-hover, var(--background-modifier-hover)); }
 			&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
 		}
 	}
 	.nya-settings-panel:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 	.nya-toolbar-settings {
-		margin-bottom: 24px; container-type: inline-size;
+		margin-bottom: 8px; container-type: inline-size;
 		font-family: var(--font-interface); font-size: var(--font-ui-small); line-height: var(--line-height-normal);
-		h3 { font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
-		> button { font-family: inherit; font-size: var(--font-ui-small); }
 	}
-	.nya-toolbar-list { display: grid; gap: 10px; margin-bottom: 12px; }
+	.nya-settings-section-header {
+		display: flex; align-items: center; gap: 4px; margin: 0;
+		h3 { margin: 0; min-width: 0; font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
+		button { background: transparent; box-shadow: none; border: 0; color: var(--text-muted); }
+		button:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+		.nya-settings-section-toggle { color: var(--text-normal); }
+		button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	}
+	.nya-settings-section-toggle {
+		display: flex; align-items: center; gap: 6px; min-height: 32px; height: auto; max-width: 100%;
+		padding: 4px; text-align: left; white-space: normal; font: inherit;
+		span:last-child { overflow-wrap: anywhere; }
+		&[aria-expanded="false"] .nya-settings-section-arrow { transform: rotate(-90deg); }
+	}
+	.nya-settings-section-arrow { display: flex; flex-shrink: 0; svg { width: 16px; height: 16px; } }
+	.nya-settings-section-reset {
+		display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; flex-shrink: 0;
+		svg { width: 16px; height: 16px; }
+	}
+	.nya-settings-section-body[hidden] { display: none; }
+	.nya-settings-section-body { padding-top: 6px; }
+	.nya-toolbar-list { display: grid; gap: 10px; }
 	.nya-toolbar-row {
 		position: relative;
 		display: grid;

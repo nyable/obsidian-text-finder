@@ -99,6 +99,11 @@ test('picker shell traps Tab, cancels drafts on owner blur/pagehide/scroll and r
 	for (const reason of ['blur', 'pagehide', 'scroll', 'cancel']) {
 		const close = pickerSource.openColorPicker({ trigger, color: '#12345680', name: 'Color', preview: (color) => previews.push(color), apply: () => saves++ });
 		const panel = doc.querySelector('.nya-color-popover');
+		assert.equal(panel.hasAttribute('aria-label'), false, 'dialog container does not create an Obsidian hover label');
+		const title = doc.getElementById(panel.getAttribute('aria-labelledby'));
+		assert.equal(title.textContent, 'Color');
+		assert.equal(panel.querySelector('input').getAttribute('aria-labelledby'), title.id);
+		assert.equal(panel.querySelector('input').hasAttribute('aria-label'), false, 'input keeps its hex hint instead of a duplicate name tooltip');
 		const picker = panel.querySelector('.nya-color-library');
 		assert.equal(picker.shadowRoot.activeElement.getAttribute('part'), 'saturation');
 		panel.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
