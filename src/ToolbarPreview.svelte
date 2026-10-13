@@ -40,7 +40,7 @@
 
 <style lang="scss">
 	@use "./styles/finder-primitives" as finder;
-	.nya-toolbar-preview { margin-bottom: 24px; container-type: inline-size; }
+	.nya-toolbar-preview { margin-bottom: 16px; container-type: inline-size; }
 	h3 { margin-top: 0; font-family: var(--font-interface); font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
 	.nya-preview-stage { padding: 8px 4px; }
 	.nya-finder-preview {
@@ -71,13 +71,13 @@
 	}
 	.nya-preview-placeholder { color: var(--text-faint); font: inherit; }
 	.nya-preview-text {
-		box-sizing: border-box; height: 120px; margin: 12px 4px 0; padding: 16px;
+		box-sizing: border-box; margin: 8px 4px 0; padding: 6px 12px;
 		background: var(--background-primary); color: var(--text-normal);
 		border: 1px solid var(--background-modifier-border); border-radius: 4px;
 		font-family: var(--font-text); font-size: var(--font-text-size); line-height: var(--line-height-normal);
-		overflow: hidden; overflow-wrap: anywhere; pointer-events: none; user-select: none;
+		overflow-wrap: anywhere; pointer-events: none; user-select: none;
 	}
-	.nya-preview-find { grid-column: 1; grid-row: 1; }
+	.nya-preview-find { grid-column: 1; grid-row: 1; border-color: var(--nya-focus-border-color); }
 	.nya-preview-replace { grid-column: 1; grid-row: 2; }
 	.nya-preview-count { @include finder.counter; grid-column: 2; grid-row: 1; }
 	.nya-preview-search-actions, .nya-preview-replace-actions {

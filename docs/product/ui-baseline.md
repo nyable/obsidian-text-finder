@@ -7,6 +7,7 @@
 - 全局变量、编辑高亮、阅读 `::highlight`、设置样式来自 `src/styles/index.scss`，构建为 `dist/styles.css`。
 - Svelte 组件有自己的 scoped CSS／SCSS；`esbuild.config.mjs` 使用 `css: "injected"`，组件样式不全部存在于全局样式产物中。
 - `ToolbarPreview.svelte` 是设置页新增的展示组件；它与真实 Finder／Toolbar 通过 `src/styles/finder-primitives.scss` 共享面板、输入、按钮、计数和焦点样式，容器定位与窄宽布局独立。
+- `src/appearance.ts:AppearanceStyles` 只为显式自定义颜色生成按 Document 管理的 `body` 变量覆盖（`!important`）；默认没有覆盖样式，恢复时移除对应声明，卸载／窗口关闭移除插件样式，不改写宿主 inline style。更具体或 inline 的 `!important` 用户规则仍可能优先，不能承诺覆盖任意 CSS。
 - README 公开 `.nya-finder`（位置）、`.nya-toggle`（装饰）、`.nya-text-finder-match`、`.nya-text-finder-match-current` 和下列变量的自定义示例。
 - **兼容性推断：**这些公开类／变量是用户 CSS 接口，应保留名称与作用；Svelte 自动生成的作用域类不视为公开接口。改变 CSS 注入／作用域时必须核对级联与宿主窗口，而非只复制全局 SCSS。
 
@@ -41,7 +42,9 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 工具栏配置块 | 各按钮使用主题次级背景、8px 圆角、10px 块间距，无列表分割线和阴影；左侧整高 32px 拖动区，上层图标／名称／排序，下层原生位置下拉／默认开关；标准两行约 76px 高，320px 以下下层纵向排列；下拉 96×28px、透明背景／主题细边框、5px 圆角／14px 装饰箭头，无阴影，不重复显示位置标签；不显示说明段落 | `src/settings-tab.ts`、`src/styles/index.scss` |
 | 工具栏预览 | 顶部固定展开两行面板，真实 Toolbar 图标／激活／More 图标；容器宽度不超过 480px 时计数另占一行，输入缩窄，不缩放按钮；纯展示、不聚焦／点击／悬停／选择，不灰化，历史禁用样式保留 | `src/ToolbarPreview.svelte`、`src/Toolbar.svelte` |
 | 设置字体层级 | 工具栏配置名称／下拉／开关／恢复按钮及模拟输入统一 UI 字体／`--font-ui-small`；预览和栏目标题用 `--font-ui-medium`／半粗；空替换框 placeholder 继承模拟输入字号／行高，仅颜色用 `--text-faint`；不调整真实 Finder 输入字体 | `src/styles/index.scss`、`src/ToolbarPreview.svelte` |
-| 匹配样例 | 预览下方 120px（含内边距／边框）区域、16px 内边距，正文用 `--font-text`／`--font-text-size`；固定英文三个 `text`，第一个当前高亮、其余普通高亮，复用公开 CSS 类及变量；无交互、溢出裁切，仅模拟编辑高亮，不代表阅读 Highlight API 全部效果 | `src/ToolbarPreview.svelte`、`src/styles/index.scss` |
+| 匹配样例 | 预览下方内容自适应高度、上下 6px／左右 12px 内边距，正文用 `--font-text`／`--font-text-size`；固定英文三个 `text`，第一个当前高亮、其余普通高亮，复用公开 CSS 类及变量；无交互、窄屏自然换行、不裁切，仅模拟编辑高亮，不代表阅读 Highlight API 全部效果 | `src/ToolbarPreview.svelte`、`src/styles/index.scss` |
+| 外观页固定预览 | 仅外观页使用内部满高 flex 布局、外层禁止滚动（不依赖宿主设置根节点的 display）；分类导航和整个预览不收缩，下方配置区 `min-height: 0`／独立纵向滚动，支持键盘焦点；查找模拟输入固定展示聚焦边框，但不实际聚焦；不采用悬浮窗口覆盖，不改变其他分类滚动 | `src/settings-tab.ts`、`src/ToolbarPreview.svelte`、`src/styles/index.scss`；真实宿主低高度／移动键盘待验证 |
+| 颜色配置 | 三个主题次级背景分组（面板／普通／当前），六项紧凑颜色行；28px 棋盘格色块按钮、104px 只读颜色值、单项恢复；UI 小字号，360px 以下颜色行分两行。点击色块打开 owner Document 的 248px 主题面板，vanilla-colorful 内建饱和度／色相／alpha，选择器 100% 宽／180px 高，保留库的 `:host` flex 纵向布局，不用外部 display 覆盖；带十六进制输入、取消／应用；草稿仅局部预览，无分散透明度滑块 | `src/settings-tab.ts:colors()`、`src/color-picker.ts`；`tests/color-picker.test.mjs` 的布局保留回归、`tests/main-settings.test.mjs`；真实宿主修复效果待验收 |
 
 面板／历史／设置主要采用 Obsidian `--background-*`、`--text-*`、`--interactive-*` 和字体变量，没有独立深浅主题分支。仍有固定选项蓝色／白字、非空无结果红色、黑色阴影；不能据此声称所有主题对比度合格。
 

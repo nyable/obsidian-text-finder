@@ -19,7 +19,7 @@ test("translation key sets and static calls stay synchronized", () => {
 	const en = keys(json("src/i18n/locale/en.json"));
 	assert.deepEqual(en.sort(), keys(json("src/i18n/locale/zh_cn.json")).sort());
 	const paths = ["SearchBox.svelte", "HistoryList.svelte", "HistoryDetail.svelte", "SearchStatus.svelte", "Toolbar.svelte",
-		"HistoryModal.svelte", "ToolbarPreview.svelte", "main.ts", "editor-extension.ts", "toolbar.ts", "settings-tab.ts"];
+		"HistoryModal.svelte", "ToolbarPreview.svelte", "main.ts", "editor-extension.ts", "toolbar.ts", "settings-tab.ts", "color-picker.ts"];
 	for (const path of paths) {
 		for (const match of read(`src/${path}`).matchAll(/(?:i18n\.t\(|reportError\()\s*"([^"]+)"/g)) {
 			assert.ok(en.includes(match[1]), `${path}: unknown translation ${match[1]}`);

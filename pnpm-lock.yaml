@@ -185,6 +185,9 @@ importers:
       lucide-svelte:
         specifier: ^0.446.0
         version: 0.446.0(svelte@4.2.19)
+      vanilla-colorful:
+        specifier: 0.7.2
+        version: 0.7.2
     devDependencies:
       '@tsconfig/svelte':
         specifier: 5.0.4
@@ -1535,6 +1538,9 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
+  vanilla-colorful@0.7.2:
+    resolution: {integrity: sha512-z2YZusTFC6KnLERx1cgoIRX2CjPRP0W75N+3CC6gbvdX5Ch47rZkEMGO2Xnf+IEmi3RiFLxS18gayMA27iU7Kg==}
+
   varint@6.0.0:
     resolution: {integrity: sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg==}
 
@@ -2781,6 +2787,8 @@ snapshots:
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
+
+  vanilla-colorful@0.7.2: {}
 
   varint@6.0.0: {}
 

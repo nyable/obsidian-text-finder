@@ -5,6 +5,7 @@ import { HistoryController } from "./history";
 import { defaultSettings, normalizeSettings, type PluginSettings } from "./settings";
 import { SettingsStorage } from "./settings-storage";
 import { SettingTab } from "./settings-tab";
+import { AppearanceStyles } from "./appearance";
 
 export type { SearchHistoryItem } from "./history";
 
@@ -16,11 +17,22 @@ export default class TextFinderPlugin extends Plugin {
 	private storageReadable = false;
 	private lastErrorNotice = -Infinity;
 	private settingTab?: SettingTab;
+	private appearance = new AppearanceStyles(() => this.settings?.appearanceColors ?? {});
 	editorSearch: EditorSearch | null = null;
 	isUnloaded() { return this.unloaded; }
 	async onload() {
 		await this.loadSettings();
 		if (this.unloaded) return;
+		if (typeof document !== "undefined") this.appearance.addDocument(document);
+		const workspace = this.app.workspace;
+		const syncDocuments = () => {
+			if (this.unloaded) return;
+			workspace.iterateAllLeaves((leaf) => this.appearance.addDocument(leaf.view.containerEl.ownerDocument));
+		};
+		this.registerEvent(workspace.on("window-open", (_container, win) => this.appearance.addDocument(win.document)));
+		this.registerEvent(workspace.on("window-close", (_container, win) => this.appearance.removeDocument(win.document)));
+		this.registerEvent(workspace.on("layout-change", syncDocuments));
+		workspace.onLayoutReady(syncDocuments);
 		this.settingTab = new SettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
@@ -29,6 +41,7 @@ export default class TextFinderPlugin extends Plugin {
 	onunload() {
 		this.unloaded = true;
 		this.settingTab?.hide();
+		this.appearance.destroy();
 		this.storage?.close();
 		this.editorSearch?.destoryAll();
 	}
@@ -50,12 +63,14 @@ export default class TextFinderPlugin extends Plugin {
 			if (this.unloaded) return;
 			this.storageReadable = false;
 			this.settings = defaultSettings();
+			this.appearance.refresh();
 			this.history.notify();
 			this.reportError("history.LoadFailed", error);
 			return;
 		}
 		const { settings, changed } = normalizeSettings(raw);
 		this.settings = settings;
+		this.appearance.refresh();
 		this.history.notify();
 		if (changed) await this.saveSettings().catch(() => {});
 	}
@@ -71,6 +86,8 @@ export default class TextFinderPlugin extends Plugin {
 		}
 	}
 	flushSettings() { return this.storage?.flush() ?? Promise.resolve(); }
+	refreshAppearance() { this.appearance.refresh(); }
+	ensureAppearanceDocument(doc: Document) { this.appearance.addDocument(doc); }
 	requestSaveSettings() { void this.saveSettings().catch(() => {}); }
 	reportError(key: string, error: unknown) {
 		console.error(`Text Finder: ${key}`, error);

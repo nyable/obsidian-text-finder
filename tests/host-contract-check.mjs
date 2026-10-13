@@ -63,7 +63,7 @@ function environment() {
 		} };
 	const app = { vault: { adapter, configDir: ".test-config" }, workspace: {
 		onLayoutReadyCallbacks: [], app: { plugins: { loadingPluginId: "text-finder" } },
-		onLayoutReady: method("onLayoutReady", ".prototype.onLayoutReady=function"), on() {},
+		onLayoutReady: method("onLayoutReady", ".prototype.onLayoutReady=function"), on() {}, iterateAllLeaves() {},
 	} };
 	return { app, disk, writes, errors, gateWrite: (fn) => { beforeWrite = fn; }, afterStat: (fn) => { afterStat = fn; } };
 }
@@ -102,6 +102,8 @@ const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
 	obsidian: { Plugin, normalizePath: (path) => path, Notice: class {} }, "./i18n": { i18n: { t: (key) => key } },
 	"./editor-extension": provider, "./history": historySource, "./settings": settingsSource,
 	"./settings-storage": { SettingsStorage }, "./settings-tab": { SettingTab: class {} },
+	// This headless host-method check does not model a DOM or style painting.
+	"./appearance": { AppearanceStyles: class { addDocument() {} removeDocument() {} refresh() {} destroy() {} } },
 });
 function plugin(h) {
 	const plugin = new TextFinderPlugin(); plugin.app = h.app; plugin.manifest = { id: "text-finder" };
@@ -110,8 +112,8 @@ function plugin(h) {
 	return plugin;
 }
 const lifecycle = environment(); const p = plugin(lifecycle); await p.onload();
-assert.equal(lifecycle.app.workspace.onLayoutReadyCallbacks.length, 1);
-p.unload(); lifecycle.app.workspace.onLayoutReadyCallbacks[0].callback();
+assert.equal(lifecycle.app.workspace.onLayoutReadyCallbacks.length, 2);
+p.unload(); lifecycle.app.workspace.onLayoutReadyCallbacks.forEach(({ callback }) => callback());
 assert.equal(p.editorSearch, null); assert.equal(commands, 0); assert.equal(extensions, 0);
 const live = plugin(lifecycle); await live.onload();
 const callback = lifecycle.app.workspace.onLayoutReadyCallbacks.at(-1).callback;

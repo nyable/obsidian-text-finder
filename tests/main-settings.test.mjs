@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
-import { constants, historySource, settingsSource, toolbarSource } from "./history-source.mjs";
+import { constants, historySource, settingsSource, toolbarSource, appearanceSource } from "./history-source.mjs";
 import { ToolbarPreview, tick, previewStyles } from "./toolbar-preview-source.mjs";
+import { pickerSource } from "./color-picker-source.mjs";
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>");
+const dom = new JSDOM("<!doctype html><html><body></body></html>", { pretendToBeVisual: true });
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
@@ -16,6 +17,7 @@ class Plugin {
 	async loadData() { return this.data; }
 	async saveData(snapshot) { this.writes.push(snapshot); }
 	addSettingTab(tab) { tabs.push(tab); }
+	registerEvent() {}
 }
 class PluginSettingTab {
 	constructor(app, plugin) {
@@ -58,6 +60,8 @@ const translations = { i18n: { t: (key) => key } };
 const settingsTabSource = loadSource("../src/settings-tab.ts", {
 	obsidian, "./i18n": translations, "./constants": constants, "./history": historySource, "./toolbar": toolbarSource,
 	"./settings": settingsSource,
+	"./appearance": appearanceSource,
+	"./color-picker": pickerSource,
 	"./ToolbarPreview.svelte": { default: ToolbarPreview },
 });
 const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
@@ -66,11 +70,12 @@ const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
 	"./editor-extension": { editorExtensionProvider: () => {} },
 	"./constants": constants, "./history": historySource, "./settings": settingsSource,
 	"./settings-storage": loadSource("../src/settings-storage.ts"),
+	"./appearance": appearanceSource,
 });
 function plugin(data) {
 	const p = new TextFinderPlugin(); p.data = data; p.writes = [];
 	p.manifest = { id: "text-finder", dir: ".obsidian/plugins/text-finder" };
-	p.app = { vault: { configDir: ".obsidian", adapter: {
+	p.app = { workspace: { on: () => ({}), onLayoutReady: (callback) => callback(), iterateAllLeaves: () => {} }, vault: { configDir: ".obsidian", adapter: {
 		stat: async () => ({ type: "file" }),
 		read: async () => JSON.stringify(await p.loadData() ?? null),
 		write: async (_path, text) => p.saveData(JSON.parse(text)),
@@ -295,7 +300,7 @@ test("toolbar placement changes compose, reorder supports keys/buttons, reset af
 	root.querySelector('[data-action="regex"] [data-control="handle"]').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
 	assert.equal(p.settings.searchToolbar[0].id, "regex");
 	const replace = root.querySelector('[data-action="replace"] select'); replace.value = "more"; replace.dispatchEvent(new dom.window.Event("change"));
-	const sections = root.querySelectorAll("section"); sections[0].lastElementChild.click();
+	const sections = root.querySelectorAll(".nya-toolbar-settings"); sections[0].lastElementChild.click();
 	assert.deepEqual(p.settings.searchToolbar, toolbarSource.defaultToolbar("search"));
 	assert.equal(p.settings.replaceToolbar[0].placement, "more");
 	assert.equal(refreshes, 6);
@@ -434,18 +439,149 @@ test("preview shows fixed English matches, an empty replacement placeholder and 
 	assert.match(rule('nya-preview-input'), /color:\s*var\(--text-normal\)/);
 	assert.match(rule('nya-preview-placeholder'), /font:\s*inherit/);
 	assert.match(rule('nya-preview-placeholder'), /color:\s*var\(--text-faint\)/);
-	assert.match(rule('nya-preview-text'), /height:\s*120px/);
+	assert.match(rule('nya-preview-find'), /border-color:\s*var\(--nya-focus-border-color\)/);
+	assert.doesNotMatch(rule('nya-preview-text'), /(?:^|;)(?:min-)?height:/);
+	assert.match(rule('nya-preview-text'), /padding:\s*6px 12px/);
 	assert.match(rule('nya-preview-text'), /font-size:\s*var\(--font-text-size\)/);
-	assert.match(rule('nya-preview-text'), /overflow:\s*hidden/);
+	assert.doesNotMatch(rule('nya-preview-text'), /overflow:\s*hidden/);
 	assert.equal(preview.querySelectorAll('input, textarea, button, [tabindex], [role="button"]').length, 0);
 	tab.hide();
+});
+
+test("appearance drafts stay local, apply saves once, and resets leave toolbar/session options unchanged", async (t) => {
+	const p = plugin(null); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl, controls = root.querySelector('.nya-appearance-controls');
+	assert.ok(root.classList.contains('nya-settings--appearance'));
+	assert.ok(controls.previousElementSibling.querySelector('.nya-toolbar-preview'));
+	assert.equal(controls.querySelector('.nya-toolbar-preview'), null);
+	assert.equal(controls.querySelectorAll('.nya-color-row').length, 6);
+	assert.equal(controls.querySelectorAll('input[type="range"], input[type="color"]').length, 0);
+	const row = (key) => controls.querySelector(`[data-color="${key}"]`);
+	const preview = root.querySelector('.nya-appearance-preview');
+	const frames = new Map(); let nextFrame = 0;
+	t.mock.method(dom.window, 'requestAnimationFrame', (fn) => { frames.set(++nextFrame, fn); return nextFrame; });
+	t.mock.method(dom.window, 'cancelAnimationFrame', (id) => frames.delete(id));
+	const flushFrame = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach((fn) => fn()); };
+	const open = (key) => row(key).querySelector('.nya-color-picker').click();
+	const dialog = () => document.querySelector('.nya-color-popover');
+	const input = () => dialog().querySelector('.nya-color-value');
+	const change = (color) => {
+		input().value = color;
+		input().dispatchEvent(new dom.window.Event('input'));
+	};
+	const apply = () => dialog().querySelector('.mod-cta').click();
+	const setColor = async (key, color) => {
+		open(key); change(color); apply(); await p.flushSettings();
+	};
+	const before = JSON.stringify(p.settings.searchToolbar);
+	await p.flushSettings(); const initialWrites = p.writes.length;
+	let refreshes = 0; const refresh = p.refreshAppearance.bind(p);
+	t.mock.method(p, 'refreshAppearance', () => { refreshes++; refresh(); });
+	open('matchBackground');
+	const picker = dialog().querySelector('.nya-color-library');
+	assert.equal(picker.shadowRoot.querySelectorAll('[role="slider"]').length, 3, 'real library supplies saturation, hue and alpha');
+	for (let i = 0; i < 60; i++) picker.dispatchEvent(new dom.window.CustomEvent('color-changed', { detail: { value: '#abcdef80' } }));
+	assert.equal(frames.size, 1, 'drag events merge into one preview frame');
+	flushFrame();
+	assert.equal(preview.style.getPropertyValue('--nya-match-bgColor'), '#abcdef80');
+	assert.deepEqual(p.settings.appearanceColors, {});
+	assert.equal(document.querySelector('style[data-nya-appearance]'), null);
+	input().dispatchEvent(new dom.window.Event('blur'));
+	await p.flushSettings(); assert.equal(p.writes.length, initialWrites); assert.equal(refreshes, 0);
+	change('#12'); assert.equal(input().getAttribute('aria-invalid'), 'true');
+	assert.equal(dialog().querySelector('.mod-cta').disabled, true);
+	change('#11223344'); apply(); await p.flushSettings();
+	assert.equal(frames.size, 0, 'apply cancels outstanding draft frame');
+	assert.equal(preview.style.getPropertyValue('--nya-match-bgColor'), '');
+	assert.equal(p.writes.length, initialWrites + 1); assert.equal(refreshes, 1);
+	await setColor('currentMatchText', '#ABC');
+	assert.deepEqual(p.settings.appearanceColors, { matchBackground: '#11223344', currentMatchText: '#aabbcc' });
+	const style = document.querySelector('style[data-nya-appearance]');
+	assert.match(style.textContent, /--nya-match-bgColor: #11223344 !important/);
+	assert.match(style.textContent, /--nya-match-curColor: #aabbcc !important/);
+	open('currentMatchText');
+	input().value = '#ffffff'; input().dispatchEvent(new dom.window.InputEvent('input', { isComposing: true }));
+	assert.equal(dialog().querySelector('.mod-cta').disabled, true);
+	dialog().querySelector('button:not(.mod-cta)').click();
+	assert.equal(p.settings.appearanceColors.currentMatchText, '#aabbcc');
+	row('matchBackground').querySelector('.nya-color-reset').click();
+	assert.deepEqual(p.settings.appearanceColors, { currentMatchText: '#aabbcc' });
+	assert.doesNotMatch(style.textContent, /--nya-match-bgColor/);
+	await p.flushSettings(); p.data = p.writes.at(-1); await p.loadSettings();
+	assert.deepEqual(p.settings.appearanceColors, { currentMatchText: '#aabbcc' });
+	assert.equal(JSON.stringify(p.settings.searchToolbar), before);
+	assert.equal(p.settings.defaultRegexMode, false);
+	root.querySelector('.nya-toolbar-settings').lastElementChild.click();
+	assert.deepEqual(p.settings.appearanceColors, { currentMatchText: '#aabbcc' }, 'toolbar reset leaves colors alone');
+	p.settings.defaultRegexMode = true;
+	open('currentMatchText'); change('#123456'); flushFrame();
+	await p.flushSettings(); const resetWrites = p.writes.length;
+	controls.querySelector('.nya-color-settings').lastElementChild.click();
+	assert.equal(dialog(), null); assert.equal(preview.style.getPropertyValue('--nya-match-curColor'), '');
+	assert.deepEqual(p.settings.appearanceColors, {});
+	assert.equal(p.settings.defaultRegexMode, true, 'color reset leaves defaults alone');
+	assert.equal(document.querySelector('style[data-nya-appearance]'), null);
+	assert.ok([...controls.querySelectorAll('.nya-color-reset')].every((button) => button.disabled));
+	await p.flushSettings(); assert.equal(p.writes.length, resetWrites + 1, 'color section reset saves one snapshot');
+	root.querySelector('#nya-settings-tab-find').click();
+	assert.equal(root.classList.contains('nya-settings--appearance'), false);
+	p.onunload(); await p.flushSettings();
+});
+
+test("color drafts cancel on Escape/outside/switch/hide/redraw/unload without saving or leaving preview frames", async (t) => {
+	const p = plugin({ appearanceColors: { matchText: '#123456' } }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const frames = new Map(); let next = 0;
+	t.mock.method(dom.window, 'requestAnimationFrame', (fn) => { frames.set(++next, fn); return next; });
+	t.mock.method(dom.window, 'cancelAnimationFrame', (id) => frames.delete(id));
+	await p.flushSettings(); const writes = p.writes.length;
+	for (const reason of ['escape', 'outside', 'switch', 'hide', 'redraw', 'unload']) {
+		const root = tab.containerEl, preview = root.querySelector('.nya-appearance-preview');
+		const trigger = root.querySelector('[data-color="matchText"] .nya-color-picker'); trigger.click();
+		const input = document.querySelector('.nya-color-popover .nya-color-value'); input.value = '#abcdef80';
+		input.dispatchEvent(new dom.window.Event('input'));
+		assert.equal(frames.size, 1);
+		if (reason === 'escape') document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+		if (reason === 'outside') document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }));
+		if (reason === 'switch') root.querySelector('#nya-settings-tab-find').click();
+		if (reason === 'hide') tab.hide();
+		if (reason === 'redraw') tab.display();
+		if (reason === 'unload') p.onunload();
+		assert.equal(frames.size, 0); assert.equal(document.querySelector('.nya-color-popover'), null);
+		assert.equal(preview.style.getPropertyValue('--nya-match-color'), '');
+		assert.deepEqual(p.settings.appearanceColors, { matchText: '#123456' });
+		await p.flushSettings(); assert.equal(p.writes.length, writes);
+		if (reason !== 'unload') { tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click(); }
+	}
+});
+
+test("plugin propagates appearance colors to existing/new popup documents and unregisters styles on close/unload", async () => {
+	const p = plugin({ appearanceColors: { matchText: '#123456' } });
+	const popup = new JSDOM('<!doctype html><body></body>');
+	const events = new Map(); let ready;
+	p.app.workspace = {
+		on: (name, callback) => { events.set(name, callback); return {}; },
+		onLayoutReady: (callback) => { ready = callback; },
+		iterateAllLeaves: (callback) => callback({ view: { containerEl: popup.window.document.body } }),
+	};
+	await p.onload(); ready();
+	assert.match(popup.window.document.querySelector('style').textContent, /--nya-match-color: #123456/);
+	events.get('window-close')({}, popup.window);
+	assert.equal(popup.window.document.querySelector('style'), null);
+	events.get('window-open')({}, popup.window);
+	assert.ok(popup.window.document.querySelector('style'));
+	p.onunload(); ready(); events.get('layout-change')(); events.get('window-open')({}, popup.window);
+	assert.equal(popup.window.document.querySelector('style'), null);
+	assert.equal(document.querySelector('style[data-nya-appearance]'), null);
+	popup.window.close();
 });
 
 test("mouse/touch pointer drag previews insertion, saves once on drop and cancels safely", async () => {
 	const p = plugin(null); await p.onload();
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
 	const root = tab.containerEl;
-	const rows = () => [...root.querySelectorAll("section:first-of-type .nya-toolbar-row")];
+	const rows = () => [...root.querySelector('.nya-toolbar-settings').querySelectorAll('.nya-toolbar-row')];
 	const mockRects = () => rows().forEach((row, index) => { row.getBoundingClientRect = () => ({ top: index * 40, height: 40 }); });
 	mockRects();
 	const writes = p.writes.length;

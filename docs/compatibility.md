@@ -31,6 +31,8 @@
 | 公开 DataAdapter stat／read／write | 原插件 data.json 设置与历史 | stat 不把权限失败当作不存在；直接解析及传播写入错误；共享 realm 的读写队列跨实例重载保持顺序 | `src/settings-storage.ts`、`src/main.ts` |
 | CSS highlights／Highlight／Range | 阅读高亮与定位 | 能力检测，所属 Document 注册表，普通／当前优先级；运行失败清理所有权 | `src/reading-search.ts`、`src/reading-text.ts:endpointRange()` |
 | MutationObserver／ResizeObserver／Pointer／Selection | 模式、正文、布局、工具栏拖动、阅读选区 | 多数操作使用 ownerDocument；不能由 jsdom 推定窗口／移动宿主表现 | `src/editor-extension.ts`、组件 actions、`src/settings-tab.ts` |
+| Workspace window-open／window-close／layout-change、Document style／pagehide | 跨窗口显式颜色覆盖与清理 | 按 Document 管理，不写宿主 inline 样式；旧宿主事件缺失时依赖布局扫描／owner 注册，弹窗实际注入与级联需实测 | `src/main.ts`、`src/appearance.ts` |
+| vanilla-colorful／Custom Elements／Shadow DOM／requestAnimationFrame | 颜色／色相／alpha 与局部草稿预览 | 工厂绑定 owner realm、清库的拖动监听，私有注册名可重载复用；jsdom 覆盖真实库键盘／拖动监听，但不证明实机触摸、弹窗定位或绘制性能 | `src/color-picker.ts`、`tools/color-picker-build.mjs`、`tests/color-picker.test.mjs` |
 | Clipboard／crypto／moment | 历史复制、ID、日期／语言 | Clipboard 使用所属 Document，失败提示；crypto 缺失可降级；语言由 moment locale 映射，英文 fallback | `src/HistoryModal.svelte`、`src/util/common-helper.ts`、`src/i18n/index.ts` |
 
 ## 阅读范围与降级
@@ -70,7 +72,7 @@
 
 ## 实机证据要求
 
-真实应用检查需记录 Obsidian／系统版本、主题／snippets、语言、窗口／缩放、重现笔记和操作。重点是长文离屏全文计数、真实滚动、高亮重挂载、分屏／弹窗／迁移、编辑撤销重做、IME／焦点及目标 Android／iOS。
+真实应用检查需记录 Obsidian／系统版本、主题／snippets、语言、窗口／缩放、重现笔记和操作。重点是长文离屏全文计数、真实滚动、高亮重挂载、分屏／弹窗／迁移、编辑撤销重做、IME／焦点及目标 Android／iOS；外观页还需验收完整预览固定、低高度／移动键盘可用空间、颜色选择器／alpha、编辑与阅读高亮及恢复 CSS 继承。
 
 实机方法集中在 [testing](testing.md#实际应用验收)，但仓库没有据此确认的完整支持矩阵。验证场景和源码注释不是通过证据；真实报告应限定所验证环境。
 

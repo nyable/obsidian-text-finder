@@ -69,7 +69,17 @@
     }
   },
   "settings": {
-    "Tabs": { "label": "Settings categories", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Toolbar" },
+    "Tabs": { "label": "Settings categories", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Appearance" },
+    "Appearance": {
+      "colors": "Colors", "panel": "Finder", "match": "Other matches", "current": "Current match",
+      "focusBorder": "Focus border", "accentStrip": "Accent strip",
+      "matchBackground": "Background", "matchText": "Text",
+      "currentMatchBackground": "Background", "currentMatchText": "Text",
+      "apply": "Apply", "cancel": "Cancel",
+      "saturation": "Color saturation and brightness", "hue": "Hue", "alpha": "Opacity",
+      "hexHint": "Hex color: #RGB, #RGBA, #RRGGBB or #RRGGBBAA",
+      "resetColor": "Restore inherited color: {{name}}"
+    },
     "Toolbar": {
       "search": "Search toolbar", "replace": "Replace toolbar",
       "inline": "Toolbar", "more": "More", "hidden": "Hidden",

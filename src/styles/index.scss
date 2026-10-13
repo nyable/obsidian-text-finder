@@ -29,6 +29,39 @@ body {
 
 // Settings-only styles: never change the finder or Obsidian's other settings pages.
 .nya-settings {
+	&.nya-settings--appearance {
+		height: 100%; min-height: 0; box-sizing: border-box; overflow: hidden;
+		.nya-settings-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+		.nya-settings-tabs { flex-shrink: 0; }
+		.nya-settings-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+	}
+	.nya-appearance-preview { flex-shrink: 0; background: var(--background-primary); }
+	.nya-appearance-controls {
+		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 0 4px 8px;
+		&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+	}
+	.nya-color-settings {
+		margin-bottom: 24px; font-family: var(--font-interface); font-size: var(--font-ui-small); container-type: inline-size;
+		h3 { font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
+		> button { font-family: inherit; font-size: inherit; }
+	}
+	.nya-color-group { background: var(--background-secondary); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+	.nya-color-group h4 { margin: 0 0 10px; color: var(--text-muted); font-size: var(--font-ui-small); font-weight: var(--font-semibold); }
+	.nya-color-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; & + & { margin-top: 12px; } }
+	.nya-color-controls { display: flex; align-items: center; gap: 6px; }
+	.nya-color-picker {
+		width: 28px; height: 28px; padding: 0; border: 1px solid var(--background-modifier-border); border-radius: 5px; cursor: pointer; box-shadow: none;
+		background: repeating-conic-gradient(var(--background-primary) 0% 25%, var(--background-modifier-border) 0% 50%) 50% / 8px 8px;
+	}
+	.nya-color-swatch { display: block; width: 100%; height: 100%; border-radius: inherit; }
+	.nya-color-code { width: 104px; color: var(--text-muted); font-size: var(--font-ui-small); }
+	.nya-color-reset { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: transparent; box-shadow: none; color: var(--text-muted); svg { width: 14px; height: 14px; } }
+	.nya-color-reset:hover:not(:disabled) { background: var(--background-modifier-hover); }
+	.nya-color-controls :focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	@container (max-width: 360px) {
+		.nya-color-row { grid-template-columns: minmax(0, 1fr); }
+		.nya-color-controls { justify-content: flex-end; }
+	}
 	.nya-settings-tabs {
 		display: flex;
 		gap: 4px;
@@ -114,4 +147,21 @@ body {
 	}
 	.nya-toolbar-handle:active { cursor: grabbing; }
 	.nya-settings-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+
+// The picker is mounted in its owner Document, outside the settings scroll area.
+.nya-color-popover {
+	position: fixed; z-index: calc(var(--layer-modal, 50) + 1); box-sizing: border-box;
+	width: 248px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
+	padding: 12px; border: 1px solid var(--background-modifier-border); border-radius: 8px;
+	background: var(--background-primary); color: var(--text-normal); box-shadow: var(--shadow-s);
+	font-family: var(--font-interface); font-size: var(--font-ui-small);
+	.nya-color-popover-title { margin-bottom: 10px; font-weight: var(--font-semibold); }
+	// Keep vanilla-colorful's :host flex column: its slider heights depend on it.
+	.nya-color-library { width: 100%; height: 180px; }
+	.nya-color-library::part(saturation) { border-radius: 5px 5px 0 0; }
+	.nya-color-value { width: 100%; height: 28px; margin-top: 10px; font: inherit; box-shadow: none; }
+	.nya-color-value[aria-invalid="true"] { border-color: var(--text-error); }
+	.nya-color-popover-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; button { font: inherit; } }
+	:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
 }

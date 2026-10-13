@@ -8,8 +8,10 @@
 TextFinderPlugin                         加载、设置、错误与持久化
 ├─ SettingTab                            原生 Obsidian／DOM 设置 UI
 │  └─ ToolbarPreview.svelte              无笔记行为的外观预览，复用 Toolbar
+│     color-picker.ts                    颜色草稿／确认壳，vanilla-colorful 提供交互
 ├─ HistoryController                     共享历史、同步订阅通知
 ├─ SettingsStorage                       独立快照、跨实例串行读写
+├─ AppearanceStyles                      各 Document 的显式颜色覆盖与清理
 └─ EditorSearch                          命令、视图归属、资源生命周期
    ├─ MarkdownView → SearchBox.svelte     每视图查询会话
    │  ├─ Toolbar.svelte × 2
@@ -91,6 +93,7 @@ interface PluginSettings {
   replaceToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
   defaultRegexMode: boolean; // 新建 Finder 的初始正则选项
   defaultCaseSensitive: boolean; // 新建 Finder 的初始大小写选项
+  appearanceColors: Partial<Record<AppearanceColorKey, string>>; // 默认 {}，规范化 hex RGB/RGBA
 }
 ```
 
@@ -101,6 +104,7 @@ interface PluginSettings {
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
 - `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
 - 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。
+- `appearanceColors` 仅接受 `focusBorder`、`accentStrip`、`matchBackground`、`matchText`、`currentMatchBackground`、`currentMatchText`。`normalizeColor()` 接受 3／4／6／8 位十六进制，展开简写并转小写、不透明 alpha 归并为 RGB；未知／非法值丢弃，旧数据缺失时补 `{}`，不产生额外样式覆盖。`src/appearance.ts` 定义键与既有公开变量映射。
 - `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
 - `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。
 - 读取失败启用默认内存状态并禁止写入；修复后重载，临时内存修改不会与重新读取的数据合并。保存失败不回滚，下次修改尝试保存最新快照，没有自动后台重试或强制退出落盘保证。
@@ -114,6 +118,10 @@ interface PluginSettings {
 阅读资源按所属 Document 创建，`clear()`／`destroy()` 释放 Observer、计时器、端点映射和高亮所有权，并使迟到的请求回调失效。
 
 历史 Modal 由 EditorSearch 跟踪，卸载主动关闭；`onClose()` 销毁组件并移除跟踪，组件取消历史订阅，迟到复制成功不再统计。真实宿主窗口表现仍需实测。
+
+颜色样式不重算查询／移动当前项，只更新公开变量。主窗口、布局就绪／变化时的已有 leaf Document、`window-open` 新窗口及设置 owner Document 注册到 `AppearanceStyles`；`window-close`／`pagehide` 清对应资源，卸载清所有样式和监听，迟到布局回调不重建资源。未覆盖的颜色通过 computed color 探针显示继承值；不改写宿主 style。设置页显示名称改为“外观”，保留内部 `toolbar` 分类 ID／翻译键以免不必要的标识变化。
+
+`src/color-picker.ts` 仅维护单项草稿、局部预览帧、确认／取消及焦点；不持有插件设置或保存队列。`SettingTab` 在应用回调才写设置与全局样式；`clearPreview()` 先销毁选择器，恢复草稿变量、取消帧，再销毁预览。库代码通过 `tools/color-picker-build.mjs`／`virtual:color-picker` 打包为 owner-window 工厂（无 eval／CDN），提供正确 realm 的 HTMLElement、Document、Window、CustomEvent，并跟踪库的拖动监听；元素断开或主动 release 清自己的 Document 监听。版本化私有 custom element 名称注册可重载复用；默认样式留在库 Shadow DOM。颜色转换及手势不自行实现。
 
 依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
 

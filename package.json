@@ -47,6 +47,7 @@
 		"@codemirror/state": "6.5.0",
 		"@codemirror/view": "6.38.6",
 		"i18next": "23.15.1",
-		"lucide-svelte": "^0.446.0"
+		"lucide-svelte": "^0.446.0",
+		"vanilla-colorful": "0.7.2"
 	}
 }

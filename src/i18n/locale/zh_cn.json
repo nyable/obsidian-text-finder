@@ -69,7 +69,17 @@
     }
   },
   "settings": {
-    "Tabs": { "label": "设置分类", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "工具栏" },
+    "Tabs": { "label": "设置分类", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "外观" },
+    "Appearance": {
+      "colors": "颜色", "panel": "查找面板", "match": "普通匹配", "current": "当前匹配",
+      "focusBorder": "聚焦边框", "accentStrip": "左侧装饰条",
+      "matchBackground": "背景颜色", "matchText": "文字颜色",
+      "currentMatchBackground": "背景颜色", "currentMatchText": "文字颜色",
+      "apply": "应用", "cancel": "取消",
+      "saturation": "颜色饱和度与亮度", "hue": "色相", "alpha": "不透明度",
+      "hexHint": "十六进制颜色：#RGB、#RGBA、#RRGGBB 或 #RRGGBBAA",
+      "resetColor": "恢复继承颜色：{{name}}"
+    },
     "Toolbar": {
       "search": "搜索栏按钮", "replace": "替换栏按钮",
       "inline": "常驻", "more": "更多", "hidden": "隐藏",

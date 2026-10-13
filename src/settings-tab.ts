@@ -6,6 +6,8 @@ import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { parseHistoryLimit } from "./history";
 import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarAction, type ToolbarKind, type ToolbarPlacement } from "./toolbar";
 import ToolbarPreview from "./ToolbarPreview.svelte";
+import { appearanceColors, colorKeys, resolvedAppearanceColor, type AppearanceColorKey } from "./appearance";
+import { openColorPicker } from "./color-picker";
 
 type SettingsPage = "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
@@ -19,8 +21,13 @@ export class SettingTab extends PluginSettingTab {
 	private page: SettingsPage = "find";
 	private cleanupDrag?: () => void;
 	private preview?: ToolbarPreview;
+	private previewRoot?: HTMLElement;
+	private cleanupColor?: () => void;
 
-	private clearPreview() { this.preview?.$destroy(); this.preview = undefined; }
+	private clearPreview() {
+		this.cleanupColor?.(); this.cleanupColor = undefined;
+		this.preview?.$destroy(); this.preview = undefined; this.previewRoot = undefined;
+	}
 	private refreshPreview() {
 		const { searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, enableHistory } = this.plugin.settings;
 		this.preview?.$set({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, historyEnabled: enableHistory });
@@ -32,19 +39,23 @@ export class SettingTab extends PluginSettingTab {
 		this.cleanupDrag?.();
 		this.clearPreview();
 		const root = this.containerEl;
+		this.plugin.ensureAppearanceDocument(root.ownerDocument);
 		root.empty();
 		root.classList.add("nya-settings");
 		const doc = root.ownerDocument;
+		// The host may set containerEl.style.display when showing a tab. Keep
+		// our flex layout on an inner element rather than fighting that value.
+		const layout = doc.createElement("div"); layout.className = "nya-settings-layout"; root.append(layout);
 		const tabs = doc.createElement("div");
 		tabs.className = "nya-settings-tabs";
 		tabs.setAttribute("role", "tablist");
 		tabs.setAttribute("aria-label", i18n.t("settings.Tabs.label"));
-		root.append(tabs);
+		layout.append(tabs);
 		const panel = doc.createElement("div");
 		panel.className = "nya-settings-panel";
 		panel.setAttribute("role", "tabpanel");
 		panel.tabIndex = 0;
-		root.append(panel);
+		layout.append(panel);
 		const buttons = pages.map((page) => {
 			const button = doc.createElement("button");
 			button.type = "button";
@@ -71,6 +82,7 @@ export class SettingTab extends PluginSettingTab {
 			const focused = doc.activeElement;
 			if (focused && panel.contains(focused)) (focused as HTMLElement).blur();
 			this.page = page;
+			root.classList.toggle("nya-settings--appearance", page === "toolbar");
 			buttons.forEach((button, index) => {
 				button.setAttribute("aria-selected", String(pages[index] === page));
 				button.tabIndex = pages[index] === page ? 0 : -1;
@@ -86,6 +98,7 @@ export class SettingTab extends PluginSettingTab {
 	hide() {
 		this.cleanupDrag?.();
 		this.clearPreview();
+		this.containerEl.classList.remove("nya-settings--appearance");
 		const focused = this.containerEl.ownerDocument.activeElement;
 		if (focused && this.containerEl.contains(focused)) (focused as HTMLElement).blur();
 	}
@@ -136,14 +149,75 @@ export class SettingTab extends PluginSettingTab {
 					});
 				});
 		} else {
-			const preview = root.ownerDocument.createElement("div"); root.append(preview);
+			const preview = root.ownerDocument.createElement("div"); preview.className = "nya-appearance-preview"; root.append(preview);
+			this.previewRoot = preview;
 			this.preview = new ToolbarPreview({ target: preview, props: {
 				searchToolbar: this.plugin.settings.searchToolbar, replaceToolbar: this.plugin.settings.replaceToolbar,
 				defaultRegexMode: this.plugin.settings.defaultRegexMode, defaultCaseSensitive: this.plugin.settings.defaultCaseSensitive,
 				historyEnabled: this.plugin.settings.enableHistory,
 			} });
-			this.toolbar(root, "search"); this.toolbar(root, "replace");
+			const controls = root.ownerDocument.createElement("div"); controls.className = "nya-appearance-controls";
+			controls.tabIndex = 0; controls.setAttribute("role", "region");
+			controls.setAttribute("aria-label", i18n.t("settings.Tabs.toolbar")); root.append(controls);
+			this.colors(controls);
+			this.toolbar(controls, "search"); this.toolbar(controls, "replace");
 		}
+	}
+
+	private colors(root: HTMLElement) {
+		const doc = root.ownerDocument;
+		const section = doc.createElement("section"); section.className = "nya-color-settings"; root.append(section);
+		const title = doc.createElement("h3"); title.textContent = i18n.t("settings.Appearance.colors"); section.append(title);
+		const updates = new Map<AppearanceColorKey, () => void>();
+		const commit = (key: AppearanceColorKey, color: string | null) => {
+			if (color === null) delete this.plugin.settings.appearanceColors[key];
+			else this.plugin.settings.appearanceColors[key] = color;
+			this.plugin.refreshAppearance(); this.plugin.requestSaveSettings();
+		};
+		for (const group of ["panel", "match", "current"] as const) {
+			const block = doc.createElement("div"); block.className = "nya-color-group"; section.append(block);
+			const heading = doc.createElement("h4"); heading.textContent = i18n.t(`settings.Appearance.${group}`); block.append(heading);
+			for (const key of colorKeys.filter((key) => appearanceColors[key].group === group)) {
+				const row = doc.createElement("div"); row.className = "nya-color-row"; row.dataset.color = key; block.append(row);
+				const name = i18n.t(`settings.Appearance.${key}`);
+				const label = doc.createElement("span"); label.textContent = name; row.append(label);
+				const controls = doc.createElement("div"); controls.className = "nya-color-controls"; row.append(controls);
+				const picker = doc.createElement("button"); picker.type = "button"; picker.className = "nya-color-picker";
+				const accessibleName = `${i18n.t(`settings.Appearance.${group}`)}: ${name}`;
+				picker.setAttribute("aria-label", accessibleName); picker.setAttribute("aria-haspopup", "dialog"); picker.setAttribute("aria-expanded", "false");
+				const swatch = doc.createElement("span"); swatch.className = "nya-color-swatch"; picker.append(swatch); controls.append(picker);
+				const value = doc.createElement("span"); value.className = "nya-color-code"; controls.append(value);
+				const reset = doc.createElement("button"); reset.type = "button"; reset.className = "nya-color-reset";
+				reset.setAttribute("aria-label", i18n.t("settings.Appearance.resetColor", { name: accessibleName }));
+				reset.title = i18n.t("settings.Appearance.resetColor", { name: accessibleName }); setIcon(reset, "rotate-ccw"); controls.append(reset);
+				let current = "";
+				const update = () => {
+					current = this.plugin.settings.appearanceColors[key] ?? resolvedAppearanceColor(root, key);
+					value.textContent = current; swatch.style.backgroundColor = current;
+					reset.disabled = !this.plugin.settings.appearanceColors[key];
+				};
+				updates.set(key, update); update();
+				picker.addEventListener("click", () => {
+					this.cleanupColor?.(); update();
+					const previewRoot = this.previewRoot!;
+					const variable = appearanceColors[key].variable;
+					this.cleanupColor = openColorPicker({ trigger: picker, color: current, name: accessibleName,
+						preview: (color) => {
+							if (color === null) previewRoot.style.removeProperty(variable);
+							else previewRoot.style.setProperty(variable, color);
+						},
+						apply: (color) => { if (this.plugin.settings.appearanceColors[key] !== color) commit(key, color); update(); },
+					});
+				});
+				reset.addEventListener("click", () => { this.cleanupColor?.(); commit(key, null); update(); });
+			}
+		}
+		const reset = doc.createElement("button"); reset.type = "button"; reset.textContent = i18n.t("settings.Toolbar.reset"); section.append(reset);
+		reset.addEventListener("click", () => {
+			this.cleanupColor?.();
+			this.plugin.settings.appearanceColors = {};
+			this.plugin.refreshAppearance(); updates.forEach((update) => update()); this.plugin.requestSaveSettings();
+		});
 	}
 
 	private toolbar(root: HTMLElement, kind: ToolbarKind) {

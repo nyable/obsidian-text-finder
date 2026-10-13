@@ -1,6 +1,7 @@
 import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { normalizeHistory, trimHistory, type SearchHistoryItem } from "./history";
 import { defaultToolbar, normalizeToolbar, type ToolbarItem } from "./toolbar";
+import { normalizeAppearanceColors, type AppearanceColors } from "./appearance";
 
 export interface PluginSettings {
 	clearAfterHidden: boolean;
@@ -18,6 +19,7 @@ export interface PluginSettings {
 	replaceToolbar: ToolbarItem[];
 	defaultRegexMode: boolean;
 	defaultCaseSensitive: boolean;
+	appearanceColors: AppearanceColors;
 }
 
 export function defaultSettings(): PluginSettings {
@@ -28,6 +30,7 @@ export function defaultSettings(): PluginSettings {
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
 		defaultRegexMode: false, defaultCaseSensitive: false,
+		appearanceColors: {},
 	};
 }
 
@@ -50,6 +53,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	settings.searchHistory = trimHistory(normalizeHistory(input.searchHistory, now), settings.historyMaxCount, settings.historySortOrder);
 	settings.searchToolbar = normalizeToolbar(input.searchToolbar, "search");
 	settings.replaceToolbar = normalizeToolbar(input.replaceToolbar, "replace");
+	settings.appearanceColors = normalizeAppearanceColors(input.appearanceColors);
 	return { settings, changed: raw != null && !sameData(raw, settings) };
 }
 
