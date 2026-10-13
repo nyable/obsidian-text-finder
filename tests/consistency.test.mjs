@@ -40,7 +40,10 @@ test("product settings and command tables cover current public definitions", () 
 
 test("Style Settings example and documented CSS defaults agree with the stylesheet", () => {
 	const example = read("style-settings.css"), doc = read("docs/product/ui-baseline.md");
-	for (const [, name, value] of read("src/styles/index.scss").matchAll(/--(nya-[\w-]+):\s*([^;]+);/g)) {
+	// Only body defaults are the public Style Settings interface. Component-local
+	// select sizing tokens are implementation details, not user-facing settings.
+	const defaults = read("src/styles/index.scss").match(/^body\s*\{([^}]+)\}/)[1];
+	for (const [, name, value] of defaults.matchAll(/--(nya-[\w-]+):\s*([^;]+);/g)) {
 		const item = example.match(new RegExp(`id: ${name}\\n([\\s\\S]*?)(?=\\n    -|\\*\\/)`));
 		assert.ok(item, `missing example variable ${name}`);
 		assert.ok(item[1].includes(`default: '${value}'`) || item[1].includes(`default: ${value}`), `wrong default ${name}`);

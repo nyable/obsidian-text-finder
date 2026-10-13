@@ -66,13 +66,16 @@
 - 所有有效的整组／单项恢复均立即显示统一的 2 秒 Notice“已恢复默认设置”，包括本来已是默认值的分组；提示代表内存设置已恢复，不等待保存，也不宣称磁盘保存成功。保存失败仍由原保存错误路径提示，失效入口不显示成功提示。设置分类 Tab 有悬停、主题色选中下划线／文字、按下背景与键盘聚焦反馈，保持分类导航键盘行为。
 - 宿主会将 `aria-label` 用作悬浮提示，因此设置分类、外观滚动区、预览图、颜色选择器和 More 菜单等容器采用 `aria-labelledby` 引用标题／触发器，保留无障碍名称，不制造大片容器提示。预览的装饰图标使用 `aria-hidden`，真实操作按钮保留功能提示；颜色值输入引用面板标题，保留十六进制格式提示。
 - 默认开启与按钮位置独立；“恢复默认设置”在搜索栏恢复布局及两个默认选项（false），在替换栏仅恢复布局；单次保存同一配置快照，不影响其他栏或已有 Finder 的查询选项。页面无说明段落／隐藏默认提示，默认选项生效规则保留在开关的悬停提示与文档中。
-- 每个按钮独立成块，左侧整高 32px 区域均可拖动，上层功能图标／名称／排序，下层原生位置下拉／默认开关，省略重复的“显示位置”文字但保留辅助技术标签。保持拖动、按钮与键盘排序、焦点恢复及取消清理。
+- 每个按钮独立成块，左侧整高 32px 区域均可拖动，上层功能图标／名称／排序，下层主题化位置下拉／默认开关，省略重复的“显示位置”文字但保留辅助技术标签。“默认开启”文字区与宿主开关区局部垂直居中，不改变宿主开关外观。保持拖动、按钮与键盘排序、焦点恢复及取消清理。
+- 外观页位置下拉使用 select-only combobox，选项仍为 inline／more／hidden。点击或 Enter／Space／上下键展开；展开时上下键循环导航、Home／End 到首尾，只有点击选项或 Enter／Space 才提交不同值，更新预览及已有工具栏并保存一次，同值不保存。Escape 取消并保留触发器焦点，Tab 关闭并继续原生焦点导航；组合输入不触发快捷键。列表挂到所属 Document 的 body，用 aria-labelledby 引用实例唯一触发器，选中勾选与临时导航高亮分离，空间不足上翻并限制宽高。
+- 下拉 size 支持 sm／md、width 支持 content／fill，默认 sm／content，外观位置下拉显式使用此组合。内容适配按全部选项的最长文字占位，切换值不改变宽度；列表与触发器同宽，字体和文字起点一致，只有视口不足才限制列表宽度。尺寸仅控制高度／内边距／图标，不改变选项语义、保存时机或配置格式。
+- 位置列表在外部点击／焦点移出／外部滚动、窗口失焦／pagehide／resize、分组收起、恢复、排序重绘、切页／隐藏／卸载时关闭并清理监听，不提交临时选项或回焦到已隐藏控件。旧列表选项不得作用于重新打开的列表。打开位置列表先取消调色草稿／拖动／其他下拉，打开调色面板或开始拖动也先关闭下拉；历史分类的原生排序下拉不变。
 - 切换设置分类、隐藏／重绘设置页及插件卸载销毁预览。
 - 点击颜色块打开 vanilla-colorful 透明度选择器，所有六项采用同一界面。拖动／合法输入只改变局部草稿；requestAnimationFrame 合并预览容器 CSS 变量更新，不改插件设置、不重写全窗口样式、不保存。非法／部分输入禁用“应用”，组合输入结束后校验；Enter、失焦和拖动结束均不自动提交。
 - 点击“应用”仅提交该项合法草稿，更新真实样式并保存一次；同值无需写入。取消、Escape、点击外部、设置切页／隐藏／重绘／卸载、窗口失焦／pagehide、窗口大小或外部滚动变化均丢弃草稿、取消预览帧并恢复已应用样式；打开另一项先取消上一项。Tab 在选择器内部循环，Escape 回焦色块。
 - 单项恢复直接删除对应显式覆盖；颜色分组恢复直接删除全部颜色覆盖，并一次保存，不重置工具栏／默认选项；均先取消未应用草稿。工具栏恢复不改颜色；恢复后沿用主题／CSS snippet／Style Settings，可能不是插件硬编码初始色。颜色更新不重新搜索、不移动当前项、不写笔记。
 
-依据：`src/settings-tab.ts` 的 `section()`／`reset()`／`clearPreview()`／`refreshPreview()`／`toolbar()`／`colors()`、`src/appearance.ts`、`src/color-picker.ts`、`src/ToolbarPreview.svelte`、`src/Toolbar.svelte` 的 `preview` 分支；回归：`tests/main-settings.test.mjs`、`tests/color-picker.test.mjs`、`tests/appearance.test.mjs`、`tests/search-box-dom.test.mjs`。
+依据：`src/settings-tab.ts` 的 `section()`／`reset()`／`clearPreview()`／`refreshPreview()`／`toolbar()`／`colors()`、`src/settings-select.ts:createSettingsSelect()`、`src/appearance.ts`、`src/color-picker.ts`、`src/ToolbarPreview.svelte`、`src/Toolbar.svelte` 的 `preview` 分支；回归：`tests/main-settings.test.mjs`、`tests/settings-select.test.mjs`、`tests/color-picker.test.mjs`、`tests/appearance.test.mjs`、`tests/search-box-dom.test.mjs`。
 
 ## 历史交互
 

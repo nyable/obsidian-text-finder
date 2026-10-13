@@ -26,6 +26,7 @@
 | --- | --- | --- | --- |
 | Obsidian Plugin／Workspace／MarkdownView／Editor／Modal／Setting | 加载、命令、视图、编辑、设置、存储、原生查找 | 按 owner 路由、检查视图仍打开；宿主行为需实测 | `src/main.ts`、`src/editor-extension.ts`、`src/settings-tab.ts`、`src/HistoryModal.ts` |
 | Obsidian setTooltip／aria-label 自动悬浮提示 | 控件功能说明 | 用户反馈确认宿主会由 aria-label 产生提示；非操作容器改为 aria-labelledby 标题引用，真实操作保留提示。自动测试检查标签结构，不证明宿主提示实际位置／消失时机 | `src/settings-tab.ts:section()`、`src/color-picker.ts`、`src/Toolbar.svelte`、`tests/main-settings.test.mjs` |
+| DOM combobox／listbox、owner Window 视口与焦点 | 外观页位置下拉 | body 挂载避免滚动裁切，限制视口并上翻，关闭／销毁清监听；jsdom 验证导航、提交、清理与模拟定位，不证明 Obsidian 主题绘制、触屏、读屏或默认开启的实际视觉对齐 | `src/settings-select.ts`、`src/settings-tab.ts`、`tests/settings-select.test.mjs`、`tests/main-settings.test.mjs` |
 | 内部 `editor.cm` | CodeMirror 文档、事务及高亮 | 缺失时返回无编辑上下文，不向其他活动编辑器借用目标 | `src/editor-extension.ts:getEditorContext()` |
 | 私有 `previewMode.renderer` | 全部分块、渲染等待、虚拟挂载／定位 | shape 检查和运行时异常保护；缺失则不做局部 DOM 冒充全文 | `src/reading-search.ts:rendererFor()`／`supported()` |
 | 内部 `Vault.getConfig("livePreview")` | 用户关闭入口恢复编辑偏好 | 缺失／非布尔／抛错返回 undefined，不切模式；模式 Promise 拒绝提示，不阻止隐藏 | `src/util/obsidian-internal.ts`、`src/SearchBox.svelte:closeFinder()` |

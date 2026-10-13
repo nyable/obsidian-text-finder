@@ -8,6 +8,7 @@ import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarAction, typ
 import ToolbarPreview from "./ToolbarPreview.svelte";
 import { appearanceColors, colorKeys, resolvedAppearanceColor, type AppearanceColorKey } from "./appearance";
 import { openColorPicker } from "./color-picker";
+import { createSettingsSelect, type SettingsSelect } from "./settings-select";
 
 type SettingsPage = "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
@@ -25,11 +26,14 @@ export class SettingTab extends PluginSettingTab {
 	private preview?: ToolbarPreview;
 	private previewRoot?: HTMLElement;
 	private cleanupColor?: () => void;
+	private cleanupSelect?: () => void;
+	private selectControls = new Set<SettingsSelect>();
 	private labelId = `nya-settings-categories-${++nextSettingsId}`;
 	private collapsed = new Set<"colors" | ToolbarKind>(["colors", "search", "replace"]);
 	private sectionId = 0;
 
 	private clearPreview() {
+		this.selectControls.forEach((control) => control.destroy()); this.selectControls.clear(); this.cleanupSelect = undefined;
 		this.cleanupColor?.(); this.cleanupColor = undefined;
 		this.preview?.$destroy(); this.preview = undefined; this.previewRoot = undefined;
 	}
@@ -114,7 +118,7 @@ export class SettingTab extends PluginSettingTab {
 
 	private reset(trigger: HTMLButtonElement, action: () => void) {
 		if (!this.preview || this.page !== "toolbar" || !trigger.isConnected || !this.containerEl.contains(trigger)) return;
-		this.cleanupColor?.(); this.cleanupDrag?.(); action();
+		this.cleanupSelect?.(); this.cleanupColor?.(); this.cleanupDrag?.(); action();
 		// Settings have been restored in memory; persistence is queued separately.
 		new Notice(i18n.t("settings.Toolbar.resetDone"), 2000);
 	}
@@ -139,6 +143,7 @@ export class SettingTab extends PluginSettingTab {
 		toggle.addEventListener("click", () => {
 			if (this.collapsed.has(kind)) this.collapsed.delete(kind);
 			else {
+				this.cleanupSelect?.();
 				cancelGesture();
 				if (body.contains(doc.activeElement)) toggle.focus();
 				this.collapsed.add(kind);
@@ -245,6 +250,7 @@ export class SettingTab extends PluginSettingTab {
 				};
 				updates.set(key, update); update();
 				picker.addEventListener("click", () => {
+					this.cleanupSelect?.();
 					this.cleanupColor?.(); update();
 					const previewRoot = this.previewRoot!;
 					const variable = appearanceColors[key].variable;
@@ -275,6 +281,7 @@ export class SettingTab extends PluginSettingTab {
 		const live = doc.createElement("div"); live.className = "nya-settings-sr";
 		live.setAttribute("role", "status"); live.setAttribute("aria-live", "polite"); section.append(live);
 		const key = kind === "search" ? "searchToolbar" : "replaceToolbar";
+		const selectControls = new Set<SettingsSelect>();
 		const commit = (items: PluginSettings[typeof key]) => {
 			if (items === this.plugin.settings[key]) return;
 			this.plugin.settings[key] = items;
@@ -283,6 +290,7 @@ export class SettingTab extends PluginSettingTab {
 			this.plugin.requestSaveSettings();
 		};
 		const render = (focusId?: string, control = "handle") => {
+			selectControls.forEach((control) => { control.destroy(); this.selectControls.delete(control); }); selectControls.clear();
 			list.replaceChildren();
 			this.plugin.settings[key].forEach((item, index, items) => {
 				const row = doc.createElement("div"); row.className = "nya-toolbar-row"; row.dataset.action = item.id; list.append(row);
@@ -300,16 +308,15 @@ export class SettingTab extends PluginSettingTab {
 				const label = doc.createElement("span"); label.className = "nya-toolbar-name"; label.textContent = name; controls.append(label);
 				const options = doc.createElement("div"); options.className = "nya-toolbar-row-options"; row.append(options);
 				const placement = doc.createElement("div"); placement.className = "nya-toolbar-placement"; options.append(placement);
-				const select = doc.createElement("select"); select.setAttribute("aria-label", i18n.t("settings.Toolbar.placement", { name }));
-				for (const placement of ["inline", "more", "hidden"] as const) {
-					const option = doc.createElement("option"); option.value = placement; option.textContent = i18n.t(`settings.Toolbar.${placement}`); select.append(option);
-				}
-				select.value = item.placement; placement.append(select);
-				const arrow = doc.createElement("span"); arrow.className = "nya-toolbar-select-arrow";
-				arrow.setAttribute("aria-hidden", "true"); setIcon(arrow, "chevron-down"); placement.append(arrow);
-				select.addEventListener("change", () => {
-					commit(this.plugin.settings[key].map((entry) => entry.id === item.id ? { ...entry, placement: select.value as ToolbarPlacement } : entry));
+				const select = createSettingsSelect<ToolbarPlacement>({ container: placement,
+					size: "sm", width: "content",
+					name: i18n.t("settings.Toolbar.placement", { name }), value: item.placement,
+					items: (["inline", "more", "hidden"] as const).map((value) => ({ value, label: i18n.t(`settings.Toolbar.${value}`) })),
+					valid: () => !!this.preview && this.page === "toolbar" && this.containerEl.contains(placement),
+					beforeOpen: () => { this.cleanupColor?.(); this.cleanupDrag?.(); this.cleanupSelect?.(); this.cleanupSelect = select.close; },
+					change: (value) => commit(this.plugin.settings[key].map((entry) => entry.id === item.id ? { ...entry, placement: value } : entry)),
 				});
+				selectControls.add(select); this.selectControls.add(select);
 				if (kind === "search" && (item.id === "regex" || item.id === "case")) {
 					const defaultKey = item.id === "regex" ? "defaultRegexMode" : "defaultCaseSensitive";
 					const option = new Setting(options).setName(i18n.t("settings.Toolbar.defaultEnabled"));
@@ -338,6 +345,7 @@ export class SettingTab extends PluginSettingTab {
 				});
 				handle.addEventListener("pointerdown", (event) => {
 					if (event.button !== 0 || !event.isPrimary) return;
+					this.cleanupSelect?.();
 					this.cleanupDrag?.();
 					let boundary = index;
 					let dragging = false;

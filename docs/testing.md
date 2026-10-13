@@ -29,6 +29,7 @@ git diff --check
 - 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
 - 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。
 - `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
+- 外观位置下拉的鼠标／键盘临时导航与单次提交、同值不保存、标题引用、owner Document、视口上翻、旧选项失效与监听释放；切页／隐藏／折叠／重排／恢复／卸载关闭，与调色草稿互斥。sm／md 与 content／fill 组合、触发器和列表同宽／视口限制、全选项测量占位以及每次打开同步主题字体有结构及模拟几何回归。入口为 `settings-select.test.mjs`、`main-settings.test.mjs`；`appearance.test.mjs` 检查共享尺寸／字体／文字起点样式和默认开启居中规则，不代替宿主视觉／触屏／读屏验收。
 
 相关测试保留在 [`tests/`](../tests/)，例如 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 `search-box-dom.test.mjs`。当前覆盖情况以测试文件和运行结果为准，不在文档中固定测试总数。
 

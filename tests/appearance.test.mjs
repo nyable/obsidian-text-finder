@@ -108,3 +108,27 @@ test("settings tabs have scoped hover, selected, pressed and focus styles; folde
 	assert.match(css, /\.nya-settings-section-toggle\s*\{[^}]*min-height: 32px/s);
 	assert.match(css, /\.nya-settings-section-body\s*\{[^}]*padding-top: 6px/s);
 });
+
+test("custom settings selects use theme popovers and default option label/control have centered margin-free layout", () => {
+	const css = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
+	assert.match(css, /\.nya-settings-select\s*\{[^}]*display: grid[^}]*align-items: center[^}]*height: var\(--nya-select-height\)/s);
+	assert.match(css, /\.nya-settings-select-popover\s*\{[^}]*position: fixed[^}]*overflow-y: auto[^}]*background: var\(--background-primary\)[^}]*box-shadow: var\(--shadow-s\)/s);
+	assert.match(css, /\.nya-settings-select-option\[data-highlighted=(?:"true"|true)\]\s*\{[^}]*background: var\(--background-modifier-hover\)/s);
+	assert.match(css, /\.nya-settings-select-option\[aria-selected=(?:"true"|true)\] \.nya-settings-select-check\s*\{[^}]*visibility: visible/s);
+	for (const selector of ['\\.nya-toolbar-default\\.setting-item', '\\.nya-toolbar-default \\.setting-item-info', '\\.nya-toolbar-default \\.setting-item-control']) {
+		assert.match(css, new RegExp(`\\.nya-settings ${selector}\\s*\\{[^}]*display: flex[^}]*align-items: center[^}]*margin: 0`, 's'));
+	}
+	assert.match(css, /\.nya-toolbar-default \.setting-item-name\s*\{[^}]*margin: 0[^}]*line-height: 1.4/s);
+});
+
+test("select trigger and options share size/typography, intrinsic sizing, padding and icon space without fixed widths", () => {
+	const css = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
+	assert.match(css, /\.nya-settings-select, \.nya-settings-select-popover\s*\{[^}]*--nya-select-height: 28px[^}]*--nya-select-option-height: 32px[^}]*font-family: var\(--font-interface\)[^}]*font-size: var\(--font-ui-small\)[^}]*line-height: 1.4/s);
+	assert.match(css, /\.nya-settings-select\[data-size=(?:"md"|md)\], \.nya-settings-select-popover\[data-size=(?:"md"|md)\]\s*\{[^}]*--nya-select-height: 32px[^}]*--nya-select-option-height: 36px/s);
+	assert.match(css, /\.nya-settings-select\[data-width=(?:"fill"|fill)\]\s*\{[^}]*width: 100%/s);
+	assert.match(css, /\.nya-settings \.nya-toolbar-placement\s*\{[^}]*width: max-content[^}]*max-width: 100%/s);
+	assert.match(css, /\.nya-settings-select-sizing\s*\{[^}]*display: grid[^}]*visibility: hidden/s);
+	assert.match(css, /\.nya-settings-select-sizing span\s*\{[^}]*grid-area: 1\s*\/\s*1/s);
+	assert.match(css, /\.nya-settings-select-option\s*\{[^}]*gap: var\(--nya-select-gap\)[^}]*padding: 4px calc\(var\(--nya-select-padding-inline\) - 4px\)/s);
+	assert.doesNotMatch(css, /\.nya-toolbar-placement\s*\{[^}]*width: 96px/s);
+});

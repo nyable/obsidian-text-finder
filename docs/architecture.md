@@ -125,6 +125,10 @@ interface PluginSettings {
 
 `SettingTab.section()` 统一三个分组的折叠标题和独立恢复按钮；`collapsed` Set 默认包含三个分组，仅在本次设置访问中使用，隐藏后重置为全部折叠，不进入持久化字段。`reset()` 校验当前页面、预览存活及触发器归属，先取消调色／拖动，再直接沿用原分组保存路径并立即发统一 2 秒 Notice，不等待磁盘写入、不额外保存，不持有恢复确认 Modal；折叠不保存。非操作容器通过实例唯一标题 ID 的 `aria-labelledby` 保留读屏名称，避免宿主的 `aria-label` 自动悬浮提示；More 菜单引用所在 Toolbar 的独立触发器 ID。
 
+`src/settings-select.ts:createSettingsSelect()` 为外观位置选择提供原生 DOM select-only combobox，独立管理当前值／临时导航、owner Document 列表与监听，不持有插件配置或保存队列。`SettingTab` 提供有效性校验及单次提交路径，统一跟踪控制器；各栏 `render()` 销毁旧控件，`clearPreview()` 在切页／隐藏／卸载时销毁全部控件。关闭列表仅移除弹层与临时监听，销毁另移除触发器事件；旧列表事件通过实例身份检查失效。菜单／调色／拖动相互关闭，不引入新配置字段或依赖。
+
+下拉接口提供 `size?: "sm" | "md"` 和 `width?: "content" | "fill"`，默认 sm／content。所有选项在 aria-hidden 的 Grid 测量占位中叠放，使隐藏分组内也能按内容布局，不增加测量 Observer；触发器限于容器宽度。portal 每次打开读取 owner Window 的 computed 字体及局部尺寸变量、复制到列表，按触发器实测宽度并限制视口；尺寸变量仅为组件内部实现，不纳入 body 的公开 CSS／Style Settings 默认值表。
+
 依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
 
 ## 依赖与耦合边界
