@@ -7,6 +7,7 @@
 ```text
 TextFinderPlugin                         加载、设置、错误与持久化
 ├─ SettingTab                            原生 Obsidian／DOM 设置 UI
+│  └─ ToolbarPreview.svelte              无笔记行为的外观预览，复用 Toolbar
 ├─ HistoryController                     共享历史、同步订阅通知
 ├─ SettingsStorage                       独立快照、跨实例串行读写
 └─ EditorSearch                          命令、视图归属、资源生命周期
@@ -88,6 +89,8 @@ interface PluginSettings {
   }[];
   searchToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
   replaceToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
+  defaultRegexMode: boolean; // 新建 Finder 的初始正则选项
+  defaultCaseSensitive: boolean; // 新建 Finder 的初始大小写选项
 }
 ```
 
@@ -97,6 +100,7 @@ interface PluginSettings {
 - `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
 - `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
+- 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。
 - `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
 - `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。
 - 读取失败启用默认内存状态并禁止写入；修复后重载，临时内存修改不会与重新读取的数据合并。保存失败不回滚，下次修改尝试保存最新快照，没有自动后台重试或强制退出落盘保证。
@@ -119,9 +123,9 @@ interface PluginSettings {
 | --- | --- | --- |
 | 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Svelte |
 | 框架无关但宿主耦合 | `settings-storage.ts`、`search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
-| 原生 UI | `settings-tab.ts` | 使用 Obsidian Setting 与直接 DOM 操作，不依赖 Svelte |
+| 设置 UI | `settings-tab.ts` | 控件使用 Obsidian Setting 与直接 DOM 操作；挂载／更新／销毁 Svelte 外观预览 |
 | 混合集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts` | 插件／命令／Modal 与 Svelte 挂载、实例方法、`$destroy()` 直接或间接关联 |
-| 直接 Svelte 耦合 | 六个 `.svelte` 文件 | `$:`、bind、actions、dispatcher、tick、生命周期、动态组件、事件修饰符、scoped styles |
+| 直接 Svelte 耦合 | `.svelte` 文件 | `$:`、bind、actions、dispatcher、tick、生命周期、动态组件、事件修饰符、scoped styles |
 | 工具链耦合 | esbuild Svelte 插件、tsconfig、类型引用、组件编译测试、script 抽取测试 | 不应把现有测试加载方式误认为框架无关 |
 
 **维护约束：**SearchBox 同时包含业务编排与展示，修改组件时必须核对操作语义和安全不变量，不能当作纯展示层。依据：`src/SearchBox.svelte` 的导出操作、`src/editor-extension.ts` 的 `Map<MarkdownView, SearchBox>` 及调用点。

@@ -58,6 +58,8 @@
 - 禁用历史保留已有记录，停止记录／统计及输入框上下键历史导航；命令仍可打开弹窗，已有记录仍可操作。工具栏历史按钮禁用。
 - 搜索／替换工具栏分别支持顺序及 `inline`（常驻）、`more`（更多）、`hidden`（隐藏）；隐藏按钮不移除命令能力。
 - 支持拖动、上下按钮、手柄方向键排序和单栏恢复默认；关闭按钮与展开替换入口固定。
+- 工具栏设置页顶部提供固定展开两行的实时纯展示预览，无任何操作。每个按钮使用独立配置块，左侧整高拖动区，上层身份／排序、下层显示位置／默认开关；正则及大小写项支持默认开启。“恢复默认配置”仅作用于本栏，搜索栏同时恢复布局及两个默认选项，替换栏仅恢复布局，不改变已有 Finder。
+- 预览查找词固定为 `text`，替换框无内容、显示 placeholder；下方 120px 高正文区以固定英文展示一个当前匹配和两个普通匹配，复用编辑高亮的 CSS 类及颜色变量，不执行真实匹配。
 
 依据：`src/history.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte`、`src/Toolbar.svelte`、`src/settings-tab.ts` 的 `toolbar()`。
 
@@ -79,8 +81,10 @@
 | 历史 | `historySortOrder` | 默认 `lastUsedAt` |
 | 工具栏 | `searchToolbar` | 正则、大小写、上一项、下一项常驻；历史隐藏 |
 | 工具栏 | `replaceToolbar` | 单次替换、全部替换常驻 |
+| 工具栏 | `defaultRegexMode` | 默认关闭；仅初始化新建视图查找器的正则选项 |
+| 工具栏 | `defaultCaseSensitive` | 默认关闭；仅初始化新建视图查找器的大小写选项 |
 
-设置页是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现，不是 Svelte 组件。依据：`src/settings-tab.ts`。
+设置页控件是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现；预览挂载 `src/ToolbarPreview.svelte` 并复用 `src/Toolbar.svelte`。依据：`src/settings-tab.ts`。
 
 ## 非能力
 

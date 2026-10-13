@@ -10,6 +10,8 @@
 	export let historyEnabled = true;
 	export let tabindex = 0;
 	export let visible = true;
+	// Presentation-only branch: no controls, menu or document listeners.
+	export let preview = false;
 	const icons = { regex: Regex, case: CaseSensitive, previous: ArrowUp, next: ArrowDown, history: History, replace: Replace, replaceAll: ReplaceAll };
 	let open = false;
 	let root: HTMLDivElement;
@@ -20,6 +22,7 @@
 	$: controlTabIndex = visible ? tabindex : -1;
 	$: activeIds = new Set<ToolbarAction>([...(regexMode ? ["regex" as const] : []), ...(caseSensitive ? ["case" as const] : [])]);
 	const execute = (id: ToolbarAction) => {
+		if (preview) return;
 		if (id !== "history" || historyEnabled) {
 			if (open) trigger.focus();
 			open = false; run(id);
@@ -30,6 +33,7 @@
 	};
 	function outside(event: PointerEvent) { if (open && !root.contains(event.target as Node)) open = false; }
 	function ownerEvents(node: HTMLElement) {
+		if (preview) return {};
 		const doc = node.ownerDocument;
 		doc.addEventListener("pointerdown", outside);
 		return { destroy() { doc.removeEventListener("pointerdown", outside); } };
@@ -53,48 +57,57 @@
 </script>
 
 <div class="nya-toolbar" bind:this={root} use:ownerEvents>
-	{#each inline as item (item.id)}
-		<div class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
-			role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : controlTabIndex} aria-label={i18n.t(toolbarLabels[item.id])}
-			aria-pressed={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
-			aria-disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)} on:keydown={activate}>
-			<svelte:component this={icons[item.id]} size={18} />
-		</div>
-	{/each}
-	{#if more.length}
-		<div class="nya-toolbar-overflow">
-			<div class="nya-btn nya-focus" role="button" tabindex={controlTabIndex} aria-label={i18n.t("search.tip.More")}
-				aria-haspopup="menu" aria-expanded={open} bind:this={trigger} on:click={toggle} on:keydown={activate}>
-				<Ellipsis size={18} />
+	{#if preview}
+		{#each inline as item (item.id)}
+			<span class="nya-btn" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
+				aria-label={i18n.t(toolbarLabels[item.id])} data-active={activeIds.has(item.id)}>
+				<svelte:component this={icons[item.id]} size={18} />
+			</span>
+		{/each}
+		{#if more.length}
+			<span class="nya-btn" aria-label={i18n.t("search.tip.More")}><Ellipsis size={18} /></span>
+		{/if}
+	{:else}
+		{#each inline as item (item.id)}
+			<div class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
+				role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : controlTabIndex} aria-label={i18n.t(toolbarLabels[item.id])}
+				aria-pressed={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
+				aria-disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)} on:keydown={activate}>
+				<svelte:component this={icons[item.id]} size={18} />
 			</div>
-			{#if open}
-				<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-label={i18n.t("search.tip.More")} on:keydown={menuKeys}>
-					{#each more as item (item.id)}
-						<button type="button" role={item.id === "regex" || item.id === "case" ? "menuitemcheckbox" : "menuitem"}
-							aria-checked={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
-							disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)}>
-							<svelte:component this={icons[item.id]} size={18} />
-							<span>{i18n.t(toolbarLabels[item.id])}</span><span class="nya-menu-check">{activeIds.has(item.id) ? "✓" : ""}</span>
-						</button>
-					{/each}
+		{/each}
+		{#if more.length}
+			<div class="nya-toolbar-overflow">
+				<div class="nya-btn nya-focus" role="button" tabindex={controlTabIndex} aria-label={i18n.t("search.tip.More")}
+					aria-haspopup="menu" aria-expanded={open} bind:this={trigger} on:click={toggle} on:keydown={activate}>
+					<Ellipsis size={18} />
 				</div>
-			{/if}
-		</div>
+				{#if open}
+					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-label={i18n.t("search.tip.More")} on:keydown={menuKeys}>
+						{#each more as item (item.id)}
+							<button type="button" role={item.id === "regex" || item.id === "case" ? "menuitemcheckbox" : "menuitem"}
+								aria-checked={item.id === "regex" || item.id === "case" ? activeIds.has(item.id) : undefined}
+								disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)}>
+								<svelte:component this={icons[item.id]} size={18} />
+								<span>{i18n.t(toolbarLabels[item.id])}</span><span class="nya-menu-check">{activeIds.has(item.id) ? "✓" : ""}</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
 	{/if}
 </div>
 
 <style lang="scss">
+	@use "./styles/finder-primitives" as finder;
 	.nya-toolbar { display: flex; align-items: center; }
-	// Deliberately identical to the existing SearchBox button styling.
 	.nya-btn {
-		width: 24px; height: 24px; margin: 2px; padding: 4px;
-		display: flex; justify-content: center; align-items: center; border-radius: 2px;
-		&--active { border: 1px solid var(--nya-focus-border-color); background-color: rgba(36, 137, 219, 0.51); color: #fff; }
+		@include finder.button;
 		&--disabled { opacity: 0.4; }
 	}
 	.nya-focus {
-		&:hover { background-color: rgba(90, 93, 94, 0.31); }
-		&:focus { box-shadow: 0 0 0 1px var(--nya-focus-border-color); }
+		@include finder.focus;
 	}
 	.nya-toolbar-overflow { position: relative; }
 	.nya-toolbar-menu {

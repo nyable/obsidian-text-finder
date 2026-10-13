@@ -16,6 +16,8 @@ export interface PluginSettings {
 	searchHistory: SearchHistoryItem[];
 	searchToolbar: ToolbarItem[];
 	replaceToolbar: ToolbarItem[];
+	defaultRegexMode: boolean;
+	defaultCaseSensitive: boolean;
 }
 
 export function defaultSettings(): PluginSettings {
@@ -25,6 +27,7 @@ export function defaultSettings(): PluginSettings {
 		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
+		defaultRegexMode: false, defaultCaseSensitive: false,
 	};
 }
 
@@ -35,6 +38,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	for (const key of [
 		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
 		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
+		"defaultRegexMode", "defaultCaseSensitive",
 	] as const) {
 		if (typeof input[key] === "boolean") settings[key] = input[key];
 	}

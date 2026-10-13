@@ -66,8 +66,8 @@
 		visible: false,
 		collapse: true,
 		options: {
-			regexMode: false,
-			caseSensitive: false,
+			regexMode: editorSearch?.plugin.settings.defaultRegexMode ?? false,
+			caseSensitive: editorSearch?.plugin.settings.defaultCaseSensitive ?? false,
 		},
 	};
 
@@ -1078,9 +1078,10 @@
 </div>
 
 <style lang="scss">
+	@use "./styles/finder-primitives" as finder;
 	.nya-finder {
+		@include finder.surface;
 		position: absolute;
-		background-color: var(--background-primary);
 		transition:
 			transform 0.2s linear,
 			opacity 0.2s linear,
@@ -1089,12 +1090,9 @@
 		min-width: var(--nya-default-width);
 		top: 88px;
 		right: 48px;
-		box-shadow: 0 0 6px 1px rgba(0, 0, 0, 0.36);
-		border: 1px solid var(--modal-border-color);
 		z-index: 20;
 		display: flex;
 		flex-direction: row;
-		border-radius: 4px;
 		justify-content: center;
 		align-items: center;
 		// overflow: hidden;
@@ -1191,49 +1189,17 @@
 		}
 	}
 	.nya-tip {
-		display: flex;
-		align-items: center;
-		font-size: 12px;
-		text-align: left;
-		font-family: auto;
-		min-width: 100px;
-		text-wrap: nowrap;
-		padding: 0 4px 0px 8px;
+		@include finder.counter;
 	}
 
 	.nya-btn {
-		width: 24px;
-		height: 24px;
-		margin: 2px;
-		padding: 4px;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		border-radius: 2px;
-		&--active {
-			border: 1px solid var(--nya-focus-border-color);
-			background-color: rgba(36, 137, 219, 0.51);
-			color: #fff;
-		}
+		@include finder.button;
 	}
 	.nya-input {
-		box-shadow: none;
-		flex: 1;
-		min-width: 177px;
-		resize: none;
-		height: 28px;
-		scrollbar-width: none;
-		&:focus {
-			border: 1px solid var(--nya-focus-border-color);
-		}
+		@include finder.input;
 	}
 	.nya-focus {
-		&:hover {
-			background-color: rgba(90, 93, 94, 0.31);
-		}
-		&:focus {
-			box-shadow: 0 0 0 1px var(--nya-focus-border-color);
-		}
+		@include finder.focus;
 	}
 
 	:global(.is-mobile) {

@@ -3,8 +3,12 @@ import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
 import { constants, historySource, settingsSource, toolbarSource } from "./history-source.mjs";
+import { ToolbarPreview, tick, previewStyles } from "./toolbar-preview-source.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
+globalThis.window = dom.window;
+globalThis.document = dom.window.document;
+globalThis.CustomEvent = dom.window.CustomEvent;
 const notices = [];
 const tabs = [];
 const fields = new Map();
@@ -24,11 +28,14 @@ class PluginSettingTab {
 class Setting {
 	constructor(root) {
 		this.row = dom.window.document.createElement("div"); root.append(this.row);
+		this.settingEl = this.row;
 	}
 	setName(name) { this.name = name; this.row.dataset.name = name; return this; }
 	setDesc() { return this; }
 	addToggle(callback) {
-		const toggle = { setValue() { return this; }, onChange(fn) { this.change = fn; return this; } };
+		const toggleEl = dom.window.document.createElement("button"); this.row.append(toggleEl);
+		const toggle = { toggleEl, value: false, setValue(value) { this.value = value; return this; }, onChange(fn) { this.change = fn; return this; } };
+		toggleEl.addEventListener("click", () => { toggle.value = !toggle.value; toggle.change(toggle.value); });
 		callback(toggle); fields.set(this.name, toggle); return this;
 	}
 	addText(callback) {
@@ -46,10 +53,12 @@ class Setting {
 		callback(dropdown); fields.set(this.name, dropdown); return this;
 	}
 }
-const obsidian = { Plugin, PluginSettingTab, Setting, normalizePath: (path) => path, Notice: class { constructor(message) { notices.push(message); } } };
+const obsidian = { Plugin, PluginSettingTab, Setting, setIcon: (element, name) => { element.dataset.icon = name; }, normalizePath: (path) => path, Notice: class { constructor(message) { notices.push(message); } } };
 const translations = { i18n: { t: (key) => key } };
 const settingsTabSource = loadSource("../src/settings-tab.ts", {
 	obsidian, "./i18n": translations, "./constants": constants, "./history": historySource, "./toolbar": toolbarSource,
+	"./settings": settingsSource,
+	"./ToolbarPreview.svelte": { default: ToolbarPreview },
 });
 const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
 	obsidian, "./settings-tab": settingsTabSource,
@@ -298,6 +307,139 @@ function pointer(target, type, y) {
 	const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
 	Object.assign(event, { pointerId: 1, isPrimary: true, button: 0, clientY: y }); target.dispatchEvent(event);
 }
+
+test("toolbar defaults update the real preview and restore defaults resets only the selected toolbar in one snapshot", async () => {
+	const p = plugin(null); await p.onload();
+	let refreshes = 0; p.editorSearch = { refreshToolbars: () => refreshes++ };
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl, preview = root.querySelector(".nya-toolbar-preview");
+	const row = (id) => root.querySelector(`[data-action="${id}"]`);
+	assert.equal(root.querySelectorAll(".nya-toolbar-default").length, 2);
+	const regex = row("regex").querySelector(".nya-toolbar-default button");
+	regex.click(); await tick();
+	assert.equal(p.settings.defaultRegexMode, true);
+	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]').dataset.active, "true");
+	assert.equal(refreshes, 0, "default changes do not update existing finders");
+	const placement = row("regex").querySelector("select"); placement.value = "hidden";
+	placement.dispatchEvent(new dom.window.Event("change")); await tick();
+	assert.equal(row("regex").querySelector(".nya-toolbar-warning"), null);
+	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]'), null);
+	assert.equal(p.settings.defaultRegexMode, true);
+	row("case").querySelector(".nya-toolbar-default button").click();
+	const replace = row("replace").querySelector("select"); replace.value = "more";
+	replace.dispatchEvent(new dom.window.Event("change"));
+	await p.flushSettings();
+	root.querySelectorAll(".nya-toolbar-settings")[1].lastElementChild.click(); await tick(); await p.flushSettings();
+	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, true, "replace reset does not reset search defaults");
+	assert.equal(p.settings.searchToolbar[0].placement, "hidden");
+	assert.deepEqual(p.settings.replaceToolbar, toolbarSource.defaultToolbar("replace"));
+	row("replace").querySelector("select").value = "more";
+	row("replace").querySelector("select").dispatchEvent(new dom.window.Event("change"));
+	await p.flushSettings(); const writes = p.writes.length;
+	root.querySelector(".nya-toolbar-settings").lastElementChild.click(); await tick();
+	assert.equal(p.settings.defaultRegexMode, false); assert.equal(p.settings.defaultCaseSensitive, false);
+	assert.deepEqual(p.settings.searchToolbar, toolbarSource.defaultToolbar("search"));
+	assert.equal(p.settings.replaceToolbar[0].placement, "more", "search reset leaves replace configuration unchanged");
+	assert.equal(row("regex").querySelector(".nya-toolbar-warning"), null);
+	assert.equal(preview.querySelector('[aria-label="search.tip.UseRegularExpression"]').dataset.active, "false");
+	await p.flushSettings();
+	assert.equal(p.writes.length, writes + 1, "reset saves layout and default options together");
+	assert.equal(p.writes.at(-1).defaultRegexMode, false); assert.equal(p.writes.at(-1).defaultCaseSensitive, false);
+	p.data = p.writes.at(-1); await p.loadSettings();
+	assert.equal(p.settings.defaultRegexMode, false);
+	tab.hide();
+});
+
+test("preview stays expanded, reorders live and has no controls, menu actions or document listeners", async (t) => {
+	const p = plugin(null); await p.onload();
+	const listeners = new Set(), doc = dom.window.document;
+	const add = doc.addEventListener.bind(doc), remove = doc.removeEventListener.bind(doc);
+	t.mock.method(doc, "addEventListener", (type, handler, ...rest) => { if (type === "pointerdown") listeners.add(handler); return add(type, handler, ...rest); });
+	t.mock.method(doc, "removeEventListener", (type, handler, ...rest) => { if (type === "pointerdown") listeners.delete(handler); return remove(type, handler, ...rest); });
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl;
+	const preview = () => root.querySelector(".nya-toolbar-preview");
+	const placement = root.querySelector('[data-action="regex"] select'); placement.value = "more";
+	placement.dispatchEvent(new dom.window.Event("change"));
+	root.querySelector('[data-action="regex"] .nya-toolbar-default button').click(); await tick();
+	const writes = p.writes.length; await p.flushSettings(); const saved = p.writes.length;
+	const trigger = preview().querySelector('[aria-label="search.tip.More"]');
+	trigger.click(); await tick();
+	trigger.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await tick();
+	assert.equal(preview().querySelector('[role="menu"]'), null);
+	doc.body.dispatchEvent(new dom.window.Event("pointerdown", { bubbles: true })); await tick();
+	assert.equal(preview().querySelector('[role="menu"]'), null);
+	preview().querySelector('[aria-label="search.tip.MatchCase"]').click(); await tick();
+	assert.equal(p.settings.defaultRegexMode, true); assert.equal(p.settings.defaultCaseSensitive, false);
+	assert.equal(p.writes.length, saved, "inspecting preview never saves settings");
+	assert.equal(preview().querySelectorAll(".nya-preview-input").length, 2);
+	preview().querySelector('.nya-preview-toggle').click(); await tick();
+	assert.equal(preview().querySelectorAll(".nya-preview-input").length, 2);
+	assert.equal(preview().querySelectorAll('textarea, input, button, [role="button"], [tabindex], [contenteditable]').length, 0);
+	trigger.focus(); assert.notEqual(doc.activeElement, trigger);
+	root.querySelector('[data-action="next"] [data-control="up"]').click(); await tick();
+	const labels = [...preview().querySelectorAll('.nya-preview-search-actions .nya-toolbar > span')].map((button) => button.getAttribute("aria-label"));
+	assert.deepEqual(labels, ["search.tip.MatchCase", "search.tip.NextMatch", "search.tip.PreviousMatch", "search.tip.More"]);
+	assert.ok(p.writes.length >= writes);
+	assert.equal(listeners.size, 0, "presentation does not register pointer listeners");
+	tab.hide(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
+	tab.display(); assert.equal(listeners.size, 0);
+	root.querySelector('#nya-settings-tab-find').click(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
+	root.querySelector('#nya-settings-tab-toolbar').click(); assert.ok(preview()); assert.equal(listeners.size, 0);
+	p.onunload(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
+});
+
+test("toolbar blocks separate identity/reorder from configuration and omit explanation paragraphs", async () => {
+	const p = plugin(null); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl;
+	assert.equal(root.querySelectorAll('.nya-settings-panel p').length, 0);
+	const blocks = [...root.querySelectorAll('.nya-toolbar-row')]; assert.equal(blocks.length, 7);
+	for (const block of blocks) {
+		const header = block.querySelector('.nya-toolbar-row-controls'), options = block.querySelector('.nya-toolbar-row-options');
+		assert.ok(header.querySelector('.nya-toolbar-name'));
+		assert.ok(header.querySelector('.nya-toolbar-item-icon').dataset.icon);
+		assert.equal(header.querySelectorAll('button').length, 2);
+		assert.equal(block.firstElementChild.dataset.control, "handle", "full-height handle is outside the two content rows");
+		assert.equal(header.querySelector('select'), null);
+		assert.ok(options.querySelector('.nya-toolbar-placement > select').getAttribute('aria-label'));
+		assert.equal(options.querySelector('.nya-toolbar-placement').children.length, 2, "only the select and decorative arrow are shown");
+		assert.equal(options.querySelector('.nya-toolbar-select-arrow').dataset.icon, "chevron-down");
+		assert.equal(options.querySelectorAll('.nya-toolbar-default').length, ['regex', 'case'].includes(block.dataset.action) ? 1 : 0);
+	}
+	assert.ok(root.querySelector('.nya-toolbar-default button').title, "default timing remains available as a tooltip");
+	tab.hide();
+});
+
+test("preview shows fixed English matches, an empty replacement placeholder and distinct UI/body typography", async () => {
+	const p = plugin(null); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const preview = tab.containerEl.querySelector('.nya-toolbar-preview');
+	assert.equal(preview.querySelector('.nya-preview-find').textContent, 'text');
+	const replacement = preview.querySelector('.nya-preview-replace');
+	assert.equal(replacement.childNodes.length, 1);
+	assert.equal(replacement.querySelector('.nya-preview-placeholder').textContent, 'search.tip.ReplacePlaceholder');
+	const text = preview.querySelector('.nya-preview-text');
+	assert.equal(text.textContent.trim(), 'Find text, highlight text, and replace text.');
+	assert.equal(text.lang, 'en');
+	assert.equal(text.querySelectorAll('.nya-text-finder-match-current').length, 1);
+	assert.equal(text.querySelectorAll('.nya-text-finder-match').length, 3);
+	assert.equal(text.querySelectorAll('.nya-text-finder-match:not(.nya-text-finder-match-current)').length, 2);
+	assert.equal(text.querySelector('span').className, 'nya-text-finder-match nya-text-finder-match-current');
+	assert.ok([...text.querySelectorAll('span')].every((span) => span.textContent === 'text'));
+	const css = previewStyles.join('\n');
+	const rule = (name) => [...css.matchAll(new RegExp(`\\.${name}[^{}]*\\{([^}]+)\\}`, 'g'))].map((match) => match[1]).join(';');
+	assert.match(rule('nya-preview-input'), /font-family:\s*var\(--font-interface\)/);
+	assert.match(rule('nya-preview-input'), /font-size:\s*var\(--font-ui-small\)/);
+	assert.match(rule('nya-preview-input'), /color:\s*var\(--text-normal\)/);
+	assert.match(rule('nya-preview-placeholder'), /font:\s*inherit/);
+	assert.match(rule('nya-preview-placeholder'), /color:\s*var\(--text-faint\)/);
+	assert.match(rule('nya-preview-text'), /height:\s*120px/);
+	assert.match(rule('nya-preview-text'), /font-size:\s*var\(--font-text-size\)/);
+	assert.match(rule('nya-preview-text'), /overflow:\s*hidden/);
+	assert.equal(preview.querySelectorAll('input, textarea, button, [tabindex], [role="button"]').length, 0);
+	tab.hide();
+});
 
 test("mouse/touch pointer drag previews insertion, saves once on drop and cancels safely", async () => {
 	const p = plugin(null); await p.onload();

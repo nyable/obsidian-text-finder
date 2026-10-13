@@ -3,6 +3,17 @@ import test from "node:test";
 import { toolbarSource, settingsSource } from "./history-source.mjs";
 const { defaultToolbar, normalizeToolbar, moveToolbarItem } = toolbarSource;
 
+test("search defaults preserve old behavior, validate booleans and reload enabled preferences unchanged", () => {
+	const old = settingsSource.normalizeSettings({ enableHistory: true }).settings;
+	assert.equal(old.defaultRegexMode, false); assert.equal(old.defaultCaseSensitive, false);
+	const invalid = settingsSource.normalizeSettings({ defaultRegexMode: "true", defaultCaseSensitive: 1 }).settings;
+	assert.equal(invalid.defaultRegexMode, false); assert.equal(invalid.defaultCaseSensitive, false);
+	const enabled = settingsSource.normalizeSettings({ defaultRegexMode: true, defaultCaseSensitive: true }).settings;
+	assert.equal(enabled.defaultRegexMode, true); assert.equal(enabled.defaultCaseSensitive, true);
+	assert.equal(settingsSource.normalizeSettings(enabled).changed, false);
+	assert.deepEqual(settingsSource.normalizeSettings(enabled).settings, enabled);
+});
+
 test("default toolbar preserves legacy visible actions and hides optional history", () => {
 	assert.deepEqual(defaultToolbar("search").filter((i) => i.placement === "inline").map((i) => i.id), ["regex", "case", "previous", "next"]);
 	assert.deepEqual(defaultToolbar("replace").map((i) => i.id), ["replace", "replaceAll"]);

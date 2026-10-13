@@ -71,12 +71,15 @@
   "settings": {
     "Tabs": { "label": "设置分类", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "工具栏" },
     "Toolbar": {
-      "desc": "拖动手柄调整顺序，或使用上下按钮和手柄上的方向键。可将功能设为常驻、收纳到更多或隐藏；隐藏不影响命令和快捷键。关闭和展开替换的入口保持固定。",
       "search": "搜索栏按钮", "replace": "替换栏按钮",
       "inline": "常驻", "more": "更多", "hidden": "隐藏",
       "drag": "拖动排序：{{name}}", "placement": "显示位置：{{name}}",
       "up": "上移：{{name}}", "down": "下移：{{name}}",
-      "moved": "已调整{{name}}的位置", "reset": "恢复本栏默认布局"
+      "moved": "已调整{{name}}的位置", "reset": "恢复默认配置",
+      "preview": "预览",
+      "defaultsDesc": "默认选项用于各 Markdown 视图首次创建查找器时。重新打开、切换文件或编辑／阅读模式均保留手动选择；修改设置不影响已有查找器。",
+      "defaultEnabled": "默认开启",
+      "defaultEnabledLabel": "默认开启：{{name}}"
     },
     "ClearAfterHidden": {
       "name": "清空查找和替换文本",

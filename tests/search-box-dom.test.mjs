@@ -47,7 +47,7 @@ const bundle = await build({
 					.replace(/<script lang="ts">([\s\S]*?)<\/script>/, (_, script) => `<script>${ts.transpileModule(script, {
 						compilerOptions: { target: ts.ScriptTarget.ES2018, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true },
 					}).outputText}</script>`)
-					.replace(/<style lang="scss">([\s\S]*?)<\/style>/g, (_, styles) => `<style>${compileString(styles).css}</style>`);
+					.replace(/<style lang="scss">([\s\S]*?)<\/style>/g, (_, styles) => `<style>${compileString(styles, { loadPaths: [path.dirname(filename)] }).css}</style>`);
 				const compiled = compile(source, { filename, generate: "dom", css: "external" });
 				componentStyles.push(compiled.css.code);
 				return { contents: compiled.js.code, resolveDir: path.dirname(filename) };
@@ -66,7 +66,7 @@ const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
 const { SearchBox, MatchEngine, tick } = module.exports;
 
-function mount(t, matcher) {
+function mount(t, matcher, settings = {}) {
 	const target = document.createElement("div");
 	document.body.append(target);
 	const scrolls = [];
@@ -86,7 +86,7 @@ function mount(t, matcher) {
 	view.editor = editor;
 	view.containerEl = target;
 	const plugin = {
-		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], moveCursorToMatch: true },
+		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], moveCursorToMatch: true, ...settings },
 		reportError() {},
 		saveSettings: () => { saves++; return pending; },
 	};
@@ -110,6 +110,28 @@ const deferred = () => {
 	return { promise, resolve, reject };
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+test("finder initializes global default options once and keeps manual choices across close, file and mode changes", async (t) => {
+	const h = mount(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	await tick();
+	h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]').click();
+	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
+	h.component.setVisible(false); h.component.setVisible(true);
+	h.view.file = { path: "b.md" }; h.component.matchAgain(false);
+	h.view.getMode = () => "preview"; h.component.setCollapse(false);
+	h.view.getMode = () => "source"; h.component.matchAgain(false);
+	h.component.refreshToolbar();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
+	h.plugin.settings.defaultRegexMode = false; h.plugin.settings.defaultCaseSensitive = false;
+	h.component.toggleRegexMode(); h.component.toggleMatchCaseMode();
+	h.component.refreshToolbar();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	const fresh = mount(t, undefined, h.plugin.settings);
+	assert.deepEqual(fresh.component.getSearchCache().options, { regexMode: false, caseSensitive: false });
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true }, "same-file owners stay independent");
+});
 
 function delayedMatcher() {
 	const requests = [];
@@ -519,7 +541,7 @@ test("hidden replacement retains safe async next-match behavior while the finder
 	assert.equal(h.component.isVisible(), false); assert.equal(h.component.getSearchCache().index, 1);
 });
 
-function mountReading(t, matcher) {
+function mountReading(t, matcher, settings = {}) {
 	window.CSS = { highlights: new Map() };
 	window.Highlight = class extends Set { priority = 0; };
 	const target = document.createElement("div");
@@ -541,7 +563,7 @@ function mountReading(t, matcher) {
 	};
 	const view = { file: { path: "a.md" }, getMode: () => "preview", previewMode: { renderer, containerEl: preview } };
 	const plugin = {
-		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [] },
+		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], ...settings },
 		saveSettings: async () => {},
 	};
 	attachHistory(plugin);
@@ -556,6 +578,20 @@ function mountReading(t, matcher) {
 	scrolls.length = 0;
 	return { component, target, preview, view, sections, plugin, scrolls, renderer, search };
 }
+
+test("reading finder initializes defaults and preserves manual options across actual mode changes", async (t) => {
+	const h = mountReading(t, undefined, { defaultRegexMode: true, defaultCaseSensitive: true }); await tick();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: true });
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.component.setFindText("c.t", false); await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2, "default regex is used by the reading matcher");
+	h.target.querySelector('[aria-label="search.tip.MatchCase"]').click(); await tick();
+	h.view.getMode = () => "source"; h.component.matchAgain(false); await tick();
+	h.view.getMode = () => "preview"; h.component.matchAgain(false); await tick();
+	h.component.setVisible(false); h.component.setVisible(true); await tick();
+	assert.deepEqual(h.component.getSearchCache().options, { regexMode: true, caseSensitive: false });
+	assert.equal(h.component.getSearchCache().matches.length, 3);
+});
 
 test("reading SearchBox uses the same case/regex controls and navigates detached results", async (t) => {
 	const h = mountReading(t);

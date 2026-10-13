@@ -1,23 +1,36 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting, setIcon } from "obsidian";
 import type TextFinderPlugin from "./main";
-import type { PluginSettings } from "./settings";
+import { defaultSettings, type PluginSettings } from "./settings";
 import { i18n } from "./i18n";
 import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { parseHistoryLimit } from "./history";
-import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarKind, type ToolbarPlacement } from "./toolbar";
+import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarAction, type ToolbarKind, type ToolbarPlacement } from "./toolbar";
+import ToolbarPreview from "./ToolbarPreview.svelte";
 
 type SettingsPage = "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
 const pages: SettingsPage[] = ["find", "replace", "history", "toolbar"];
+const actionIcons: Record<ToolbarAction, string> = {
+	regex: "regex", case: "case-sensitive", previous: "arrow-up", next: "arrow-down",
+	history: "history", replace: "replace", replaceAll: "replace-all",
+};
 
 export class SettingTab extends PluginSettingTab {
 	private page: SettingsPage = "find";
 	private cleanupDrag?: () => void;
+	private preview?: ToolbarPreview;
+
+	private clearPreview() { this.preview?.$destroy(); this.preview = undefined; }
+	private refreshPreview() {
+		const { searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, enableHistory } = this.plugin.settings;
+		this.preview?.$set({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, historyEnabled: enableHistory });
+	}
 
 	constructor(app: App, public plugin: TextFinderPlugin) { super(app, plugin); }
 
 	display() {
 		this.cleanupDrag?.();
+		this.clearPreview();
 		const root = this.containerEl;
 		root.empty();
 		root.classList.add("nya-settings");
@@ -54,6 +67,7 @@ export class SettingTab extends PluginSettingTab {
 		});
 		const select = (page: SettingsPage) => {
 			this.cleanupDrag?.();
+			this.clearPreview();
 			const focused = doc.activeElement;
 			if (focused && panel.contains(focused)) (focused as HTMLElement).blur();
 			this.page = page;
@@ -71,6 +85,7 @@ export class SettingTab extends PluginSettingTab {
 
 	hide() {
 		this.cleanupDrag?.();
+		this.clearPreview();
 		const focused = this.containerEl.ownerDocument.activeElement;
 		if (focused && this.containerEl.contains(focused)) (focused as HTMLElement).blur();
 	}
@@ -121,9 +136,12 @@ export class SettingTab extends PluginSettingTab {
 					});
 				});
 		} else {
-			const description = root.ownerDocument.createElement("p");
-			description.className = "nya-settings-description";
-			description.textContent = i18n.t("settings.Toolbar.desc"); root.append(description);
+			const preview = root.ownerDocument.createElement("div"); root.append(preview);
+			this.preview = new ToolbarPreview({ target: preview, props: {
+				searchToolbar: this.plugin.settings.searchToolbar, replaceToolbar: this.plugin.settings.replaceToolbar,
+				defaultRegexMode: this.plugin.settings.defaultRegexMode, defaultCaseSensitive: this.plugin.settings.defaultCaseSensitive,
+				historyEnabled: this.plugin.settings.enableHistory,
+			} });
 			this.toolbar(root, "search"); this.toolbar(root, "replace");
 		}
 	}
@@ -140,6 +158,7 @@ export class SettingTab extends PluginSettingTab {
 		const commit = (items: PluginSettings[typeof key]) => {
 			if (items === this.plugin.settings[key]) return;
 			this.plugin.settings[key] = items;
+			this.refreshPreview();
 			this.plugin.editorSearch?.refreshToolbars();
 			this.plugin.requestSaveSettings();
 		};
@@ -148,25 +167,49 @@ export class SettingTab extends PluginSettingTab {
 			this.plugin.settings[key].forEach((item, index, items) => {
 				const row = doc.createElement("div"); row.className = "nya-toolbar-row"; row.dataset.action = item.id; list.append(row);
 				const name = i18n.t(toolbarLabels[item.id]);
-				const button = (text: string, label: string, controlName: string) => {
+				const button = (parent: HTMLElement, text: string, label: string, controlName: string) => {
 					const el = doc.createElement("button"); el.type = "button"; el.textContent = text;
-					el.setAttribute("aria-label", label); el.dataset.control = controlName; row.append(el); return el;
+					el.setAttribute("aria-label", label); el.dataset.control = controlName; parent.append(el); return el;
 				};
-				const handle = button("⠿", i18n.t("settings.Toolbar.drag", { name }), "handle");
+				const handle = button(row, "", i18n.t("settings.Toolbar.drag", { name }), "handle");
 				handle.className = "nya-toolbar-handle";
-				const label = doc.createElement("span"); label.className = "nya-toolbar-name"; label.textContent = name; row.append(label);
+				setIcon(handle, "grip-vertical");
+				const controls = doc.createElement("div"); controls.className = "nya-toolbar-row-controls"; row.append(controls);
+				const icon = doc.createElement("span"); icon.className = "nya-toolbar-item-icon";
+				icon.setAttribute("aria-hidden", "true"); setIcon(icon, actionIcons[item.id]); controls.append(icon);
+				const label = doc.createElement("span"); label.className = "nya-toolbar-name"; label.textContent = name; controls.append(label);
+				const options = doc.createElement("div"); options.className = "nya-toolbar-row-options"; row.append(options);
+				const placement = doc.createElement("div"); placement.className = "nya-toolbar-placement"; options.append(placement);
 				const select = doc.createElement("select"); select.setAttribute("aria-label", i18n.t("settings.Toolbar.placement", { name }));
 				for (const placement of ["inline", "more", "hidden"] as const) {
 					const option = doc.createElement("option"); option.value = placement; option.textContent = i18n.t(`settings.Toolbar.${placement}`); select.append(option);
 				}
-				select.value = item.placement; row.append(select);
-				select.addEventListener("change", () => commit(this.plugin.settings[key].map((entry) => entry.id === item.id ? { ...entry, placement: select.value as ToolbarPlacement } : entry)));
+				select.value = item.placement; placement.append(select);
+				const arrow = doc.createElement("span"); arrow.className = "nya-toolbar-select-arrow";
+				arrow.setAttribute("aria-hidden", "true"); setIcon(arrow, "chevron-down"); placement.append(arrow);
+				select.addEventListener("change", () => {
+					commit(this.plugin.settings[key].map((entry) => entry.id === item.id ? { ...entry, placement: select.value as ToolbarPlacement } : entry));
+				});
+				if (kind === "search" && (item.id === "regex" || item.id === "case")) {
+					const defaultKey = item.id === "regex" ? "defaultRegexMode" : "defaultCaseSensitive";
+					const option = new Setting(options).setName(i18n.t("settings.Toolbar.defaultEnabled"));
+					option.settingEl.classList.add("nya-toolbar-default");
+					option.addToggle((toggle) => {
+						toggle.setValue(this.plugin.settings[defaultKey]);
+						toggle.toggleEl.setAttribute("aria-label", i18n.t("settings.Toolbar.defaultEnabledLabel", { name }));
+						toggle.toggleEl.setAttribute("title", i18n.t("settings.Toolbar.defaultsDesc"));
+						toggle.onChange((value) => {
+							this.plugin.settings[defaultKey] = value;
+							this.refreshPreview(); this.plugin.requestSaveSettings();
+						});
+					});
+				}
 				const move = (boundary: number, controlName: string) => {
 					commit(moveToolbarItem(this.plugin.settings[key], index, boundary));
 					render(item.id, controlName); live.textContent = i18n.t("settings.Toolbar.moved", { name });
 				};
-				const up = button("↑", i18n.t("settings.Toolbar.up", { name }), "up"); up.disabled = index === 0;
-				const down = button("↓", i18n.t("settings.Toolbar.down", { name }), "down"); down.disabled = index === items.length - 1;
+				const up = button(controls, "↑", i18n.t("settings.Toolbar.up", { name }), "up"); up.disabled = index === 0;
+				const down = button(controls, "↓", i18n.t("settings.Toolbar.down", { name }), "down"); down.disabled = index === items.length - 1;
 				up.addEventListener("click", () => move(index - 1, "up"));
 				down.addEventListener("click", () => move(index + 2, "down"));
 				handle.addEventListener("keydown", (event) => {
@@ -220,6 +263,14 @@ export class SettingTab extends PluginSettingTab {
 		render();
 		const reset = doc.createElement("button"); reset.type = "button";
 		reset.textContent = i18n.t("settings.Toolbar.reset"); section.append(reset);
-		reset.addEventListener("click", () => { this.cleanupDrag?.(); commit(defaultToolbar(kind)); render(); });
+		reset.addEventListener("click", () => {
+			this.cleanupDrag?.();
+			if (kind === "search") {
+				const defaults = defaultSettings();
+				this.plugin.settings.defaultRegexMode = defaults.defaultRegexMode;
+				this.plugin.settings.defaultCaseSensitive = defaults.defaultCaseSensitive;
+			}
+			commit(defaultToolbar(kind)); render();
+		});
 	}
 }

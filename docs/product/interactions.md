@@ -5,6 +5,7 @@
 ## 打开与查询会话
 
 - Finder 懒创建并绑定 Markdown 视图；同文件双分屏分别维护查询会话和当前项。
+- 新建 Finder 时从 `defaultRegexMode`／`defaultCaseSensitive` 初始化选项（均默认关闭）；修改设置不覆盖已有 Finder。关闭重开、换文件及编辑／阅读切换仍保留手动选择，不重新套用默认值。
 - 普通“打开查找”使用有效选区，否则复用旧查询；“打开查找与替换”无选区时传入空字符串，会清空旧查询。此差异按现状记录，不擅自统一。
 - 阅读选区必须两端都在所属预览容器内，来自所属 Document 的 Selection。
 - 打开后立即发起匹配、聚焦并全选查询；输入／切换选项重算，合法当前索引通常保留，不强制新查询回到第一项。Worker 结果异步完成，等待期间不使用旧坐标。
@@ -53,6 +54,17 @@
 - 历史行 Enter／Space 复用；复选框 Enter／Space 切换选择并阻止默认滚动。子按钮键盘操作不能触发父行复用；历史操作在 focus-within 及无 hover 设备上显示。
 
 依据：`src/SearchBox.svelte` 的 `syncFinderVisibility()`／`guardHiddenFocus()`／`trackComposition()`／`onFinderKeyDown()`／`enterOnReplacer()` 和 textarea 模板；`src/Toolbar.svelte:menuKeys()`；`src/settings-tab.ts`；`src/HistoryList.svelte`。回归：`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`。
+
+## 工具栏设置预览
+
+- `ToolbarPreview.svelte` 实时呈现保存的布局与默认选项，不读取已有 Finder 的当前状态，也不连接笔记、匹配器或替换操作。
+- 始终展示查找／替换两行；预览使用非交互元素，无输入、选择、焦点、悬停反馈、折叠或 More 菜单，不执行操作、不修改设置，也不注册所属 Document 的菜单监听。
+- 固定查找词 `text`、替换框空占位，计数为第一项／共三项；正文样例 `Find text, highlight text, and replace text.` 中第一个词为当前匹配、后两个为普通匹配。样例不随默认正则／大小写改变，也不读取笔记或触发真实匹配；固定区域裁切溢出，不提供内部滚动操作。
+- 默认开启与按钮位置独立；“恢复默认配置”在搜索栏恢复布局及两个默认选项（false），在替换栏仅恢复布局；单次保存同一配置快照，不影响其他栏或已有 Finder 的查询选项。页面无说明段落／隐藏默认提示，默认选项生效规则保留在开关的悬停提示与文档中。
+- 每个按钮独立成块，左侧整高 32px 区域均可拖动，上层功能图标／名称／排序，下层原生位置下拉／默认开关，省略重复的“显示位置”文字但保留辅助技术标签。保持拖动、按钮与键盘排序、焦点恢复及取消清理。
+- 切换设置分类、隐藏／重绘设置页及插件卸载销毁预览。
+
+依据：`src/settings-tab.ts` 的 `clearPreview()`／`refreshPreview()`／`toolbar()`、`src/ToolbarPreview.svelte`、`src/Toolbar.svelte` 的 `preview` 分支；回归：`tests/main-settings.test.mjs`、`tests/search-box-dom.test.mjs`。
 
 ## 历史交互
 

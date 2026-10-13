@@ -71,12 +71,15 @@
   "settings": {
     "Tabs": { "label": "Settings categories", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Toolbar" },
     "Toolbar": {
-      "desc": "Drag the handles to reorder, or use the move buttons or arrow keys on a handle. Keep actions in the toolbar, move them to More, or hide them without changing commands or shortcuts. Close and toggle replace remain fixed.",
       "search": "Search toolbar", "replace": "Replace toolbar",
       "inline": "Toolbar", "more": "More", "hidden": "Hidden",
       "drag": "Drag to reorder: {{name}}", "placement": "Placement: {{name}}",
       "up": "Move up: {{name}}", "down": "Move down: {{name}}",
-      "moved": "Moved {{name}}", "reset": "Restore this toolbar's defaults"
+      "moved": "Moved {{name}}", "reset": "Restore defaults",
+      "preview": "Preview",
+      "defaultsDesc": "Default options apply when a finder is first created for a Markdown view. Reopening, switching files or changing modes keeps your manual choices; existing finders are not changed.",
+      "defaultEnabled": "Enabled by default",
+      "defaultEnabledLabel": "Enabled by default: {{name}}"
     },
     "ClearAfterHidden": {
       "name": "Clear search and replacement text",

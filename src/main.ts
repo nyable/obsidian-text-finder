@@ -15,17 +15,20 @@ export default class TextFinderPlugin extends Plugin {
 	private unloaded = false;
 	private storageReadable = false;
 	private lastErrorNotice = -Infinity;
+	private settingTab?: SettingTab;
 	editorSearch: EditorSearch | null = null;
 	isUnloaded() { return this.unloaded; }
 	async onload() {
 		await this.loadSettings();
 		if (this.unloaded) return;
-		this.addSettingTab(new SettingTab(this.app, this));
+		this.settingTab = new SettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		editorExtensionProvider(this);
 	}
 	onunload() {
 		this.unloaded = true;
+		this.settingTab?.hide();
 		this.storage?.close();
 		this.editorSearch?.destoryAll();
 	}
