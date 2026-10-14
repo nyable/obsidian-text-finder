@@ -65,7 +65,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 换行匹配：编辑模式 `.nya-newline-layer` 的 `.nya-newline-match` 用 `::before` 显示小型 `↵`（RTL 镜像），置于真实换行的测量行尾，复用普通／当前匹配类和颜色；大小按测得字符宽度及行高约束。仅绘制已匹配换行，不标软折行或无换行的文末；连续换行每个位置可见，计数按原匹配。marker 不占布局、不插入 DOM 文本、无交互／焦点／额外提示，aria-hidden；阅读和现有两行设置样例不增源码标记。行尾裁切、深浅主题对比度及引用／列表／实时预览需实测。依据：`src/search-highlight.ts:newlineMatchLayer`、`src/styles/index.scss`、`tests/editor-whitespace.test.mjs`。
 
-外观行布局统一：颜色组 12px 内边距、Grid 8px 行距；颜色行／轮廓开关 min-height 32px、列距 12px，名称左对齐、操作右对齐，色块／104px 颜色值／恢复按钮纵向对齐且内部间距 8px；颜色值用 UI 字体和 tabular-nums。轮廓开关在依赖组之前，关闭 hidden 不占空间；依赖名称缩进 12px，窄宽回到同一左边界。原生 Setting 默认 margin／padding 在局部清除；360px 以下颜色行、轮廓开关及工具栏配置均采用上下布局，不影响其他设置页。轮廓采用 2px + 半线宽的外扩，紧间隙限制优先于净距，不增加留白设置项。几何／样式依据 `src/scope-outline.ts:paddedScopeOutlines()`、`src/styles/index.scss`；实际字体和主题对齐仍需实测。
+外观行布局统一：颜色组 12px 内边距、Grid 8px 行距；颜色行／轮廓开关 min-height 32px、列距 12px，名称左对齐、操作右对齐，色块／104px 颜色值／恢复按钮纵向对齐且内部间距 8px；颜色值用 UI 字体和 tabular-nums。轮廓开关在依赖组之前，关闭 hidden 不占空间；依赖名称缩进 12px，窄宽回到同一左边界。原生 Setting 默认 margin／padding 在局部清除；360px 以下颜色行、轮廓开关及工具栏配置均采用上下布局，不影响其他设置页。轮廓左右仅半线宽外扩（内缘贴近测得字符边界），上下仍 2px + 半线宽外扩；紧间隙沿分离轴限制，水平方向收紧不取消上下净距，不增加留白设置项。正文／设置预览共用几何，不改跨行阶梯及空行连接语义。几何／样式依据 `src/scope-outline.ts:paddedScopeOutlines()`、`src/styles/index.scss`；实际字体和主题对齐仍需实测。
 
 本地化资源为英文／简体中文，历史长度与使用次数文案也通过翻译键显示。列表时间格式为 `YY-MM-DD HH:mm:ss`，详情为 `YYYY-MM-DD HH:mm:ss`，同时显示 moment 相对时间；合法的时间戳 0 不回退到其他字段。触屏／键盘可发现性仍需实测。依据：`src/HistoryList.svelte` 的格式化／元数据／操作样式、`src/HistoryDetail.svelte`、`src/i18n/index.ts`。
 

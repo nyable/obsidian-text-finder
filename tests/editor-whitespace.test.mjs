@@ -144,7 +144,7 @@ test('blank lines in one exact scope join adjacent contours using their common t
 		h.root.style.setProperty('--nya-scope-border-width', '1px');
 		const nodes = scopeOutlineLayer.markers(h.view); assert.equal(nodes.length, 1);
 		const edges = segments(nodes[0].draw().querySelector('path').getAttribute('d'));
-		assert.equal(edges.filter(([x, , xx]) => x === xx && x === -2.5).length, 1, 'one unbroken left edge across selected blank lines');
+		assert.equal(edges.filter(([x, , xx]) => x === xx && x === -0.5).length, 1, 'one unbroken left edge across selected blank lines');
 		assert.ok(Math.max(...edges.flatMap(([x, , xx]) => [x, xx])) < 50);
 		assert.equal(h.view.state.doc.toString(), `abc\n${blank}def`);
 		h.dom.window.close();
@@ -212,7 +212,7 @@ test('blank connectors are added after text-row normalization, so their height n
 	h.mark(0, [rect(10, 0, 24, 16), rect(0, 80, 24, 96)]); h.scope([{ from: 0, to: 10 }]);
 	h.root.style.setProperty('--nya-scope-border-width', '1px');
 	const edges = segments(scopeOutlineLayer.markers(h.view)[0].draw().querySelector('path').getAttribute('d'));
-	assert.ok(edges.some(([x, y, xx, yy]) => y === yy && x === -2.5 && xx === 7.5 && y > 16), 'lower line remains wider than connector');
+	assert.ok(edges.some(([x, y, xx, yy]) => y === yy && x === -0.5 && xx === 9.5 && y > 16), 'lower line remains wider than connector');
 	h.dom.window.close();
 });
 
@@ -223,7 +223,7 @@ test('blank connectors remeasure for scroll, scale and source changes without mo
 	h.view.scaleX = h.view.scaleY = 2; h.root.style.setProperty('--nya-scope-border-width', '2px');
 	const oldRanges = h.view.state.field(searchScopeField).ranges;
 	const path = scopeOutlineLayer.markers(h.view)[0].draw().querySelector('path').getAttribute('d');
-	assert.ok(segments(path).some(([x, y, xx, yy]) => x === xx && x === 17 && y === 27 && yy === 89));
+	assert.ok(segments(path).some(([x, y, xx, yy]) => x === xx && x === 19 && y === 27 && yy === 89));
 	assert.deepEqual(h.view.state.field(searchScopeField).ranges, oldRanges);
 	h.scope(null); assert.deepEqual(scopeOutlineLayer.markers(h.view), []);
 	h.dom.window.close();

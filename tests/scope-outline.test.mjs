@@ -33,13 +33,16 @@ test("bidi fragments, holes and separated rows are never replaced by an enclosin
 	assert.equal(scopeOutline([rect(NaN, 0, 10, 10), rect(0, 0, 0, 10), rect(2, 3, 1, 5)]), "");
 });
 
-test("outline padding leaves 2px of inner clearance at each supported width without changing text boxes", () => {
+test("outline padding hugs horizontal character boundaries and retains 2px vertical clearance at each supported width", () => {
 	for (const width of [1, 2, 3]) {
 		const boxes = [rect(10, 20, 50, 40)], before = structuredClone(boxes);
 		const path = paddedScopeOutlines([boxes], width)[0], offset = 2 + width / 2;
-		const xs = segments(path).flatMap(([x, , xx]) => [x, xx]);
-		assert.equal(Math.min(...xs), 10 - offset); assert.equal(Math.max(...xs), 50 + offset);
-		assert.equal(10 - (Math.min(...xs) + width / 2), 2);
+		const xs = segments(path).flatMap(([x, , xx]) => [x, xx]), ys = segments(path).flatMap(([, y, , yy]) => [y, yy]);
+		assert.equal(Math.min(...xs), 10 - width / 2); assert.equal(Math.max(...xs), 50 + width / 2);
+		assert.equal(Math.min(...xs) + width / 2, 10, 'left inner edge stays at the first selected character');
+		assert.equal(Math.max(...xs) - width / 2, 50, 'right inner edge stays at the last selected character');
+		assert.equal(Math.min(...ys), 20 - offset); assert.equal(Math.max(...ys), 40 + offset);
+		assert.equal(20 - (Math.min(...ys) + width / 2), 2);
 		assert.deepEqual(boxes, before);
 	}
 });
@@ -55,7 +58,34 @@ test("padding preserves seams removal and limits expansion around narrow gaps an
 	const bidi = paddedScopeOutlines([[rect(0, 0, 10, 10), rect(12, 0, 22, 10)]], 3)[0];
 	assert.equal(segments(bidi).filter(([x, , xx]) => x === xx).length, 4, 'do not merge disconnected fragments even with a thick stroke');
 	const concave = paddedScopeOutlines([[rect(20, 0, 100, 10), rect(0, 10, 100, 20), rect(0, 20, 40, 30)]], 1)[0];
-	assert.ok(segments(concave).some(([x, y, xx, yy]) => y === yy && x === -2.5 && xx === 17.5));
+	assert.ok(segments(concave).some(([x, y, xx, yy]) => y === yy && x === -0.5 && xx === 19.5));
+});
+
+test("wrapped mid-word scope keeps tight start/end edges and unchanged vertical spacing", () => {
+	for (const width of [1, 2, 3]) {
+		// First visual line starts inside a word; last visual line ends inside
+		// another. The omitted prefix/suffix must not gain a 2px inner margin.
+		const path = paddedScopeOutlines([[rect(30, 0, 100, 16), rect(0, 16, 50, 32)]], width)[0];
+		const edges = segments(path), half = width / 2;
+		assert.ok(edges.some(([x, y, xx, yy]) => x === xx && x === 30 - half && y === -2 - half && yy === 16 - 2 - half));
+		assert.ok(edges.some(([x, y, xx, yy]) => x === xx && x === 50 + half && y === 16 + 2 + half && yy === 32 + 2 + half));
+		assert.ok(edges.some(([x, y, xx, yy]) => y === yy && y === 16 - 2 - half && x === -half && xx === 30 - half));
+	}
+});
+
+test("narrow horizontal gaps limit sideways expansion without removing top/bottom clearance", () => {
+	for (const width of [1, 2, 3]) {
+		const paths = paddedScopeOutlines([[rect(0, 0, 10, 16)], [rect(12, 0, 22, 16)]], width);
+		assert.equal(paths.length, 2);
+		for (const path of paths) {
+			const ys = segments(path).flatMap(([, y, , yy]) => [y, yy]);
+			assert.equal(Math.min(...ys), -2 - width / 2);
+			assert.equal(Math.max(...ys), 18 + width / 2);
+		}
+		assert.ok(segments(paths[0]).every(([x, , xx]) => x <= 10 && xx <= 10));
+	}
+	const separatedRows = paddedScopeOutlines([[rect(0, 0, 10, 16), rect(0, 18, 10, 34)]], 1)[0];
+	assert.equal(segments(separatedRows).filter(([, y, , yy]) => y === yy).length, 4, 'vertical gap protection still prevents a new bridge');
 });
 
 function sample() {
@@ -95,7 +125,7 @@ test("outline layer creates owner-document decorative SVG markers and releases i
 	assert.equal(markers[0].eq(scopeOutlineLayer.markers(view)[0]), true);
 	const element = markers[0].draw(), svg = element.querySelector('svg');
 	assert.equal(element.ownerDocument, h.dom.window.document); assert.equal(svg.getAttribute('aria-hidden'), 'true');
-	assert.ok(segments(svg.querySelector('path').getAttribute('d')).some(([x, y]) => x === 47 && y === 47), '3px centerline offset leaves 2px inside a 2px stroke');
+	assert.ok(segments(svg.querySelector('path').getAttribute('d')).some(([x, y]) => x === 49 && y === 47), 'half-stroke horizontal offset and 3px vertical offset for a 2px stroke');
 	const layer = win.document.createElement('div'); scopeOutlineLayer.mount(layer, view);
 	win.document.dispatchEvent(new win.Event('nya-scope-style-change')); assert.equal(dispatches, 1);
 	scopeOutlineLayer.destroy(layer, view); win.document.dispatchEvent(new win.Event('nya-scope-style-change')); assert.equal(dispatches, 1);
@@ -130,6 +160,7 @@ test("preview remeasures on resize, remains decorative and releases observer/lis
 	h.root.style.setProperty('--nya-scope-border-width', '3px');
 	h.dom.window.document.dispatchEvent(new h.dom.window.Event('nya-scope-style-change')); await Promise.resolve();
 	assert.notEqual(h.root.querySelector('path').getAttribute('d'), beforeWidth, 'width changes remeasure preview clearance without requiring resize');
+	assert.ok(segments(h.root.querySelector('path').getAttribute('d')).some(([x, y]) => x === 18.5 && y === 26.5), 'preview shares tight horizontal and padded vertical geometry');
 	resize(); action.destroy(); await Promise.resolve();
 	assert.equal(disconnect, 1); assert.equal(h.root.querySelector('svg'), null);
 	h.dom.window.dispatchEvent(new h.dom.window.Event('resize')); await Promise.resolve(); assert.equal(h.root.querySelector('svg'), null);

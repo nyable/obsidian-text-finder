@@ -129,7 +129,7 @@
 
 搜索选区有独立折叠分组与分组恢复：只清除 `scopeBackground`／`scopeBorder` 显式颜色并恢复边框开关／粗细，不改工具栏或匹配色；原颜色分组恢复不重置搜索选区。增加跨行预览，颜色草稿不写正文。轮廓从已渲染范围标记的矩形并集提取外边界，避免语法／匹配拆框及整体大矩形误导；分离多选区不连接，未渲染／空白片段不猜测整行边界。依据：`src/scope-outline.ts`、`src/search-scope.ts:scopeOutlineLayer`、`src/settings-tab.ts:scopeStyles()`、`src/appearance.ts`；宿主绘制待验证。
 
-搜索选区顺序为背景色、轮廓开关、关联边框色／粗细；仅开启边框才显示关联项，关闭保留取值并结束弹出面板／不可见焦点。外观页统一 32px 基础行高、8px 行间距及名称／操作列对齐，360px 窄宽采用上下布局；其他设置页不变。轮廓增加约 2px 内侧视觉净距并考虑线宽，狭窄间隙限制外扩，不增加留白设置、不改正文排版或允许写入坐标。依据：`scopeStyles()`、`paddedScopeOutlines()`、`src/styles/index.scss`。
+搜索选区顺序为背景色、轮廓开关、关联边框色／粗细；仅开启边框才显示关联项，关闭保留取值并结束弹出面板／不可见焦点。外观页统一 32px 基础行高、8px 行间距及名称／操作列对齐，360px 窄宽采用上下布局；其他设置页不变。轮廓左右仅补偿半线宽、内缘贴近测得字符边界，上下保留约 2px 内侧视觉净距并考虑线宽；狭窄间隙按分离方向限制外扩，不增加留白设置、不改正文排版或允许写入坐标。依据：`scopeStyles()`、`paddedScopeOutlines()`、`src/styles/index.scss`。
 
 设置页控件是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现；预览挂载 `src/ToolbarPreview.svelte` 并复用 `src/Toolbar.svelte`。依据：`src/settings-tab.ts`。
 

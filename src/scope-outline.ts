@@ -123,18 +123,26 @@ export function normalizeScopeRects(groups: ReadonlyMap<string, readonly ScopeRe
 
 /** Visual clearance only. Never pad DOM marks, source ranges or match offsets. */
 export function paddedScopeOutlines(groups: readonly (readonly ScopeRect[])[], strokeWidth: number): string[] {
-	const desired = strokeWidth > 0 && Number.isFinite(strokeWidth) ? 2 + strokeWidth / 2 : 0;
+	const halfStroke = strokeWidth > 0 && Number.isFinite(strokeWidth) ? strokeWidth / 2 : 0;
 	return groups.map((rects, index) => {
-		let padding = desired;
+		// Keep the inner vertical edges at the measured character boundaries.
+		// Only top/bottom retain the extra 2px of breathing room.
+		let horizontal = halfStroke, vertical = halfStroke ? 2 + halfStroke : 0;
 		// Keep disconnected fragments and different scopes from merging as a
-		// side effect of padding. Tight gaps take precedence over 2px clearance.
-		if (padding) for (const r of rects) for (let g = 0; g < groups.length; g++) for (const s of groups[g]) {
+		// side effect of padding. Limit only the separating axis so a tight
+		// horizontal gap does not remove the existing top/bottom clearance.
+		if (halfStroke) for (const r of rects) for (let g = 0; g < groups.length; g++) for (const s of groups[g]) {
 			if (index === g && r === s) continue;
-			const distance = Math.max(s.left - r.right, r.left - s.right, s.top - r.bottom, r.top - s.bottom, 0);
-			if (distance > 0 || index !== g) padding = Math.min(padding, Math.max(0, (distance - strokeWidth - 1) / 2));
+			const dx = Math.max(s.left - r.right, r.left - s.right, 0);
+			const dy = Math.max(s.top - r.bottom, r.top - s.bottom, 0);
+			if (dx > 0 || dy > 0) {
+				const limit = Math.max(0, (Math.max(dx, dy) - strokeWidth - 1) / 2);
+				if (dx >= dy) horizontal = Math.min(horizontal, limit);
+				else vertical = Math.min(vertical, limit);
+			} else if (index !== g) horizontal = vertical = 0;
 		}
-		return scopeOutline(rects.map((r) => ({ left: r.left - padding, top: r.top - padding,
-			right: r.right + padding, bottom: r.bottom + padding })));
+		return scopeOutline(rects.map((r) => ({ left: r.left - horizontal, top: r.top - vertical,
+			right: r.right + horizontal, bottom: r.bottom + vertical })));
 	}).filter(Boolean);
 }
 
