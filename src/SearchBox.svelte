@@ -211,13 +211,22 @@
 		cache.visible = true;
 		docked = true;
 		readingMode = isReading();
-		panelIntent++;
+		const intent = ++panelIntent, file = ownerView.file, doc = finderEl?.ownerDocument;
 		syncFinderVisibility();
+		// The first synchronous measurement can precede the compact DOM/layout.
+		// Re-measure without resetting a marker the user has already moved.
+		void tick().then(() => {
+			if (!disposed && panelIntent === intent && ownerView.file === file && finderEl?.ownerDocument === doc
+				&& ownerView.containerEl?.ownerDocument === doc && cache.visible && docked && passiveEntry) {
+				refreshPlacement?.(placementState());
+			}
+		});
 		// Unlike dockFinder(), do not focus the marker or initiate matching.
 	}
 	const expandFromClick = (event: MouseEvent) => { if (!placement?.consumeClick(event)) expandFromTab(); };
 	const dockMenu = (event: MouseEvent) => {
 		event.preventDefault();
+		if (isMobile) { event.stopPropagation(); placement?.suppressClick(event); return; }
 		if (!cache.visible || finderEl.classList.contains("nya-finder--dragging")) return;
 		edgeMenu?.hide(); const intent = panelIntent;
 		const current = () => !disposed && panelIntent === intent && cache.visible && docked;
@@ -226,10 +235,51 @@
 			.showAtMouseEvent(event);
 	};
 	function dragToMove(node: HTMLElement, enabled: boolean) {
-		const start = (event: PointerEvent) => { if (enabled) placement?.start(event); };
-		const context = (event: MouseEvent) => { if (enabled) event.preventDefault(); };
+		// Pointer capture does not isolate the parallel Touch Events stream used
+		// by host sidebar gestures. Guard only a touch that begins on this handle.
+		let doc = node.ownerDocument, win = doc.defaultView;
+		let touchId: number | undefined;
+		const cleanupTouch = () => {
+			touchId = undefined;
+			doc.removeEventListener("touchmove", touchMove, true);
+			doc.removeEventListener("touchend", touchEnd, true);
+			doc.removeEventListener("touchcancel", touchEnd, true);
+			win?.removeEventListener("blur", cleanupTouch); win?.removeEventListener("pagehide", cleanupTouch);
+		};
+		const ownsTouch = (event: TouchEvent) => Array.from(event.changedTouches).some((touch) => touch.identifier === touchId);
+		const touchMove = (event: TouchEvent) => {
+			if (!ownsTouch(event)) return;
+			event.stopPropagation(); if (event.cancelable) event.preventDefault();
+		};
+		const touchEnd = (event: TouchEvent) => {
+			if (!ownsTouch(event)) return;
+			event.stopPropagation(); cleanupTouch();
+		};
+		const touchStart = (event: TouchEvent) => {
+			if (node.ownerDocument !== doc) { cleanupTouch(); doc = node.ownerDocument; win = doc.defaultView; }
+			if (!isMobile || !enabled || touchId !== undefined || !event.changedTouches.length) return;
+			touchId = event.changedTouches[0].identifier;
+			// Preserve the browser's short-tap click; never preventDefault here.
+			event.stopPropagation();
+			doc.addEventListener("touchmove", touchMove, { capture: true, passive: false });
+			doc.addEventListener("touchend", touchEnd, true); doc.addEventListener("touchcancel", touchEnd, true);
+			win?.addEventListener("blur", cleanupTouch); win?.addEventListener("pagehide", cleanupTouch);
+		};
+		const start = (event: PointerEvent) => { if (enabled) placement?.start(event, isMobile); };
+		const context = (event: MouseEvent) => {
+			if (!enabled) return;
+			event.preventDefault();
+			if (isMobile) { event.stopPropagation(); placement?.suppressClick(event); }
+		};
 		node.addEventListener("pointerdown", start); node.addEventListener("contextmenu", context);
-		return { update(next: boolean) { enabled = next; }, destroy() { node.removeEventListener("pointerdown", start); node.removeEventListener("contextmenu", context); } };
+		if (isMobile) node.addEventListener("touchstart", touchStart, { passive: true });
+		return { update(next: boolean) {
+			enabled = next;
+			if (!enabled || node.ownerDocument !== doc) cleanupTouch();
+		}, destroy() {
+			cleanupTouch(); node.removeEventListener("touchstart", touchStart);
+			node.removeEventListener("pointerdown", start); node.removeEventListener("contextmenu", context);
+		} };
 	}
 	$: if (finderEl) syncFinderVisibility();
 	export function resetFinderPosition() { if (docked && !passiveEntry) expandFinder(); placement?.reset(); }
@@ -1317,13 +1367,19 @@
 		&:global([data-dock-preview="right"]) { border-right-color: var(--interactive-accent); box-shadow: 3px 0 0 var(--interactive-accent); }
 		&.nya-finder--docked {
 			min-width: 0; width: 30px !important;
-			box-shadow: none;
+			background-color: var(--background-secondary);
+			border-color: var(--background-modifier-border);
+			border-radius: 8px; box-shadow: none;
+			// Compact positioning must not sample a moving transform/right offset.
+			transition: opacity 0.12s ease;
 			.main-part, .nya-toggle, .nya-dragger, .nya-float-act { display: none !important; }
 		}
 		.nya-dock-tab button {
 			display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;
-			width: 32px; height: 100%; border: 0; box-shadow: none; background: transparent; color: var(--text-normal);
+			width: 32px; height: 100%; border: 0; border-radius: inherit;
+			box-shadow: none; background: transparent; color: var(--text-normal);
 			&:hover { background: var(--background-modifier-hover); }
+			&:active { background: var(--background-modifier-active-hover, var(--background-modifier-hover)); }
 			&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
 		}
 		.nya-drag-handle, .nya-move-handle, .nya-dock-expand { touch-action: none; cursor: grab; }
@@ -1331,7 +1387,7 @@
 		.nya-drag-handle { position: relative; outline-offset: 2px; }
 		.nya-drag-handle::after { content: ""; position: absolute; left: -6px; right: -2px; top: 0; bottom: 0; }
 		.nya-drag-handle:focus-visible { outline: 2px solid var(--interactive-accent); }
-		.nya-dock-tab { display: flex; width: 100%; height: 100%; }
+		.nya-dock-tab { display: flex; width: 100%; height: 100%; border-radius: inherit; }
 		.nya-dock-tab button { width: 100%; }
 		.nya-dock-tab .nya-dock-expand { position: relative; }
 		.nya-dock-state { position: absolute; top: 0; right: 2px; font-size: 12px; }
@@ -1448,6 +1504,7 @@
 
 	:global(.is-mobile) {
 		.nya-finder.nya-mobile {
+			.nya-move-handle, .nya-dock-expand { -webkit-touch-callout: none; user-select: none; }
 			box-sizing: border-box;
 			height: auto;
 			min-width: 0;
@@ -1455,7 +1512,11 @@
 			width: 100%;
 			right: 50%;
 			transform: translateX(50%);
-			&.nya-finder--docked { width: 40px !important; height: 40px; }
+			&.nya-finder--docked {
+				width: 40px !important; height: 40px;
+				right: 8px; transform: none;
+				&.nya-finder--dock-left { left: 8px; right: auto; }
+			}
 			.main-part {
 				height: auto; padding: 0; gap: 0;
 				.finder, .replacer {

@@ -20,6 +20,12 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 	const suppressed = new WeakSet<EventTarget>();
 	let clickTimer: number | undefined;
 	let lastSuppressed: EventTarget | null = null;
+	function suppressClick(origin: EventTarget) {
+		if (lastSuppressed && lastSuppressed !== origin) suppressed.delete(lastSuppressed);
+		suppressed.add(origin); lastSuppressed = origin;
+		win?.clearTimeout(clickTimer);
+		clickTimer = win?.setTimeout(() => { suppressed.delete(origin); lastSuppressed = null; clickTimer = undefined; }, 700);
+	}
 	let centered = false;
 	let marker: Point | null = null;
 	let markerEdge: "left" | "right" | null = null;
@@ -61,9 +67,12 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 	function measure() {
 		if (destroyed || !state.visible || !node.isConnected || node.ownerDocument !== owner.ownerDocument) return;
 		const bounds = area();
-		if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) return;
+		if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) { geometry = null; return; }
 		node.style.setProperty("--nya-available-width", `${bounds.right - bounds.left}px`);
 		const box = node.getBoundingClientRect();
+		// A background tab can have a reachable owner but no rendered finder yet.
+		// Keep edge/manual intent and wait for the existing layout observers.
+		if (box.width <= 0 || box.height <= 0) { geometry = null; return; }
 		// translate is independent of the existing desktop/mobile transform rules.
 		const base = { x: box.left - translation.x, y: box.top - translation.y };
 		const toolsHeight = node.querySelector<HTMLElement>(".nya-float-act")?.offsetHeight || state.toolsHeight;
@@ -78,20 +87,30 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 		centered = false;
 		measure();
 	}
-	function start(event: PointerEvent) {
+	function start(event: PointerEvent, mobileGesture = false) {
 		if (!state.visible || destroyed || event.button !== 0 || event.isPrimary === false) return;
 		cleanupDrag?.();
 		const origin = event.currentTarget ?? event.target;
 		if (origin) suppressed.delete(origin);
+		const pressedAt = win?.performance.now() ?? 0;
 		const original = manual && { ...manual };
 		const originalMarker = marker && { ...marker }, originalEdge = markerEdge;
 		const wasCentered = centered;
 		measure(); if (!geometry) return;
+		// Own a mobile drag from its beginning, before the host's bubbling swipe
+		// recognizer can see it. Do not cancel down/up defaults: short taps click.
+		if (mobileGesture) event.stopPropagation();
 		const startBox = node.getBoundingClientRect(), ownerBox = owner.getBoundingClientRect();
 		const fullWidth = !state.docked && startBox.width >= (geometry.bounds.right - geometry.bounds.left) * 0.85;
 		let ready = false, moved = false, candidate: "left" | "right" | null = null;
 		let latest = { x: event.clientX, y: event.clientY }, frame: number | undefined;
 		const capture = origin && "setPointerCapture" in origin ? origin as HTMLElement : null;
+		let captureRequested = false;
+		const capturePointer = () => {
+			if (!capture || captureRequested) return;
+			try { capture.setPointerCapture(event.pointerId); captureRequested = true; }
+			catch { /* Capture may fail; the Document listeners still own movement. */ }
+		};
 		const apply = () => {
 			frame = undefined;
 			if (!ready || !geometry) return;
@@ -117,14 +136,12 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 			frame = undefined; refreshDrag = undefined;
 			node.classList.remove("nya-finder--dragging");
 			node.removeAttribute("data-dock-preview");
-			if (ready && origin) {
-				if (lastSuppressed && lastSuppressed !== origin) suppressed.delete(lastSuppressed);
-				lastSuppressed = origin;
-				win?.clearTimeout(clickTimer);
-				clickTimer = win?.setTimeout(() => { suppressed.delete(origin); lastSuppressed = null; clickTimer = undefined; }, 700);
-			}
-			doc.removeEventListener("pointermove", move); doc.removeEventListener("pointerup", end);
-			doc.removeEventListener("pointercancel", pointerCancel); doc.removeEventListener("keydown", escape, true);
+			// Long presses can produce a release click even when the host never
+			// emits contextmenu. This does not delay direct movement or short taps.
+			if (origin && (ready || suppressed.has(origin)
+				|| (mobileGesture && (win?.performance.now() ?? 0) - pressedAt >= 500))) suppressClick(origin);
+			doc.removeEventListener("pointermove", move, mobileGesture); doc.removeEventListener("pointerup", end, mobileGesture);
+			doc.removeEventListener("pointercancel", pointerCancel, mobileGesture); doc.removeEventListener("keydown", escape, true);
 			capture?.removeEventListener("lostpointercapture", pointerCancel);
 			try { if (capture?.hasPointerCapture(event.pointerId)) capture.releasePointerCapture(event.pointerId); } catch { /* Owner may have been detached. */ }
 			win?.removeEventListener("blur", cancel); win?.removeEventListener("pagehide", cancel);
@@ -133,18 +150,20 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 		const cancel = () => { cleanup(); manual = original; marker = originalMarker; markerEdge = originalEdge; centered = wasCentered; measure(); };
 		const move = (e: PointerEvent) => {
 			if (e.pointerId !== event.pointerId) return;
+			if (mobileGesture) { e.stopPropagation(); if (e.cancelable) e.preventDefault(); }
 			const x = e.clientX - event.clientX, y = e.clientY - event.clientY;
 			if (!ready) {
 				if (Math.hypot(x, y) < 3) return;
 				ready = moved = true; node.classList.add("nya-finder--dragging");
 				if (origin) suppressed.add(origin);
-				try { capture?.setPointerCapture(event.pointerId); } catch { /* Document events remain the fallback. */ }
+				capturePointer();
 			}
 			e.preventDefault(); latest = { x: e.clientX, y: e.clientY };
 			if (win?.requestAnimationFrame) { if (frame === undefined) frame = win.requestAnimationFrame(apply); } else apply();
 		};
 		const end = (e: PointerEvent) => {
 			if (e.pointerId !== event.pointerId) return;
+			if (mobileGesture) e.stopPropagation();
 			// Flush the final pointer coordinate even if the next frame hasn't run.
 			latest = { x: e.clientX, y: e.clientY }; refreshDrag?.();
 			if (state.docked && ready) markerEdge = candidate;
@@ -154,12 +173,18 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 		const escape = (e: KeyboardEvent) => {
 			if (e.key === "Escape" && !e.isComposing) { e.preventDefault(); e.stopPropagation(); cancel(); }
 		};
-		const pointerCancel = (e: PointerEvent) => { if (e.pointerId === event.pointerId) cancel(); };
-		doc.addEventListener("pointermove", move, { passive: false }); doc.addEventListener("pointerup", end);
-		doc.addEventListener("pointercancel", pointerCancel);
+		const pointerCancel = (e: PointerEvent) => {
+			if (e.pointerId !== event.pointerId) return;
+			if (mobileGesture) { e.stopPropagation(); if (origin) suppressed.add(origin); }
+			cancel();
+		};
+		doc.addEventListener("pointermove", move, { passive: false, capture: mobileGesture });
+		doc.addEventListener("pointerup", end, mobileGesture);
+		doc.addEventListener("pointercancel", pointerCancel, mobileGesture);
 		capture?.addEventListener("lostpointercapture", pointerCancel);
 		doc.addEventListener("keydown", escape, true); win?.addEventListener("blur", cancel); win?.addEventListener("pagehide", cancel);
 		cleanupDrag = cancel;
+		if (mobileGesture) capturePointer();
 	}
 	const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
 	let observedTools: HTMLElement | null = null;
@@ -168,6 +193,10 @@ export function createFinderPosition(node: HTMLElement, owner: HTMLElement,
 	win?.visualViewport?.addEventListener("resize", measure); win?.visualViewport?.addEventListener("scroll", measure);
 	return {
 		start, moveBy,
+		suppressClick(event: Event) {
+			const origin = event.currentTarget ?? event.target;
+			if (!destroyed && origin) suppressClick(origin);
+		},
 		consumeClick(event: MouseEvent) {
 			if (event.detail === 0) return false;
 			const origin = event.currentTarget ?? event.target;

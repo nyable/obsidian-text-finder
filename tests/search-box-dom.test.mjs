@@ -29,14 +29,14 @@ const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const componentStyles = [];
 const bundle = await build({
-	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte'; export {Platform} from 'obsidian';`, resolveDir: root },
+	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte'; export {Platform, Menu} from 'obsidian';`, resolveDir: root },
 	bundle: true, write: false, format: "cjs", platform: "browser",
 	plugins: [matchWorkerPlugin(), {
 		name: "search-box-dom",
 		setup(build) {
 			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/(i18n|search-highlight)$/ }, ({ path }) => ({ path, namespace: "stub" }));
 			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
-				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false}; export class Menu { addItem(fn) { fn({setTitle(){return this},setIcon(){return this},onClick(fn){return this}});return this } showAtMouseEvent(){} hide(){} }` };
+				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false}; export class Menu { static shown = []; items = []; addItem(fn) { const item = {setTitle(title){this.title = title;return this},setIcon(){return this},onClick(fn){this.run = fn;return this}}; fn(item);this.items.push(item);return this } showAtMouseEvent(){Menu.shown.push(this)} hide(){} }` };
 				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
 				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value};` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
@@ -66,7 +66,7 @@ globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
-const { SearchBox, MatchEngine, tick, Platform } = module.exports;
+const { SearchBox, MatchEngine, tick, Platform, Menu } = module.exports;
 
 function mount(t, matcher, settings = {}, open = true) {
 	const target = document.createElement("div");
@@ -129,6 +129,86 @@ test("automatic floating entry and background refreshes never search, scroll or 
 	assert.equal(h.component.isDocked(), false); assert.equal(matcher.requests.length, 1);
 	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
 	matcher.requests[0].resolve(matchedCats); await settlePosition(); assert.equal(h.scrolls.length, 0);
+});
+
+test("compact entry uses quiet theme surfaces, rounded interactions and unchanged accessible controls", async (t) => {
+	for (const mobile of [false, true]) {
+		Platform.isMobile = mobile; document.body.classList.toggle("is-mobile", mobile);
+		t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+		const h = mount(t, undefined, {}, false); Platform.isMobile = false; await tick();
+		h.component.showFloatingEntry(); await tick();
+		const node = h.target.querySelector(".nya-finder"), tab = node.querySelector(".nya-dock-tab"), button = tab.querySelector("button");
+		const css = window.getComputedStyle(node), buttonCss = window.getComputedStyle(button);
+		assert.equal(css.backgroundColor, "var(--background-secondary)");
+		assert.equal(css.borderColor, "var(--background-modifier-border)");
+		assert.equal(css.borderRadius, "8px"); assert.equal(css.boxShadow, "none");
+		assert.equal(css.width, mobile ? "40px" : "30px"); assert.equal(css.height, mobile ? "40px" : "30px");
+		assert.equal(buttonCss.color, "var(--text-normal)");
+		assert.equal(window.getComputedStyle(tab).borderRadius, "inherit"); assert.equal(buttonCss.borderRadius, "inherit");
+		assert.equal(button.getAttribute("aria-label"), null); assert.equal(button.getAttribute("title"), null);
+		assert.ok(document.getElementById(button.getAttribute("aria-labelledby"))?.textContent);
+		assert.equal(button.getAttribute("aria-expanded"), "false");
+	}
+	// jsdom does not render theme variables or hover/focus. Check the compiled
+	// rules, not visual contrast claims, and leave both themes to host acceptance.
+	assert.match(style.textContent, /\.nya-dock-tab[^{}]*button[^{}]*:active[^{}]*\{[^}]*background:\s*var\(--background-modifier-active-hover,\s*var\(--background-modifier-hover\)\)/);
+	assert.match(style.textContent, /\.nya-dock-tab[^{}]*button[^{}]*:focus-visible[^{}]*\{[^}]*outline:\s*2px solid var\(--interactive-accent\)/);
+	assert.match(style.textContent, /\.nya-dock-expand[^{}]*\{[^}]*touch-action:\s*none/);
+});
+
+test("mobile automatic entry corrects post-layout edge geometry and preserves manual parking through refresh", async (t) => {
+	for (const side of ["left", "right"]) {
+		Platform.isMobile = true; document.body.classList.add("is-mobile");
+		t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+		const matcher = delayedMatcher(), h = mount(t, matcher, { finderDockSide: side, finderAutoDock: false }, false);
+		Platform.isMobile = false; await tick();
+		const node = h.target.querySelector(".nya-finder");
+		let visible = true;
+		h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: visible ? 400 : 0, bottom: visible ? 650 : 0, width: visible ? 400 : 0, height: visible ? 650 : 0 });
+		node.getBoundingClientRect = () => {
+			const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+			// Model delayed compact contents: the first synchronous measurement is
+			// still full width; after tick the compact 40px DOM has been rendered.
+			const compact = !!node.querySelector(".nya-dock-tab"), width = compact ? 40 : 320;
+			const css = window.getComputedStyle(node);
+			const base = css.transform === "none" ? (css.right === "auto" ? 8 : 400 - 8 - width) : (400 - width) / 2;
+			return { left: base + x, right: base + x + width, top: 88 + y, bottom: 128 + y, width, height: 40 };
+		};
+		const external = document.createElement("input"); document.body.append(external); t.after(() => external.remove()); external.focus();
+		h.component.showFloatingEntry(); await tick();
+		const css = window.getComputedStyle(node);
+		assert.equal(css.transform, "none"); assert.equal(css.right, side === "right" ? "8px" : "auto");
+		assert.equal(css.transition, "opacity 0.12s ease", "position measurements never include a moving transform/right transition");
+		assert.equal(side === "right" ? node.getBoundingClientRect().right : node.getBoundingClientRect().left, side === "right" ? 392 : 8);
+		assert.equal(document.activeElement, external); assert.equal(matcher.requests.length, 0); assert.equal(h.scrolls.length, 0);
+		const button = node.querySelector(".nya-dock-expand");
+		const startX = node.getBoundingClientRect().left;
+		sendPointer(button, "pointerdown", startX + 20, 108);
+		sendPointer(document, "pointermove", 200, 138); sendPointer(document, "pointerup", 200, 138);
+		assert.equal(node.getBoundingClientRect().left, 180); assert.equal(h.component.isDocked(), true);
+		h.component.matchAgain(false); await tick(); assert.equal(node.getBoundingClientRect().left, 180);
+		visible = false; window.dispatchEvent(new window.Event("resize"));
+		visible = true; window.dispatchEvent(new window.Event("resize"));
+		assert.equal(node.getBoundingClientRect().left, 180, "reactivating the tab does not force a parked icon back to the edge");
+		assert.equal(matcher.requests.length, 0); assert.equal(h.scrolls.length, 0);
+	}
+});
+
+test("queued automatic entry placement cannot override close, expansion, file changes or destruction", async (t) => {
+	for (const action of ["close", "expand", "file", "destroy"]) {
+		const h = mount(t, undefined, {}, false); await tick();
+		const node = h.target.querySelector(".nya-finder");
+		h.component.showFloatingEntry();
+		if (action === "close") h.component.setVisible(false);
+		else if (action === "expand") h.component.expandFinder();
+		else if (action === "file") h.view.file = { path: "b.md" };
+		else h.component.$destroy();
+		await tick();
+		if (action === "close") assert.equal(h.component.isVisible(), false);
+		else if (action === "expand") assert.equal(h.component.isDocked(), false);
+		else if (action === "destroy") assert.equal(node.isConnected, false);
+		assert.notEqual(document.activeElement, node.querySelector(".nya-dock-expand"));
+	}
 });
 
 test("automatic entry activation can delegate to native search without expanding or focusing input", async (t) => {
@@ -509,6 +589,131 @@ test("compact marker drags immediately without accidental expansion, while a cli
 	marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
 	assert.equal(h.target.querySelector(".nya-finder--docked"), null);
 	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+});
+
+test("mobile long press blocks menu and release expansion while held dragging and short taps still work", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	const h = mount(t, undefined, {}, false); Platform.isMobile = false; await tick();
+	h.component.showFloatingEntry(); await tick();
+	const node = h.target.querySelector(".nya-finder"), marker = node.querySelector(".nya-dock-expand");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 400, bottom: 650, width: 400, height: 650 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 352 + x, top: 88 + y, right: 392 + x, bottom: 128 + y, width: 40, height: 40 };
+	};
+	window.dispatchEvent(new window.Event("resize"));
+	let now = 0; t.mock.method(window.performance, "now", () => now);
+	const menuCount = Menu.shown.length;
+	let bubbled = 0; const context = () => bubbled++;
+	document.addEventListener("contextmenu", context); t.after(() => document.removeEventListener("contextmenu", context));
+	const releaseClick = () => marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true, cancelable: true }));
+	for (const emitMenu of [true, false]) {
+		sendPointer(marker, "pointerdown", 372, 108); now += 600;
+		if (emitMenu) {
+			const event = new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }); marker.dispatchEvent(event);
+			assert.equal(event.defaultPrevented, true); assert.equal(bubbled, 0);
+		}
+		sendPointer(document, "pointerup", 372, 108); releaseClick(); await tick();
+		assert.equal(Menu.shown.length, menuCount); assert.equal(h.component.isDocked(), true);
+	}
+	const before = node.style.translate;
+	sendPointer(marker, "pointerdown", 372, 108); now += 1000;
+	marker.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+	sendPointer(document, "pointermove", 212, 138); sendPointer(document, "pointercancel", 212, 138); releaseClick(); await tick();
+	assert.equal(node.style.translate, before); assert.equal(h.component.isDocked(), true);
+	sendPointer(marker, "pointerdown", 372, 108); now += 1000;
+	marker.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+	sendPointer(document, "pointermove", 212, 138); sendPointer(document, "pointerup", 212, 138); releaseClick(); await tick();
+	assert.equal(node.getBoundingClientRect().left, 192); assert.equal(h.component.isDocked(), true);
+	assert.equal(Menu.shown.length, menuCount); assert.equal(h.scrolls.length, 0);
+	sendPointer(marker, "pointerdown", 212, 138); now += 100; sendPointer(document, "pointerup", 212, 138); releaseClick(); await tick();
+	assert.equal(h.component.isDocked(), false, "a new short tap still expands");
+	for (const input of node.querySelectorAll("textarea")) {
+		const event = new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }); input.dispatchEvent(event);
+		assert.equal(event.defaultPrevented, false, "input text-selection menus are untouched");
+	}
+	const handle = node.querySelector(".nya-move-handle");
+	const event = new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }); handle.dispatchEvent(event);
+	assert.equal(event.defaultPrevented, true); assert.equal(Menu.shown.length, menuCount);
+	assert.match(style.textContent, /\.nya-dock-expand[^{}]*\{[^}]*-webkit-touch-callout:\s*none/);
+});
+
+test("desktop compact context menu retains close and reset actions", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick(); h.component.showFloatingEntry(); await tick();
+	const marker = h.target.querySelector(".nya-dock-expand"), before = Menu.shown.length;
+	marker.dispatchEvent(new window.MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+	assert.equal(Menu.shown.length, before + 1);
+	const menu = Menu.shown.at(-1);
+	assert.deepEqual(menu.items.map((item) => item.title), ["search.tip.Close", "search.tip.ResetFinderPosition"]);
+	menu.items[1].run(); await tick(); assert.equal(h.component.isDocked(), true, "passive reset does not activate search");
+	menu.items[0].run(); await tick(); assert.equal(h.component.isVisible(), false);
+});
+
+test("mobile compact gesture isolates host pointer and touch swipes without blocking other touches or taps", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	const h = mount(t, undefined, {}, false); Platform.isMobile = false; await tick(); h.component.showFloatingEntry(); await tick();
+	const node = h.target.querySelector(".nya-finder"), marker = node.querySelector(".nya-dock-expand");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 400, bottom: 650, width: 400, height: 650 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 352 + x, top: 88 + y, right: 392 + x, bottom: 128 + y, width: 40, height: 40 };
+	};
+	window.dispatchEvent(new window.Event("resize"));
+	const seen = [];
+	const hostSwipe = (event) => { seen.push(event.type); event.stopPropagation(); };
+	const types = ["pointerdown", "pointermove", "pointerup", "pointercancel", "touchstart", "touchmove", "touchend", "touchcancel"];
+	for (const type of types) h.target.addEventListener(type, hostSwipe);
+	t.after(() => { for (const type of types) h.target.removeEventListener(type, hostSwipe); });
+	const touch = (target, type, id = 7, x = 372) => {
+		const event = new window.Event(type, { bubbles: true, cancelable: true });
+		Object.assign(event, { changedTouches: [{ identifier: id, clientX: x, clientY: 108, target: marker }] });
+		target.dispatchEvent(event); return event;
+	};
+	assert.equal(sendPointer(marker, "pointerdown", 372, 108).defaultPrevented, false);
+	assert.equal(touch(marker, "touchstart").defaultPrevented, false);
+	assert.equal(touch(marker, "touchmove", 7, 371).defaultPrevented, true);
+	assert.equal(node.style.translate, "0px 0px", "Touch Events never duplicate position updates");
+	sendPointer(marker, "pointermove", 212, 138); sendPointer(marker, "pointerup", 212, 138); touch(marker, "touchend", 7, 212);
+	marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+	assert.equal(node.getBoundingClientRect().left, 192); assert.equal(h.component.isDocked(), true); assert.deepEqual(seen, []);
+	// Active gesture protects only its own finger, not an unrelated input/body touch.
+	sendPointer(marker, "pointerdown", 212, 138); touch(marker, "touchstart");
+	assert.equal(touch(h.target, "touchmove", 9).defaultPrevented, false); assert.deepEqual(seen, ["touchmove"]); seen.length = 0;
+	sendPointer(marker, "pointermove", 112, 188); sendPointer(marker, "pointercancel", 112, 188); touch(marker, "touchcancel");
+	assert.equal(node.getBoundingClientRect().left, 192); assert.deepEqual(seen, []);
+	assert.equal(touch(h.target, "touchmove").defaultPrevented, false); seen.length = 0;
+	// Short tap start/end never cancels defaults, so native synthesized clicks remain possible.
+	sendPointer(marker, "pointerdown", 212, 138); touch(marker, "touchstart");
+	sendPointer(marker, "pointerup", 212, 138); assert.equal(touch(marker, "touchend").defaultPrevented, false);
+	marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+	assert.equal(h.component.isDocked(), false); assert.deepEqual(seen, []);
+	for (const input of node.querySelectorAll("textarea")) {
+		assert.equal(touch(input, "touchstart", 10).defaultPrevented, false);
+		assert.equal(touch(input, "touchmove", 10).defaultPrevented, false);
+	}
+	assert.ok(seen.includes("touchstart") && seen.includes("touchmove")); seen.length = 0;
+	// Hiding the complete panel in the middle of a held gesture releases guards.
+	const handle = node.querySelector(".nya-move-handle");
+	sendPointer(handle, "pointerdown", 200, 80); touch(handle, "touchstart");
+	h.component.setVisible(false); await tick();
+	assert.equal(touch(h.target, "touchmove").defaultPrevented, false);
+	assert.ok(seen.includes("touchmove"));
+});
+
+test("mobile touch guards release on destruction and owner blur without leaking document listeners", async (t) => {
+	for (const action of ["destroy", "blur", "pagehide"]) {
+		Platform.isMobile = true;
+		const h = mount(t, undefined, {}, false); Platform.isMobile = false; await tick(); h.component.showFloatingEntry(); await tick();
+		const marker = h.target.querySelector(".nya-dock-expand");
+		const event = new window.Event("touchstart", { bubbles: true });
+		Object.assign(event, { changedTouches: [{ identifier: 7 }] }); marker.dispatchEvent(event);
+		if (action === "destroy") h.component.$destroy(); else window.dispatchEvent(new window.Event(action));
+		const move = new window.Event("touchmove", { bubbles: true, cancelable: true });
+		Object.assign(move, { changedTouches: [{ identifier: 7 }] }); document.dispatchEvent(move);
+		assert.equal(move.defaultPrevented, false, action);
+	}
 });
 
 test("mobile relocates only overflow inline controls without moving More, replacing nodes or changing settings", async (t) => {

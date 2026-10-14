@@ -56,6 +56,28 @@ test("docking uses owner edges and expansion follows the marker height and viewp
 	assert.equal(h.node.getBoundingClientRect().top, 308); assert.ok(h.node.getBoundingClientRect().left >= 108);
 });
 
+test("automatic compact positioning waits for measurable layout and follows safe viewport edges", (t) => {
+	for (const side of ["left", "right"]) {
+		const h = environment(t); h.setOwner(rect(0, 0, 0, 0)); h.setBase(rect(180, 88, 40, 40));
+		h.update({ docked: true, side, autoDock: false }); assert.equal(h.node.style.translate, "");
+		h.setOwner(rect(0, 0, 400, 650));
+		h.setBase(rect(0, 0, 0, 0)); h.win.dispatchEvent(new h.win.Event("resize"));
+		assert.equal(h.node.style.translate, "", "unrendered compact node is not positioned as a zero-width icon");
+		h.setBase(rect(180, 88, 40, 40)); h.win.dispatchEvent(new h.win.Event("resize"));
+		assert.equal(side === "right" ? h.node.getBoundingClientRect().right : h.node.getBoundingClientRect().left, side === "right" ? 392 : 8);
+		const safe = h.doc.querySelector('[aria-hidden="true"]'); safe.style.padding = "10px 18px 20px 12px";
+		Object.assign(h.viewport, { offsetLeft: 20, offsetTop: 30, width: 340, height: 500 });
+		h.viewport.dispatchEvent(new h.win.Event("resize"));
+		assert.equal(side === "right" ? h.node.getBoundingClientRect().right : h.node.getBoundingClientRect().left, side === "right" ? 334 : 40);
+		h.position.moveBy(side === "right" ? -100 : 100, 40);
+		const parked = h.node.getBoundingClientRect();
+		h.update({ docked: true, side }); assert.deepEqual(h.node.getBoundingClientRect(), parked);
+		h.setOwner(rect(0, 0, 0, 0)); h.win.dispatchEvent(new h.win.Event("resize"));
+		h.setOwner(rect(0, 0, 400, 650)); h.win.dispatchEvent(new h.win.Event("resize"));
+		assert.deepEqual(h.node.getBoundingClientRect(), parked, "background visibility changes preserve manual marker intent");
+	}
+});
+
 test("direct drag isolates pointers and rolls back on cancel/Escape/blur/hide", (t) => {
 	const h = environment(t); h.update();
 	h.pointer(h.node, "pointerdown", 300, 148); h.pointer(h.doc, "pointermove", 302, 149);
@@ -103,6 +125,95 @@ test("direct drag begins after 3px without waiting; a stationary press remains a
 	assert.equal(h.node.classList.contains("nya-finder--dragging"), true);
 	assert.equal(h.node.getBoundingClientRect().left, 280);
 	h.pointer(h.doc, "pointerup", 280, 148); assert.equal(h.node.classList.contains("nya-finder--dragging"), false);
+});
+
+test("optional held-click suppression leaves short taps and keyboard activation intact and expires", (t) => {
+	const h = environment(t); h.update();
+	let now = 0; t.mock.method(h.win.performance, "now", () => now);
+	const timers = new Map(); let serial = 0;
+	t.mock.method(h.win, "setTimeout", (fn) => { timers.set(++serial, fn); return serial; });
+	t.mock.method(h.win, "clearTimeout", (id) => timers.delete(id));
+	const click = (detail = 1) => {
+		const event = new h.win.MouseEvent("click", { detail, cancelable: true });
+		Object.defineProperty(event, "target", { value: h.node }); return h.position.consumeClick(event);
+	};
+	const start = (enabled) => {
+		const event = new h.win.Event("pointerdown");
+		Object.assign(event, { clientX: 300, clientY: 148, button: 0, pointerId: 1, isPrimary: true });
+		Object.defineProperty(event, "target", { value: h.node }); h.position.start(event, enabled);
+	};
+	start(true); now += 100; h.pointer(h.doc, "pointerup", 300, 148); assert.equal(click(), false);
+	start(true); now += 600; h.pointer(h.doc, "pointerup", 300, 148);
+	assert.equal(click(0), false); assert.equal(click(), true); assert.equal(click(), false);
+	start(false); now += 600; h.pointer(h.doc, "pointerup", 300, 148); assert.equal(click(), false, "desktop held press is unchanged");
+	start(true); now += 600; h.pointer(h.doc, "pointercancel", 300, 148); assert.equal(click(), true);
+	start(true); now += 600; h.pointer(h.doc, "pointerup", 300, 148);
+	assert.equal(timers.size, 1); const expire = [...timers.values()][0]; timers.clear(); expire(); assert.equal(click(), false);
+	start(true); now += 600; h.pointer(h.doc, "pointerup", 300, 148);
+	h.position.destroy(); assert.equal(timers.size, 0);
+});
+
+test("mobile pointer ownership captures on down and bypasses ancestor swipe handlers even without capture", (t) => {
+	for (const captureMode of ["available", "throws", "missing"]) {
+		const h = environment(t); h.setBase(rect(300, 148, 40, 40)); h.update({ docked: true });
+		let captured = false, captures = 0, releases = 0, hostMoves = 0;
+		if (captureMode !== "missing") {
+			h.node.setPointerCapture = () => { captures++; if (captureMode === "throws") throw new Error("capture unavailable"); captured = true; };
+			h.node.hasPointerCapture = () => captured;
+			h.node.releasePointerCapture = () => { captured = false; releases++; };
+		}
+		h.node.addEventListener("pointerdown", (event) => h.position.start(event, true));
+		for (const type of ["pointerdown", "pointermove", "pointerup"]) h.owner.addEventListener(type, (event) => { hostMoves++; event.stopPropagation(); });
+		const send = (target, type, x, extra = {}) => {
+			const event = new h.win.Event(type, { bubbles: true, cancelable: true });
+			Object.assign(event, { button: 0, isPrimary: true, pointerId: 1, pointerType: "touch", clientX: x, clientY: 148, ...extra });
+			target.dispatchEvent(event); return event;
+		};
+		const down = send(h.node, "pointerdown", 780);
+		assert.equal(down.defaultPrevented, false); assert.equal(captured, captureMode === "available");
+		assert.equal(captures, captureMode === "missing" ? 0 : 1);
+		const smallMove = send(h.node, "pointermove", 779);
+		assert.equal(smallMove.defaultPrevented, true); assert.equal(h.node.classList.contains("nya-finder--dragging"), false);
+		send(h.node, "pointermove", 740); assert.equal(h.node.getBoundingClientRect().left, 712);
+		const up = send(h.node, "pointerup", 720); assert.equal(up.defaultPrevented, false);
+		assert.equal(h.node.getBoundingClientRect().left, 692); assert.equal(hostMoves, 0);
+		assert.equal(releases, captureMode === "available" ? 1 : 0);
+		send(h.node, "pointerdown", 720); send(h.node, "pointermove", 680); send(h.node, "pointercancel", 680);
+		assert.equal(h.node.getBoundingClientRect().left, 692, "genuine cancellation rolls back");
+		send(h.node, "pointermove", 600); assert.equal(hostMoves, 1, "after cleanup normal events reach host again");
+	}
+});
+
+test("mobile capture-phase listeners and early pointer capture are released on every teardown path", (t) => {
+	for (const action of ["hide", "reset", "destroy", "blur", "pagehide", "lostcapture"]) {
+		const h = environment(t); h.update();
+		const listeners = new Map();
+		const add = h.doc.addEventListener.bind(h.doc), remove = h.doc.removeEventListener.bind(h.doc);
+		t.mock.method(h.doc, "addEventListener", (type, fn, options) => {
+			if (type.startsWith("pointer")) listeners.set(fn, typeof options === "boolean" ? options : options?.capture ?? false);
+			return add(type, fn, options);
+		});
+		t.mock.method(h.doc, "removeEventListener", (type, fn, options) => {
+			if (listeners.has(fn)) {
+				assert.equal(typeof options === "boolean" ? options : options?.capture ?? false, listeners.get(fn)); listeners.delete(fn);
+			}
+			return remove(type, fn, options);
+		});
+		let captured = false;
+		h.node.setPointerCapture = () => { captured = true; };
+		h.node.hasPointerCapture = () => captured;
+		h.node.releasePointerCapture = () => { captured = false; };
+		const down = new h.win.Event("pointerdown");
+		Object.assign(down, { button: 0, pointerId: 1, clientX: 300, clientY: 148 });
+		Object.defineProperty(down, "target", { value: h.node }); h.position.start(down, true);
+		assert.equal(captured, true); assert.deepEqual([...listeners.values()], [true, true, true]);
+		if (action === "hide") h.update({ visible: false });
+		else if (action === "reset") h.position.reset();
+		else if (action === "destroy") h.position.destroy();
+		else if (action === "lostcapture") h.pointer(h.node, "lostpointercapture", 300, 148);
+		else h.win.dispatchEvent(new h.win.Event(action));
+		assert.equal(captured, false, action); assert.equal(listeners.size, 0, action);
+	}
 });
 
 test("auto-dock confirms only on release, supports both edges and blocks during replacement", (t) => {
