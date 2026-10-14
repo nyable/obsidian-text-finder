@@ -64,7 +64,7 @@ export function createScopeSvg(doc: Document, path: string): SVGSVGElement {
 }
 
 /** Shared by editor and preview; split marks retain the same scope identity. */
-export function measureScopeOutlines(root: HTMLElement, origin: { left: number; top: number }, strokeWidth = 0): string[] {
+export function measureScopeRects(root: HTMLElement, origin: { left: number; top: number }) {
 	const groups = new Map<string, ScopeRect[]>();
 	root.querySelectorAll<HTMLElement>('[data-nya-scope]').forEach((span) => {
 		const id = span.dataset.nyaScope!, rectangles = groups.get(id) ?? [];
@@ -72,7 +72,20 @@ export function measureScopeOutlines(root: HTMLElement, origin: { left: number; 
 			top: box.top - origin.top, right: box.right - origin.left, bottom: box.bottom - origin.top });
 		groups.set(id, rectangles);
 	});
-	const normalized = [...groups.values()].map((rects) => {
+	return groups;
+}
+
+export function measureScopeOutlines(root: HTMLElement, origin: { left: number; top: number }, strokeWidth = 0): string[] {
+	return scopeOutlines(measureScopeRects(root, origin), strokeWidth);
+}
+
+export function scopeOutlines(groups: ReadonlyMap<string, readonly ScopeRect[]>, strokeWidth: number): string[] {
+	return paddedScopeOutlines([...normalizeScopeRects(groups).values()], strokeWidth);
+}
+
+export function normalizeScopeRects(groups: ReadonlyMap<string, readonly ScopeRect[]>): Map<string, ScopeRect[]> {
+	return new Map([...groups].map(([id, input]) => {
+		const rects = input.map((rect) => ({ ...rect }));
 		// Glyph boxes on consecutive visual lines often have a small leading
 		// gap. Meet halfway only where their horizontal spans overlap. Do not
 		// connect blank blocks, bidi gaps or separate scope identities.
@@ -95,7 +108,7 @@ export function measureScopeOutlines(root: HTMLElement, origin: { left: number; 
 		}
 		// Coalesce adjacent fragments before padding/gap checks. Highlighting
 		// must not turn one visible line into quadratic work per match span.
-		return rows.flatMap((row) => {
+		return [id, rows.flatMap((row) => {
 			const merged: ScopeRect[] = [];
 			for (const rect of row.rects.sort((a, b) => a.left - b.left)) {
 				if (![rect.left, rect.top, rect.right, rect.bottom].every(Number.isFinite) || rect.right <= rect.left || rect.bottom <= rect.top) continue;
@@ -104,9 +117,8 @@ export function measureScopeOutlines(root: HTMLElement, origin: { left: number; 
 				else merged.push({ ...rect });
 			}
 			return merged;
-		});
-	});
-	return paddedScopeOutlines(normalized, strokeWidth);
+		})];
+	}));
 }
 
 /** Visual clearance only. Never pad DOM marks, source ranges or match offsets. */

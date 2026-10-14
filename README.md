@@ -84,7 +84,9 @@ In **Settings → Appearance → Search selection**, customize background and bo
 
 Background color is always available. Show selection outline precedes its dependent controls; border color and width appear only when enabled. Turning it off retains those values and dismisses related popups. The stroke's inner edge normally leaves about 2px of text clearance, compensating for width; tight gaps prioritize separate contours. No text padding or actual scope changes are made.
 
-The outline follows currently rendered selected text rather than a large enclosing rectangle. Syntax/highlight fragments share a contour, while separate selections never bridge their gaps. It remeasures after reflow/scroll; blank lines, hidden source or disconnected text may produce separate contours. It does not intercept input, change text layout or expand the actual search/replacement range. Older hosts without CodeMirror's layer API retain background-only presentation.
+The outline follows currently rendered selected text rather than a large enclosing rectangle. Syntax/highlight fragments share a contour, while separate selections never bridge their gaps. It remeasures after reflow/scroll; hidden source or disconnected text may produce separate contours. It does not intercept input, change text layout or expand the actual search/replacement range. Older hosts without CodeMirror's layer API retain background-only presentation.
+
+Fully selected, visible blank lines (including spaces/tabs) within one continuous scope receive contour connections, preferring the neighboring text's shared width rather than the full editor width. Hidden/folded source, separate scopes and ambiguous bidi fragments remain conservatively disconnected. In editing mode, matched source newlines show a small `↵` at each consumed line break using the existing current/other match colors; multiple newlines in one match still count as one match. These overlays do not alter document text, wrapping or copied content. Reading mode does not add source-newline markers. Actual themes, quotes/lists, Live Preview and mobile drawing still require host verification.
 
 ## Move or collapse the finder
 

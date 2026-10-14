@@ -68,6 +68,10 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 轮廓测量先合并同视觉行相邻 mark 矩形，再由 `paddedScopeOutlines()` 以 2px + 半线宽计算视觉外扩；若与断开的同范围片段或其他范围接近，则限制该范围的 padding，保持间隙。该参数不写 DOM 文本样式、不变更 StateField 数字坐标。统一的两行设置预览订阅同一 style-change 请求，粗细变更重测净距，销毁释放监听。`scopeStyles()` 用 `hidden` 关联组控制边框色／粗细，关闭保留数据并结束子面板，背景色独立；不新增持久化字段。
 
+`src/editor-geometry.ts` 统一 layer origin、可见源码行枚举及 `lineBlockAt`／`coordsAtPos` 检查：仅处理可见源码，拒绝替换／折叠块和不可用测量。正文轮廓先 `measureScopeRects()`／`normalizeScopeRects()` 合并文字行，再由 `src/scope-geometry.ts:addScopeBlankLines()` 根据 StateField 精确范围补选中空白行的桥接矩形，最后统一 padding／并集。桥接不进入视觉行归一化，避免高连接矩形把首尾文字压成大框；其他范围或歧义 bidi 片段优先保持分离。设置静态样例不读取编辑器状态。
+
+`src/search-highlight.ts:textMatchMarker` 保留原 DecorationSet、文档身份及写入失效规则，通过 provide 附加 `newlineMatchLayer`。layer 遍历可见源码行，用原 mark 覆盖关系判定真实换行是否匹配，测量行末并绘制 owner Document 的无文本 marker（CSS `↵`），不另存匹配数组、不改变计数或编辑 selection。旧宿主无 layer 保留文字高亮。资源随 CodeMirror layer 清理，无新计时器或 Document 监听。
+
 ## 阅读索引与高亮机制
 
 - 公共 preview API 无法枚举虚拟化移出的分块，适配器集中使用私有 `previewMode.renderer` 的 sections、渲染状态、`onRendered`、`showSection`、`applyScrollSection` 和 `updateVirtualDisplay`。能力与降级边界见 [compatibility](compatibility.md)。

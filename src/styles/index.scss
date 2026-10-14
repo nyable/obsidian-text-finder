@@ -32,6 +32,16 @@ body {
 	color: var(--nya-match-curColor);
 }
 
+// A real source newline has no glyph box. The overlay neither changes wrapping
+// nor participates in editing, selection, clipboard text or accessibility text.
+.nya-newline-layer, .nya-newline-match { pointer-events: none; user-select: none; }
+.nya-newline-match {
+	display: flex; align-items: center; justify-content: center; overflow: hidden;
+	font-family: var(--font-text); font-size: var(--font-text-size); line-height: 1;
+	&::before { content: "↵"; }
+	&[data-direction="rtl"]::before { transform: scaleX(-1); }
+}
+
 ::highlight(nya-reading-matches) {
 	background-color: var(--nya-match-bgColor);
 	color: var(--nya-match-color);

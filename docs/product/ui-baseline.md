@@ -61,7 +61,9 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 面板／历史／设置主要采用 Obsidian `--background-*`、`--text-*`、`--interactive-*` 和字体变量，没有独立深浅主题分支。仍有固定选项蓝色／白字、非空无结果红色、黑色阴影；不能据此声称所有主题对比度合格。
 
-搜索选区外观补充：默认淡背景无边框；独立第四折叠组支持背景／边框 alpha、轮廓开关及 1–3px 粗细，单项及分组恢复作用域独立。正文 `.nya-scope-layer`／`.nya-scope-outline` 以矩形并集外边绘制，不给每个 mark 加边框，不拦截输入；设置增加 `.nya-preview-scope` 两行静态样例及相同测量算法。默认继承宿主背景／强调色，不固定新配色。空行／隐藏源码／不连续字符轮廓可能断开，不能用整行矩形填补；主题、折行、缩放、滚动、实时预览及移动设备实际绘制待验收。依据：`src/scope-outline.ts`、`src/search-scope.ts`、`src/ToolbarPreview.svelte`、`src/settings-tab.ts:scopeStyles()`。
+搜索选区外观补充：默认淡背景无边框；独立第四折叠组支持背景／边框 alpha、轮廓开关及 1–3px 粗细，单项及分组恢复作用域独立。正文 `.nya-scope-layer`／`.nya-scope-outline` 以矩形并集外边绘制，不给每个 mark 加边框，不拦截输入；设置增加 `.nya-preview-scope` 两行静态样例及相同测量算法。默认继承宿主背景／强调色，不固定新配色。同范围完整选中且可见的普通空白行按上下文字共同宽度连接，无重叠时经实际插入点形成窄阶梯；不填满整行或改变背景。隐藏／折叠源码、歧义 bidi 片段与独立选区仍可断开；主题、折行、缩放、滚动、实时预览及移动设备实际绘制待验收。依据：`src/scope-geometry.ts`、`src/scope-outline.ts`、`src/search-scope.ts`、`src/ToolbarPreview.svelte`、`src/settings-tab.ts:scopeStyles()`。
+
+换行匹配：编辑模式 `.nya-newline-layer` 的 `.nya-newline-match` 用 `::before` 显示小型 `↵`（RTL 镜像），置于真实换行的测量行尾，复用普通／当前匹配类和颜色；大小按测得字符宽度及行高约束。仅绘制已匹配换行，不标软折行或无换行的文末；连续换行每个位置可见，计数按原匹配。marker 不占布局、不插入 DOM 文本、无交互／焦点／额外提示，aria-hidden；阅读和现有两行设置样例不增源码标记。行尾裁切、深浅主题对比度及引用／列表／实时预览需实测。依据：`src/search-highlight.ts:newlineMatchLayer`、`src/styles/index.scss`、`tests/editor-whitespace.test.mjs`。
 
 外观行布局统一：颜色组 12px 内边距、Grid 8px 行距；颜色行／轮廓开关 min-height 32px、列距 12px，名称左对齐、操作右对齐，色块／104px 颜色值／恢复按钮纵向对齐且内部间距 8px；颜色值用 UI 字体和 tabular-nums。轮廓开关在依赖组之前，关闭 hidden 不占空间；依赖名称缩进 12px，窄宽回到同一左边界。原生 Setting 默认 margin／padding 在局部清除；360px 以下颜色行、轮廓开关及工具栏配置均采用上下布局，不影响其他设置页。轮廓采用 2px + 半线宽的外扩，紧间隙限制优先于净距，不增加留白设置项。几何／样式依据 `src/scope-outline.ts:paddedScopeOutlines()`、`src/styles/index.scss`；实际字体和主题对齐仍需实测。
 

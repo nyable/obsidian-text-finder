@@ -1,6 +1,8 @@
 import { Annotation, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, layer, type LayerMarker } from "@codemirror/view";
-import { measureScopeOutlines, createScopeSvg } from "./scope-outline";
+import { measureScopeRects, normalizeScopeRects, paddedScopeOutlines, createScopeSvg } from "./scope-outline";
+import { editorLayerOrigin } from "./editor-geometry";
+import { addScopeBlankLines } from "./scope-geometry";
 import { normalizeSearchRanges } from "./util/text-helper";
 
 /** Finder navigation must never replace the user's scope candidate. */
@@ -77,10 +79,9 @@ export const scopeOutlineLayer = {
 		const win = view.dom.ownerDocument.defaultView;
 		const width = parseFloat(win?.getComputedStyle(view.dom).getPropertyValue("--nya-scope-border-width") ?? "");
 		if (!(width > 0)) return [];
-		const bounds = view.scrollDOM.getBoundingClientRect();
-		const left = view.textDirection === 0 ? bounds.left : bounds.right - view.scrollDOM.clientWidth * view.scaleX;
-		return measureScopeOutlines(view.contentDOM, { left: left - view.scrollDOM.scrollLeft * view.scaleX,
-			top: bounds.top - view.scrollDOM.scrollTop * view.scaleY }, width)
+		const origin = editorLayerOrigin(view), groups = normalizeScopeRects(measureScopeRects(view.contentDOM, origin));
+		addScopeBlankLines(view, normalizeSearchRanges(view.state.field(searchScopeField).ranges ?? [], view.state.doc.length), groups, origin);
+		return paddedScopeOutlines([...groups.values()], width)
 			.map((path) => new ScopeOutlineMarker(view.dom.ownerDocument, path));
 	},
 };
