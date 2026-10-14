@@ -403,7 +403,7 @@ test("opening placement cancels color drafts and opening a picker dismisses plac
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
 	const root = tab.containerEl; root.querySelectorAll('.nya-settings-section-toggle').forEach((toggle) => toggle.click());
 	await p.flushSettings(); const writes = p.writes.length;
-	const picker = root.querySelector('.nya-color-picker'), trigger = root.querySelector('[role="combobox"]');
+	const picker = root.querySelector('.nya-color-picker'), trigger = root.querySelector('[data-section="search"] [role="combobox"]');
 	picker.click(); assert.ok(document.querySelector('.nya-color-popover'));
 	trigger.click(); assert.equal(document.querySelector('.nya-color-popover'), null); assert.ok(document.querySelector('.nya-settings-select-popover'));
 	picker.click(); assert.equal(document.querySelector('.nya-settings-select-popover'), null); assert.ok(document.querySelector('.nya-color-popover'));
@@ -540,13 +540,16 @@ test("preview shows fixed English matches, an empty replacement placeholder and 
 	assert.equal(replacement.childNodes.length, 1);
 	assert.equal(replacement.querySelector('.nya-preview-placeholder').textContent, 'search.tip.ReplacePlaceholder');
 	const text = preview.querySelector('.nya-preview-text');
-	assert.equal(text.textContent.trim(), 'Find text, highlight text, and replace text.');
+	assert.equal(text.textContent.trim(), 'Find text and more text within this text selection, not outside.');
+	assert.equal(preview.querySelectorAll('.nya-preview-text, .nya-preview-scope').length, 1);
+	assert.equal(text.querySelectorAll(':scope > div').length, 2);
+	assert.equal(text.querySelectorAll('[data-nya-scope="preview"]').length, 2);
 	assert.equal(text.lang, 'en');
 	assert.equal(text.querySelectorAll('.nya-text-finder-match-current').length, 1);
 	assert.equal(text.querySelectorAll('.nya-text-finder-match').length, 3);
 	assert.equal(text.querySelectorAll('.nya-text-finder-match:not(.nya-text-finder-match-current)').length, 2);
-	assert.equal(text.querySelector('span').className, 'nya-text-finder-match nya-text-finder-match-current');
-	assert.ok([...text.querySelectorAll('span')].every((span) => span.textContent === 'text'));
+	assert.ok([...text.querySelectorAll('.nya-text-finder-match')].every((span) => span.textContent === 'text'));
+	assert.ok(text.querySelector('.nya-text-finder-scope .nya-text-finder-match-current'));
 	const css = previewStyles.join('\n');
 	const rule = (name) => [...css.matchAll(new RegExp(`\\.${name}[^{}]*\\{([^}]+)\\}`, 'g'))].map((match) => match[1]).join(';');
 	assert.match(rule('nya-preview-input'), /font-family:\s*var\(--font-interface\)/);
@@ -556,7 +559,7 @@ test("preview shows fixed English matches, an empty replacement placeholder and 
 	assert.match(rule('nya-preview-placeholder'), /color:\s*var\(--text-faint\)/);
 	assert.match(rule('nya-preview-find'), /border-color:\s*var\(--nya-focus-border-color\)/);
 	assert.doesNotMatch(rule('nya-preview-text'), /(?:^|;)(?:min-)?height:/);
-	assert.match(rule('nya-preview-text'), /padding:\s*6px 12px/);
+	assert.match(rule('nya-preview-text'), /padding:\s*8px 12px/);
 	assert.match(rule('nya-preview-text'), /font-size:\s*var\(--font-text-size\)/);
 	assert.doesNotMatch(rule('nya-preview-text'), /overflow:\s*hidden/);
 	assert.equal(preview.querySelectorAll('input, textarea, button, [tabindex], [role="button"]').length, 0);
@@ -570,7 +573,7 @@ test("appearance drafts stay local, apply saves once, and resets leave toolbar/s
 	assert.ok(root.classList.contains('nya-settings--appearance'));
 	assert.ok(controls.previousElementSibling.querySelector('.nya-toolbar-preview'));
 	assert.equal(controls.querySelector('.nya-toolbar-preview'), null);
-	assert.equal(controls.querySelectorAll('.nya-color-row').length, 6);
+	assert.equal(controls.querySelectorAll('[data-color]').length, 8);
 	assert.equal(controls.querySelectorAll('input[type="range"], input[type="color"]').length, 0);
 	const row = (key) => controls.querySelector(`[data-color="${key}"]`);
 	const preview = root.querySelector('.nya-appearance-preview');
@@ -578,7 +581,11 @@ test("appearance drafts stay local, apply saves once, and resets leave toolbar/s
 	t.mock.method(dom.window, 'requestAnimationFrame', (fn) => { frames.set(++nextFrame, fn); return nextFrame; });
 	t.mock.method(dom.window, 'cancelAnimationFrame', (id) => frames.delete(id));
 	const flushFrame = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach((fn) => fn()); };
-	const open = (key) => row(key).querySelector('.nya-color-picker').click();
+	const open = (key) => {
+		const section = row(key).closest('[data-section]');
+		if (section.querySelector('.nya-settings-section-body').hidden) section.querySelector('.nya-settings-section-toggle').click();
+		row(key).querySelector('.nya-color-picker').click();
+	};
 	const dialog = () => document.querySelector('.nya-color-popover');
 	const input = () => dialog().querySelector('.nya-color-value');
 	const change = (color) => {
@@ -644,6 +651,77 @@ test("appearance drafts stay local, apply saves once, and resets leave toolbar/s
 	p.onunload(); await p.flushSettings();
 });
 
+test("search selection controls persist width/toggle, preview alpha drafts locally and reset only their own group", async () => {
+	const p = plugin({ appearanceColors: { matchText: '#abcdef' } }); await p.onload();
+	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
+	const root = tab.containerEl, section = root.querySelector('[data-section="scope"]');
+	assert.ok(section); assert.equal(section.querySelector('.nya-settings-section-body').hidden, true);
+	section.querySelector('.nya-settings-section-toggle').click();
+	const sample = root.querySelector('.nya-preview-scope');
+	assert.equal(sample.querySelectorAll('[data-nya-scope="preview"]').length, 2);
+	assert.ok(sample.querySelector('.nya-text-finder-match')); assert.equal(sample.getAttribute('aria-label'), null);
+	const toggle = section.querySelector('[aria-label="settings.Appearance.scopeBorderEnabled"]');
+	const details = section.querySelector('.nya-scope-details');
+	assert.equal(details.hidden, true); assert.equal(document.getElementById(toggle.getAttribute('aria-controls')), details);
+	assert.ok(toggle.parentElement.compareDocumentPosition(details) & dom.window.Node.DOCUMENT_POSITION_FOLLOWING);
+	assert.equal(section.querySelector('[data-color="scopeBackground"]').closest('[hidden]'), null);
+	assert.equal(section.querySelector('[data-color="scopeBorder"]').closest('[hidden]'), details);
+	toggle.click(); await p.flushSettings();
+	assert.equal(details.hidden, false);
+	assert.deepEqual(p.settings.scopeAppearance, { border: true, width: 1 });
+	assert.match(document.querySelector('style[data-nya-appearance]').textContent, /--nya-scope-border-width: 1px/);
+	section.querySelector('[data-scope-width] button').click();
+	document.querySelector('.nya-settings-select-popover [data-value="3"]').click(); await p.flushSettings();
+	assert.equal(p.writes.at(-1).scopeAppearance.width, 3);
+	assert.match(document.querySelector('style[data-nya-appearance]').textContent, /--nya-scope-border-width: 3px/);
+	const preview = root.querySelector('.nya-appearance-preview');
+	for (const [key, variable] of [['scopeBackground', '--nya-scope-background'], ['scopeBorder', '--nya-scope-border-color']]) {
+		section.querySelector(`[data-color="${key}"] .nya-color-picker`).click();
+		const dialog = document.querySelector('.nya-color-popover'), input = dialog.querySelector('input');
+		assert.equal(dialog.querySelector('.nya-color-library').shadowRoot.querySelectorAll('[role="slider"]').length, 3);
+		input.value = '#12345680'; input.dispatchEvent(new dom.window.Event('input'));
+		await new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
+		assert.equal(preview.style.getPropertyValue(variable), '#12345680');
+		assert.equal(p.settings.appearanceColors[key], undefined);
+		dialog.querySelector('.mod-cta').click(); await p.flushSettings();
+		assert.equal(p.writes.at(-1).appearanceColors[key], '#12345680'); assert.equal(preview.style.getPropertyValue(variable), '');
+	}
+	// Turning the feature off hides dependants, not their persisted values.
+	section.querySelector('[data-color="scopeBorder"] .nya-color-picker').click();
+	assert.ok(document.querySelector('.nya-color-popover'));
+	toggle.click(); await p.flushSettings();
+	assert.equal(details.hidden, true); assert.equal(document.querySelector('.nya-color-popover'), null);
+	assert.deepEqual(p.settings.scopeAppearance, { border: false, width: 3 });
+	assert.equal(p.settings.appearanceColors.scopeBorder, '#12345680');
+	section.querySelector('[data-scope-width] button').click();
+	section.querySelector('[data-color="scopeBorder"] .nya-color-picker').click();
+	assert.equal(document.querySelector('.nya-settings-select-popover, .nya-color-popover'), null);
+	toggle.click(); await p.flushSettings();
+	assert.equal(details.hidden, false); assert.equal(section.querySelector('[data-scope-width] button').dataset.value, '3');
+	const widthTrigger = section.querySelector('[data-scope-width] button'); widthTrigger.click();
+	assert.ok(document.querySelector('.nya-settings-select-popover'));
+	toggle.click(); await p.flushSettings();
+	assert.equal(document.querySelector('.nya-settings-select-popover'), null);
+	assert.equal(document.activeElement, toggle, 'hiding focused child returns focus to the controlling toggle');
+	toggle.click(); await p.flushSettings();
+	resetSection(root.querySelector('[data-section="colors"]'));
+	assert.deepEqual(p.settings.appearanceColors, { scopeBackground: '#12345680', scopeBorder: '#12345680' });
+	assert.deepEqual(p.settings.scopeAppearance, { border: true, width: 3 });
+	p.settings.appearanceColors.matchText = '#abcdef';
+	await p.flushSettings(); const writes = p.writes.length;
+	resetSection(section); await p.flushSettings();
+	assert.equal(p.writes.length, writes + 1); assert.deepEqual(p.settings.scopeAppearance, { border: false, width: 1 });
+	assert.deepEqual(p.settings.appearanceColors, { matchText: '#abcdef' });
+	assert.doesNotMatch(document.querySelector('style[data-nya-appearance]').textContent, /--nya-scope-/);
+	assert.equal(section.querySelector('[data-scope-width] button').dataset.value, '1');
+	assert.equal(section.querySelector('.nya-scope-details').hidden, true);
+	toggle.click(); await p.flushSettings(); assert.equal(p.writes.length, writes + 1);
+	const replacement = section.querySelector('[aria-label="settings.Appearance.scopeBorderEnabled"]'); tab.hide();
+	replacement.click(); await p.flushSettings(); assert.equal(p.writes.length, writes + 1);
+	p.data = p.writes.at(-1); await p.loadSettings(); assert.deepEqual(p.settings.scopeAppearance, { border: false, width: 1 });
+	p.onunload();
+});
+
 test("color drafts cancel on Escape/outside/switch/hide/redraw/unload without saving or leaving preview frames", async (t) => {
 	const p = plugin({ appearanceColors: { matchText: '#123456' } }); await p.onload();
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
@@ -653,7 +731,10 @@ test("color drafts cancel on Escape/outside/switch/hide/redraw/unload without sa
 	await p.flushSettings(); const writes = p.writes.length;
 	for (const reason of ['escape', 'outside', 'switch', 'hide', 'redraw', 'unload']) {
 		const root = tab.containerEl, preview = root.querySelector('.nya-appearance-preview');
-		const trigger = root.querySelector('[data-color="matchText"] .nya-color-picker'); trigger.click();
+		const trigger = root.querySelector('[data-color="matchText"] .nya-color-picker');
+		const section = trigger.closest('[data-section]');
+		if (section.querySelector('.nya-settings-section-body').hidden) section.querySelector('.nya-settings-section-toggle').click();
+		trigger.click();
 		const input = document.querySelector('.nya-color-popover .nya-color-value'); input.value = '#abcdef80';
 		input.dispatchEvent(new dom.window.Event('input'));
 		assert.equal(frames.size, 1);
@@ -698,7 +779,7 @@ test("appearance sections fold independently without saving, retain state on nav
 	const root = tab.containerEl;
 	await p.flushSettings(); const writes = p.writes.length, before = JSON.stringify(p.settings);
 	const sections = [...root.querySelectorAll('[data-section]')];
-	assert.equal(sections.length, 3);
+	assert.equal(sections.length, 4);
 	for (const section of sections) {
 		const toggle = section.querySelector('.nya-settings-section-toggle'), body = section.querySelector('.nya-settings-section-body');
 		assert.equal(toggle.getAttribute('aria-expanded'), 'false'); assert.equal(body.hidden, true);
@@ -711,10 +792,10 @@ test("appearance sections fold independently without saving, retain state on nav
 	}
 	sections[0].querySelector('.nya-settings-section-toggle').click();
 	sections[1].querySelector('.nya-settings-section-toggle').click();
-	assert.deepEqual(sections.map((section) => section.querySelector('.nya-settings-section-body').hidden), [false, false, true]);
+	assert.deepEqual(sections.map((section) => section.querySelector('.nya-settings-section-body').hidden), [false, false, true, true]);
 	assert.equal(root.querySelector('.nya-appearance-preview').closest('[hidden]'), null);
 	root.querySelector('#nya-settings-tab-find').click(); root.querySelector('#nya-settings-tab-toolbar').click();
-	assert.deepEqual([...root.querySelectorAll('.nya-settings-section-body')].map((body) => body.hidden), [false, false, true]);
+	assert.deepEqual([...root.querySelectorAll('.nya-settings-section-body')].map((body) => body.hidden), [false, false, true, true]);
 	tab.display(); assert.equal(root.querySelector('[data-section="colors"] .nya-settings-section-body').hidden, false);
 	await p.flushSettings(); assert.equal(p.writes.length, writes); assert.equal(JSON.stringify(p.settings), before);
 	tab.hide(); tab.display();

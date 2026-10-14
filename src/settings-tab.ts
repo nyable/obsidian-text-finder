@@ -6,7 +6,7 @@ import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { parseHistoryLimit } from "./history";
 import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarAction, type ToolbarKind, type ToolbarPlacement } from "./toolbar";
 import ToolbarPreview from "./ToolbarPreview.svelte";
-import { appearanceColors, colorKeys, resolvedAppearanceColor, type AppearanceColorKey } from "./appearance";
+import { appearanceColors, colorKeys, defaultScopeAppearance, resolvedAppearanceColor, type AppearanceColorKey } from "./appearance";
 import { openColorPicker } from "./color-picker";
 import { createSettingsSelect, type SettingsSelect } from "./settings-select";
 
@@ -29,7 +29,7 @@ export class SettingTab extends PluginSettingTab {
 	private cleanupSelect?: () => void;
 	private selectControls = new Set<SettingsSelect>();
 	private labelId = `nya-settings-categories-${++nextSettingsId}`;
-	private collapsed = new Set<"colors" | ToolbarKind>(["colors", "search", "replace"]);
+	private collapsed = new Set<"colors" | "scope" | ToolbarKind>(["colors", "scope", "search", "replace"]);
 	private sectionId = 0;
 
 	private clearPreview() {
@@ -110,7 +110,7 @@ export class SettingTab extends PluginSettingTab {
 	hide() {
 		this.cleanupDrag?.();
 		this.clearPreview();
-		this.collapsed = new Set(["colors", "search", "replace"]);
+		this.collapsed = new Set(["colors", "scope", "search", "replace"]);
 		this.containerEl.classList.remove("nya-settings--appearance");
 		const focused = this.containerEl.ownerDocument.activeElement;
 		if (focused && this.containerEl.contains(focused)) (focused as HTMLElement).blur();
@@ -123,7 +123,7 @@ export class SettingTab extends PluginSettingTab {
 		new Notice(i18n.t("settings.Toolbar.resetDone"), 2000);
 	}
 
-	private section(root: HTMLElement, kind: "colors" | ToolbarKind, className: string, title: string,
+	private section(root: HTMLElement, kind: "colors" | "scope" | ToolbarKind, className: string, title: string,
 		reset: () => void, cancelGesture: () => void) {
 		const doc = root.ownerDocument;
 		const section = doc.createElement("section"); section.className = className; section.dataset.section = kind; root.append(section);
@@ -218,6 +218,7 @@ export class SettingTab extends PluginSettingTab {
 			controls.tabIndex = 0; controls.setAttribute("role", "region");
 			controls.setAttribute("aria-labelledby", "nya-settings-tab-toolbar"); root.append(controls);
 			this.colors(controls);
+			this.scopeStyles(controls);
 			this.toolbar(controls, "search"); this.toolbar(controls, "replace");
 		}
 	}
@@ -226,53 +227,112 @@ export class SettingTab extends PluginSettingTab {
 		const doc = root.ownerDocument;
 		const updates = new Map<AppearanceColorKey, () => void>();
 		const section = this.section(root, "colors", "nya-color-settings", i18n.t("settings.Appearance.colors"), () => {
-			this.plugin.settings.appearanceColors = {};
+			for (const key of colorKeys.filter((key) => appearanceColors[key].group !== "scope")) delete this.plugin.settings.appearanceColors[key];
 			this.plugin.refreshAppearance(); updates.forEach((update) => update()); this.plugin.requestSaveSettings();
 		}, () => this.cleanupColor?.());
+		for (const group of ["panel", "match", "current"] as const) {
+			const block = doc.createElement("div"); block.className = "nya-color-group"; section.append(block);
+			const heading = doc.createElement("h4"); heading.textContent = i18n.t(`settings.Appearance.${group}`); block.append(heading);
+			this.colorRows(block, group, updates);
+		}
+	}
+
+	private colorRows(block: HTMLElement, group: "panel" | "match" | "current" | "scope", updates: Map<AppearanceColorKey, () => void>,
+		keys = colorKeys.filter((key) => appearanceColors[key].group === group)) {
+		const doc = block.ownerDocument;
 		const commit = (key: AppearanceColorKey, color: string | null) => {
 			if (color === null) delete this.plugin.settings.appearanceColors[key];
 			else this.plugin.settings.appearanceColors[key] = color;
 			this.plugin.refreshAppearance(); this.plugin.requestSaveSettings();
 		};
-		for (const group of ["panel", "match", "current"] as const) {
-			const block = doc.createElement("div"); block.className = "nya-color-group"; section.append(block);
-			const heading = doc.createElement("h4"); heading.textContent = i18n.t(`settings.Appearance.${group}`); block.append(heading);
-			for (const key of colorKeys.filter((key) => appearanceColors[key].group === group)) {
-				const row = doc.createElement("div"); row.className = "nya-color-row"; row.dataset.color = key; block.append(row);
-				const name = i18n.t(`settings.Appearance.${key}`);
-				const label = doc.createElement("span"); label.textContent = name; row.append(label);
-				const controls = doc.createElement("div"); controls.className = "nya-color-controls"; row.append(controls);
-				const picker = doc.createElement("button"); picker.type = "button"; picker.className = "nya-color-picker";
-				const accessibleName = `${i18n.t(`settings.Appearance.${group}`)}: ${name}`;
-				picker.setAttribute("aria-label", accessibleName); picker.setAttribute("aria-haspopup", "dialog"); picker.setAttribute("aria-expanded", "false");
-				const swatch = doc.createElement("span"); swatch.className = "nya-color-swatch"; picker.append(swatch); controls.append(picker);
-				const value = doc.createElement("span"); value.className = "nya-color-code"; controls.append(value);
-				const reset = doc.createElement("button"); reset.type = "button"; reset.className = "nya-color-reset";
-				reset.setAttribute("aria-label", i18n.t("settings.Appearance.resetColor", { name: accessibleName }));
-				setTooltip(reset, i18n.t("settings.Toolbar.reset")); setIcon(reset, "undo-2"); controls.append(reset);
-				let current = "";
-				const update = () => {
-					current = this.plugin.settings.appearanceColors[key] ?? resolvedAppearanceColor(root, key);
-					value.textContent = current; swatch.style.backgroundColor = current;
-					reset.disabled = !this.plugin.settings.appearanceColors[key];
-				};
-				updates.set(key, update); update();
-				picker.addEventListener("click", () => {
-					this.cleanupSelect?.();
-					this.cleanupColor?.(); update();
-					const previewRoot = this.previewRoot!;
-					const variable = appearanceColors[key].variable;
-					this.cleanupColor = openColorPicker({ trigger: picker, color: current, name: accessibleName,
-						preview: (color) => {
-							if (color === null) previewRoot.style.removeProperty(variable);
-							else previewRoot.style.setProperty(variable, color);
-						},
-						apply: (color) => { if (this.plugin.settings.appearanceColors[key] !== color) commit(key, color); update(); },
-					});
+		for (const key of keys) {
+			const row = doc.createElement("div"); row.className = "nya-color-row"; row.dataset.color = key; block.append(row);
+			const name = i18n.t(`settings.Appearance.${key}`);
+			const label = doc.createElement("span"); label.textContent = name; row.append(label);
+			const controls = doc.createElement("div"); controls.className = "nya-color-controls"; row.append(controls);
+			const picker = doc.createElement("button"); picker.type = "button"; picker.className = "nya-color-picker";
+			const accessibleName = `${i18n.t(`settings.Appearance.${group}`)}: ${name}`;
+			picker.setAttribute("aria-label", accessibleName); picker.setAttribute("aria-haspopup", "dialog"); picker.setAttribute("aria-expanded", "false");
+			const swatch = doc.createElement("span"); swatch.className = "nya-color-swatch"; picker.append(swatch); controls.append(picker);
+			const value = doc.createElement("span"); value.className = "nya-color-code"; controls.append(value);
+			const reset = doc.createElement("button"); reset.type = "button"; reset.className = "nya-color-reset";
+			reset.setAttribute("aria-label", i18n.t("settings.Appearance.resetColor", { name: accessibleName }));
+			setTooltip(reset, i18n.t("settings.Toolbar.reset")); setIcon(reset, "undo-2"); controls.append(reset);
+			let current = "";
+			const update = () => {
+				current = this.plugin.settings.appearanceColors[key] ?? resolvedAppearanceColor(block, key);
+				value.textContent = current; swatch.style.backgroundColor = current;
+				reset.disabled = !this.plugin.settings.appearanceColors[key];
+			};
+			updates.set(key, update); update();
+			picker.addEventListener("click", () => {
+				if (!this.preview || this.page !== "toolbar" || !this.containerEl.contains(picker) || picker.closest("[hidden]")) return;
+				this.cleanupSelect?.();
+				this.cleanupColor?.(); update();
+				const previewRoot = this.previewRoot!;
+				const variable = appearanceColors[key].variable;
+				this.cleanupColor = openColorPicker({ trigger: picker, color: current, name: accessibleName,
+					preview: (color) => {
+						if (color === null) previewRoot.style.removeProperty(variable);
+						else previewRoot.style.setProperty(variable, color);
+					},
+					apply: (color) => { if (this.plugin.settings.appearanceColors[key] !== color) commit(key, color); update(); },
 				});
-				reset.addEventListener("click", () => this.reset(reset, () => { commit(key, null); update(); }));
-			}
+			});
+			reset.addEventListener("click", () => this.reset(reset, () => { commit(key, null); update(); }));
 		}
+	}
+
+	private scopeStyles(root: HTMLElement) {
+		const updates = new Map<AppearanceColorKey, () => void>();
+		const section = this.section(root, "scope", "nya-scope-settings", i18n.t("settings.Appearance.scope"), () => {
+			delete this.plugin.settings.appearanceColors.scopeBackground;
+			delete this.plugin.settings.appearanceColors.scopeBorder;
+			this.plugin.settings.scopeAppearance = defaultScopeAppearance();
+			this.plugin.refreshAppearance(); updates.forEach((update) => update());
+			renderOptions(); this.plugin.requestSaveSettings();
+		}, () => this.cleanupColor?.());
+		const block = root.ownerDocument.createElement("div"); block.className = "nya-color-group"; section.append(block);
+		this.colorRows(block, "scope", updates, ["scopeBackground"]);
+		const options = root.ownerDocument.createElement("div"); block.append(options);
+		options.className = "nya-scope-options";
+		let widthSelect: SettingsSelect | undefined;
+		const commit = () => { this.plugin.refreshAppearance(); this.plugin.requestSaveSettings(); };
+		const renderOptions = () => {
+			if (widthSelect) { widthSelect.destroy(); this.selectControls.delete(widthSelect); }
+			options.replaceChildren();
+			const border = new Setting(options).setName(i18n.t("settings.Appearance.scopeBorderEnabled"));
+			border.settingEl.classList.add("nya-scope-toggle");
+			const details = root.ownerDocument.createElement("div"); details.className = "nya-scope-details";
+			details.id = `nya-scope-details-${this.labelId}-${++this.sectionId}`;
+			details.hidden = !this.plugin.settings.scopeAppearance.border;
+			border.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.scopeAppearance.border);
+				toggle.toggleEl.setAttribute("aria-label", i18n.t("settings.Appearance.scopeBorderEnabled"));
+				toggle.toggleEl.setAttribute("aria-controls", details.id);
+				toggle.onChange((value) => {
+					if (!this.preview || this.page !== "toolbar" || !this.containerEl.contains(toggle.toggleEl)
+						|| toggle.toggleEl.closest("[hidden]")) return;
+					this.cleanupColor?.(); this.cleanupSelect?.();
+					if (!value && details.contains(root.ownerDocument.activeElement)) toggle.toggleEl.focus({ preventScroll: true });
+					details.hidden = !value;
+					this.plugin.settings.scopeAppearance.border = value; commit();
+				});
+			});
+			options.append(details);
+			this.colorRows(details, "scope", updates, ["scopeBorder"]);
+			const row = root.ownerDocument.createElement("div"); row.className = "nya-color-row"; row.dataset.scopeWidth = ""; details.append(row);
+			const label = root.ownerDocument.createElement("span"); label.textContent = i18n.t("settings.Appearance.scopeBorderWidth"); row.append(label);
+			const controls = root.ownerDocument.createElement("div"); controls.className = "nya-color-controls"; row.append(controls);
+			widthSelect = createSettingsSelect({ container: controls, name: i18n.t("settings.Appearance.scopeBorderWidth"),
+				value: String(this.plugin.settings.scopeAppearance.width), items: ["1", "2", "3"].map((value) => ({ value, label: `${value}px` })),
+				valid: () => !!this.preview && this.page === "toolbar" && !details.hidden && this.containerEl.contains(row),
+				beforeOpen: () => { this.cleanupColor?.(); this.cleanupSelect?.(); this.cleanupSelect = widthSelect!.close; },
+				change: (value) => { this.plugin.settings.scopeAppearance.width = Number(value) as 1 | 2 | 3; commit(); },
+			});
+			this.selectControls.add(widthSelect);
+		};
+		renderOptions();
 	}
 
 	private toolbar(root: HTMLElement, kind: ToolbarKind) {

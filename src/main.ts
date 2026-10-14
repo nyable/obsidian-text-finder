@@ -17,7 +17,7 @@ export default class TextFinderPlugin extends Plugin {
 	private storageReadable = false;
 	private lastErrorNotice = -Infinity;
 	private settingTab?: SettingTab;
-	private appearance = new AppearanceStyles(() => this.settings?.appearanceColors ?? {});
+	private appearance = new AppearanceStyles(() => this.settings?.appearanceColors ?? {}, () => this.settings?.scopeAppearance);
 	editorSearch: EditorSearch | null = null;
 	isUnloaded() { return this.unloaded; }
 	async onload() {

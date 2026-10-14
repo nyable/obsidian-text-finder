@@ -85,6 +85,8 @@
       "focusBorder": "Focus border", "accentStrip": "Accent strip",
       "matchBackground": "Background", "matchText": "Text",
       "currentMatchBackground": "Background", "currentMatchText": "Text",
+      "scope": "Search selection", "scopeBackground": "Background", "scopeBorder": "Border color",
+      "scopeBorderEnabled": "Show selection outline", "scopeBorderWidth": "Border width",
       "apply": "Apply", "cancel": "Cancel",
       "saturation": "Color saturation and brightness", "hue": "Hue", "alpha": "Opacity",
       "hexHint": "Hex color: #RGB, #RGBA, #RRGGBB or #RRGGBBAA",

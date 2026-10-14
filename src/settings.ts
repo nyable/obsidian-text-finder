@@ -1,7 +1,7 @@
 import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { normalizeHistory, trimHistory, type SearchHistoryItem } from "./history";
 import { defaultToolbar, normalizeToolbar, type ToolbarItem } from "./toolbar";
-import { normalizeAppearanceColors, type AppearanceColors } from "./appearance";
+import { normalizeAppearanceColors, defaultScopeAppearance, normalizeScopeAppearance, type ScopeAppearance, type AppearanceColors } from "./appearance";
 
 export interface PluginSettings {
 	clearAfterHidden: boolean;
@@ -24,6 +24,7 @@ export interface PluginSettings {
 	finderAutoDock: boolean;
 	showFloatingFinderOnOpen: boolean;
 	appearanceColors: AppearanceColors;
+	scopeAppearance: ScopeAppearance;
 }
 
 export function defaultSettings(): PluginSettings {
@@ -35,6 +36,7 @@ export function defaultSettings(): PluginSettings {
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
 		defaultRegexMode: false, defaultCaseSensitive: false, defaultWholeWord: false,
 		appearanceColors: {},
+		scopeAppearance: defaultScopeAppearance(),
 		finderDockSide: "right",
 		finderAutoDock: false,
 		showFloatingFinderOnOpen: false,
@@ -62,6 +64,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	if (input.finderDockSide === "left" || input.finderDockSide === "right") settings.finderDockSide = input.finderDockSide;
 	settings.replaceToolbar = normalizeToolbar(input.replaceToolbar, "replace");
 	settings.appearanceColors = normalizeAppearanceColors(input.appearanceColors);
+	settings.scopeAppearance = normalizeScopeAppearance(input.scopeAppearance);
 	return { settings, changed: raw != null && !sameData(raw, settings) };
 }
 

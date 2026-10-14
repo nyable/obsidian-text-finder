@@ -7,6 +7,7 @@
 	import { i18n } from "./i18n";
 	import type { ToolbarItem } from "./toolbar";
 	import Toolbar from "./Toolbar.svelte";
+	import { previewScopeOutline } from "./scope-outline";
 
 	export let searchToolbar: ToolbarItem[];
 	export let replaceToolbar: ToolbarItem[];
@@ -39,8 +40,9 @@
 			</div>
 		</div>
 	</div>
-	<div class="nya-preview-text" lang="en">
-		<div>Find <span class="nya-text-finder-match nya-text-finder-match-current">text</span>, highlight <span class="nya-text-finder-match">text</span>, and replace <span class="nya-text-finder-match">text</span>.</div>
+	<div class="nya-preview-text nya-preview-scope" lang="en" use:previewScopeOutline>
+		<div>Find <span class="nya-text-finder-scope" data-nya-scope="preview"><span class="nya-text-finder-match nya-text-finder-match-current">text</span> and more <span class="nya-text-finder-match">text</span></span></div>
+		<div><span class="nya-text-finder-scope" data-nya-scope="preview">within this <span class="nya-text-finder-match">text</span> selection</span>, not outside.</div>
 	</div>
 </div>
 
@@ -77,12 +79,13 @@
 	}
 	.nya-preview-placeholder { color: var(--text-faint); font: inherit; }
 	.nya-preview-text {
-		box-sizing: border-box; margin: 8px 4px 0; padding: 6px 12px;
+		box-sizing: border-box; margin: 8px 4px 0; padding: 8px 12px;
 		background: var(--background-primary); color: var(--text-normal);
 		border: 1px solid var(--background-modifier-border); border-radius: 4px;
 		font-family: var(--font-text); font-size: var(--font-text-size); line-height: var(--line-height-normal);
 		overflow-wrap: anywhere; pointer-events: none; user-select: none;
 	}
+	.nya-preview-scope { position: relative; }
 	.nya-preview-find { grid-column: 1; grid-row: 1; border-color: var(--nya-focus-border-color); }
 	.nya-preview-replace { grid-column: 1; grid-row: 2; }
 	.nya-preview-count { @include finder.counter; grid-column: 2; grid-row: 1; }

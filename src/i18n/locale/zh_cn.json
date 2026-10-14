@@ -85,6 +85,8 @@
       "focusBorder": "聚焦边框", "accentStrip": "左侧装饰条",
       "matchBackground": "背景颜色", "matchText": "文字颜色",
       "currentMatchBackground": "背景颜色", "currentMatchText": "文字颜色",
+      "scope": "搜索选区", "scopeBackground": "背景颜色", "scopeBorder": "边框颜色",
+      "scopeBorderEnabled": "显示选区轮廓边框", "scopeBorderWidth": "边框粗细",
       "apply": "应用", "cancel": "取消",
       "saturation": "颜色饱和度与亮度", "hue": "色相", "alpha": "不透明度",
       "hexHint": "十六进制颜色：#RGB、#RGBA、#RRGGBB 或 #RRGGBBAA",

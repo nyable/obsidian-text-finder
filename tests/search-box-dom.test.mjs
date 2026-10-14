@@ -2098,12 +2098,12 @@ test("failed selection activation keeps More open but not active, and invalid sc
 	assert.equal(h.target.querySelector('.nya-scope-status'), null);
 });
 
-test("scope styling is background-only and does not override match colors", () => {
+test("scope text marks keep background-only styling and separate outlines never override match colors", () => {
 	const styles = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
 	const scopeRules = styles.match(/\.nya-text-finder-scope[^{}]*\{[^}]*\}/g);
 	assert.ok(scopeRules?.length);
 	assert.ok(scopeRules.every((rule) => !/box-shadow|text-decoration|border-bottom/.test(rule)));
-	assert.ok(scopeRules.some((rule) => rule.includes(':not(.nya-text-finder-match)') && rule.includes('var(--background-modifier-hover)')));
+	assert.ok(scopeRules.some((rule) => rule.includes(':not(.nya-text-finder-match)') && rule.includes('var(--nya-scope-background)')));
 });
 
 test("toolbar focus rings use focus-visible without changing mode activation or expanded feedback", () => {

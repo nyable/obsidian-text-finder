@@ -7,6 +7,8 @@ export const appearanceColors = {
 	matchText: { variable: "--nya-match-color", default: "#ffffff", group: "match", opacity: false },
 	currentMatchBackground: { variable: "--nya-match-curbgColor", default: "#fafa00f2", group: "current", opacity: true },
 	currentMatchText: { variable: "--nya-match-curColor", default: "#ff0000", group: "current", opacity: false },
+	scopeBackground: { variable: "--nya-scope-background", default: "var(--background-modifier-hover)", group: "scope", opacity: true },
+	scopeBorder: { variable: "--nya-scope-border-color", default: "var(--interactive-accent)", group: "scope", opacity: true },
 } as const;
 export type AppearanceColorKey = keyof typeof appearanceColors;
 export type AppearanceColors = Partial<Record<AppearanceColorKey, string>>;
@@ -56,14 +58,14 @@ export function resolvedAppearanceColor(root: HTMLElement, key: AppearanceColorK
 			const base = "#" + rgb.slice(1, 4).map((channel) => Math.round(Math.min(255, Math.max(0, Number(channel)))).toString(16).padStart(2, "0")).join("");
 			return colorWithOpacity(base, rgb[4] === undefined ? 100 : Number(rgb[4]) * 100);
 		}
-		return definition.default;
+		return normalizeColor(definition.default) ?? "#00000000";
 	} finally { probe.remove(); }
 }
 
 export class AppearanceStyles {
 	private documents = new Map<Document, { style?: HTMLStyleElement; cleanup: () => void }>();
 	private closed = false;
-	constructor(private colors: () => AppearanceColors) {}
+	constructor(private colors: () => AppearanceColors, private scope: () => unknown = () => defaultScopeAppearance()) {}
 
 	addDocument(doc: Document) {
 		if (this.closed || this.documents.has(doc)) return;
@@ -79,19 +81,31 @@ export class AppearanceStyles {
 	refresh() {
 		if (this.closed) return;
 		const colors = normalizeAppearanceColors(this.colors());
-		const declarations = colorKeys.filter((key) => colors[key]).map((key) => `${appearanceColors[key].variable}: ${colors[key]} !important;`).join("\n");
+		const appearance = normalizeScopeAppearance(this.scope());
+		const declarations = [...colorKeys.filter((key) => colors[key]).map((key) => `${appearanceColors[key].variable}: ${colors[key]} !important;`),
+			...(appearance.border ? [`--nya-scope-border-width: ${appearance.width}px !important;`] : [])].join("\n");
 		for (const [doc, resource] of this.documents) {
-			if (!declarations) { resource.style?.remove(); resource.style = undefined; continue; }
-			if (!resource.style) {
-				resource.style = doc.createElement("style");
-				resource.style.dataset.nyaAppearance = "";
-				(doc.head ?? doc.documentElement).append(resource.style);
+			if (!declarations) { resource.style?.remove(); resource.style = undefined; }
+			else {
+				if (!resource.style) {
+					resource.style = doc.createElement("style");
+					resource.style.dataset.nyaAppearance = "";
+					(doc.head ?? doc.documentElement).append(resource.style);
+				}
+				resource.style.textContent = `body {\n${declarations}\n}`;
 			}
-			resource.style.textContent = `body {\n${declarations}\n}`;
+			if (doc.defaultView) doc.dispatchEvent(new doc.defaultView.Event("nya-scope-style-change"));
 		}
 	}
 	destroy() {
 		this.closed = true;
 		for (const doc of this.documents.keys()) this.removeDocument(doc);
 	}
+}
+
+export interface ScopeAppearance { border: boolean; width: 1 | 2 | 3; }
+export const defaultScopeAppearance = (): ScopeAppearance => ({ border: false, width: 1 });
+export function normalizeScopeAppearance(raw: unknown): ScopeAppearance {
+	const input = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+	return { border: input.border === true, width: input.width === 2 || input.width === 3 ? input.width : 1 };
 }

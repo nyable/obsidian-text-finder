@@ -60,6 +60,14 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 本地化由 i18next 初始化英文／简体中文资源，以 Obsidian `moment.locale()` 将连字符映射为下划线后选择语言，英文 fallback；没有插件自身的语言切换设置。日期格式化也使用宿主 moment。依据：`src/i18n/index.ts`、`src/HistoryList.svelte`、`src/HistoryDetail.svelte`。
 
+### 选区外观与轮廓
+
+选区呈现扩展：范围 mark 带 `data-nya-scope`，独立 `scopeOutlineLayer` 在 CodeMirror 测量阶段收集已渲染的 mark 矩形；`src/scope-outline.ts:scopeOutline()` 用水平扫描合并矩形、抵消内部边，只输出外轮廓 SVG path。marker 使用 owner Document 创建，不借用活动编辑器；边框禁用不读取 mark 几何。各 layer 订阅 `nya-scope-style-change` 请求更新并在迁移／销毁清旧 Document 监听；几何更新沿用 CodeMirror layer 调度与清理。`previewScopeOutline()` 仅处理设置样例，释放 ResizeObserver／resize 监听。
+
+`appearanceColors` 增加可选 `scopeBackground`／`scopeBorder`；`scopeAppearance` 保存 `{border:boolean,width:1|2|3}`，默认 false／1，严格规范化且旧数据默认无边框。默认 CSS 背景／边框色继续继承主题，显式色／已启用宽度由 `AppearanceStyles` 按 Document 发布变量。它们是外观偏好，不进入匹配查询身份、Worker 或替换候选；设置分组重置不重置实际范围。旧字段／命令不变。
+
+轮廓测量先合并同视觉行相邻 mark 矩形，再由 `paddedScopeOutlines()` 以 2px + 半线宽计算视觉外扩；若与断开的同范围片段或其他范围接近，则限制该范围的 padding，保持间隙。该参数不写 DOM 文本样式、不变更 StateField 数字坐标。统一的两行设置预览订阅同一 style-change 请求，粗细变更重测净距，销毁释放监听。`scopeStyles()` 用 `hidden` 关联组控制边框色／粗细，关闭保留数据并结束子面板，背景色独立；不新增持久化字段。
+
 ## 阅读索引与高亮机制
 
 - 公共 preview API 无法枚举虚拟化移出的分块，适配器集中使用私有 `previewMode.renderer` 的 sections、渲染状态、`onRendered`、`showSection`、`applyScrollSection` 和 `updateVirtualDisplay`。能力与降级边界见 [compatibility](compatibility.md)。
@@ -141,7 +149,7 @@ interface PluginSettings {
 
 `src/color-picker.ts` 仅维护单项草稿、局部预览帧、确认／取消及焦点；不持有插件设置或保存队列。`SettingTab` 在应用回调才写设置与全局样式；`clearPreview()` 先销毁选择器，恢复草稿变量、取消帧，再销毁预览。库代码通过 `tools/color-picker-build.mjs`／`virtual:color-picker` 打包为 owner-window 工厂（无 eval／CDN），提供正确 realm 的 HTMLElement、Document、Window、CustomEvent，并跟踪库的拖动监听；元素断开或主动 release 清自己的 Document 监听。版本化私有 custom element 名称注册可重载复用；默认样式留在库 Shadow DOM。颜色转换及手势不自行实现。
 
-`SettingTab.section()` 统一三个分组的折叠标题和独立恢复按钮；`collapsed` Set 默认包含三个分组，仅在本次设置访问中使用，隐藏后重置为全部折叠，不进入持久化字段。`reset()` 校验当前页面、预览存活及触发器归属，先取消调色／拖动，再直接沿用原分组保存路径并立即发统一 2 秒 Notice，不等待磁盘写入、不额外保存，不持有恢复确认 Modal；折叠不保存。非操作容器通过实例唯一标题 ID 的 `aria-labelledby` 保留读屏名称，避免宿主的 `aria-label` 自动悬浮提示；More 菜单引用所在 Toolbar 的独立触发器 ID。
+`SettingTab.section()` 统一颜色、搜索选区、搜索工具栏、替换工具栏四个分组的折叠标题和独立恢复按钮；`collapsed` Set 默认包含四个分组，仅在本次设置访问中使用，隐藏后重置为全部折叠，不进入持久化字段。`reset()` 校验当前页面、预览存活及触发器归属，先取消调色／拖动，再直接沿用原分组保存路径并立即发统一 2 秒 Notice，不等待磁盘写入、不额外保存，不持有恢复确认 Modal；折叠不保存。非操作容器通过实例唯一标题 ID 的 `aria-labelledby` 保留读屏名称，避免宿主的 `aria-label` 自动悬浮提示；More 面板引用所在 Toolbar 的独立触发器 ID。
 
 `src/settings-select.ts:createSettingsSelect()` 为外观位置选择提供原生 DOM select-only combobox，独立管理当前值／临时导航、owner Document 列表与监听，不持有插件配置或保存队列。`SettingTab` 提供有效性校验及单次提交路径，统一跟踪控制器；各栏 `render()` 销毁旧控件，`clearPreview()` 在切页／隐藏／卸载时销毁全部控件。关闭列表仅移除弹层与临时监听，销毁另移除触发器事件；旧列表事件通过实例身份检查失效。菜单／调色／拖动相互关闭，不引入新配置字段或依赖。
 

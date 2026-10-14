@@ -7,6 +7,35 @@ import { compileString } from "sass";
 
 const { normalizeColor, normalizeAppearanceColors, colorOpacity, colorWithOpacity, AppearanceStyles, appearanceColors, resolvedAppearanceColor } = appearanceSource;
 
+test("scope appearance normalizes safely, migrates disabled and does not change other preferences", () => {
+	assert.deepEqual(settingsSource.defaultSettings().scopeAppearance, { border: false, width: 1 });
+	for (const raw of [null, [], "bad", { border: "true", width: "3" }, { border: 1, width: 4 }]) {
+		assert.deepEqual(settingsSource.normalizeSettings({ scopeAppearance: raw }).settings.scopeAppearance, { border: false, width: 1 });
+	}
+	const normalized = settingsSource.normalizeSettings({ scopeAppearance: { border: true, width: 3, unrelated: 8 },
+		appearanceColors: { scopeBackground: '#1234', scopeBorder: '#abcd' }, defaultRegexMode: true }).settings;
+	assert.deepEqual(normalized.scopeAppearance, { border: true, width: 3 }); assert.equal(normalized.defaultRegexMode, true);
+	assert.deepEqual(normalized.appearanceColors, { scopeBackground: '#11223344', scopeBorder: '#aabbccdd' });
+	assert.equal(settingsSource.normalizeSettings(normalized).changed, false);
+});
+
+test("scope styles propagate width/colors to owner documents, notify layers and restore inheritance", () => {
+	const a = new JSDOM('<html><body></body></html>'), b = new JSDOM('<html><body></body></html>');
+	let colors = {}, scope = { border: false, width: 1 }, changes = 0;
+	a.window.document.addEventListener('nya-scope-style-change', () => changes++);
+	const styles = new AppearanceStyles(() => colors, () => scope); styles.addDocument(a.window.document); styles.addDocument(b.window.document);
+	colors = { scopeBackground: '#1234', scopeBorder: '#abcd' }; scope = { border: true, width: 3 }; styles.refresh();
+	for (const doc of [a.window.document, b.window.document]) {
+		const css = doc.querySelector('style').textContent;
+		assert.match(css, /--nya-scope-border-width: 3px !important/); assert.match(css, /--nya-scope-background: #11223344 !important/);
+		assert.match(css, /--nya-scope-border-color: #aabbccdd !important/);
+	}
+	assert.ok(changes > 0); scope = { border: false, width: 3 }; styles.refresh();
+	assert.doesNotMatch(a.window.document.querySelector('style').textContent, /--nya-scope-border-width/);
+	colors = {}; styles.refresh(); assert.equal(a.window.document.querySelector('style'), null);
+	styles.destroy(); assert.equal(b.window.document.querySelector('style'), null); a.window.close(); b.window.close();
+});
+
 test("appearance accepts only safe hex colors, normalizes shorthand/alpha and ignores malformed or foreign fields", () => {
 	for (const [raw, expected] of [['#ABC', '#aabbcc'], [' #1234 ', '#11223344'], ['#aabbccFF', '#aabbcc'], ['#00000000', '#00000000']]) {
 		assert.equal(normalizeColor(raw), expected);
@@ -103,7 +132,7 @@ test("settings tabs have scoped hover, selected, pressed and focus styles; folde
 	assert.match(css, /\.nya-settings \.nya-settings-tabs button\[aria-selected=(?:"true"|true)\]\s*\{[^}]*border-bottom-color: var\(--interactive-accent\)[^}]*color: var\(--text-accent\)/s);
 	assert.match(css, /\.nya-settings \.nya-settings-tabs button:active\s*\{[^}]*background: var\(--background-modifier-active-hover,/s);
 	assert.match(css, /\.nya-settings \.nya-settings-tabs button:focus-visible\s*\{[^}]*outline: 2px solid var\(--interactive-accent\)/s);
-	for (const kind of ['color', 'toolbar']) assert.match(css, new RegExp(`\\.nya-settings \\.nya-${kind}-settings\\s*\\{[^}]*margin-bottom: 8px`, 's'));
+	for (const kind of ['color', 'scope', 'toolbar']) assert.match(css, new RegExp(`\\.nya-settings \\.nya-${kind}-settings[^{}]*\\{[^}]*margin-bottom: 8px`, 's'));
 	assert.match(css, /\.nya-settings-section-header\s*\{[^}]*margin: 0/s);
 	assert.match(css, /\.nya-settings-section-toggle\s*\{[^}]*min-height: 32px/s);
 	assert.match(css, /\.nya-settings-section-body\s*\{[^}]*padding-top: 6px/s);
@@ -131,4 +160,17 @@ test("select trigger and options share size/typography, intrinsic sizing, paddin
 	assert.match(css, /\.nya-settings-select-sizing span\s*\{[^}]*grid-area: 1\s*\/\s*1/s);
 	assert.match(css, /\.nya-settings-select-option\s*\{[^}]*gap: var\(--nya-select-gap\)[^}]*padding: 4px calc\(var\(--nya-select-padding-inline\) - 4px\)/s);
 	assert.doesNotMatch(css, /\.nya-toolbar-placement\s*\{[^}]*width: 96px/s);
+});
+
+test("appearance rows share alignment, spacing and a consistent narrow layout without styling other pages", () => {
+	const css = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
+	assert.match(css, /\.nya-settings \.nya-color-group\s*\{[^}]*display: grid[^}]*gap: 8px[^}]*padding: 12px/s);
+	assert.match(css, /\.nya-settings \.nya-color-row\s*\{[^}]*align-items: center[^}]*min-height: 32px[^}]*gap: 8px 12px/s);
+	assert.doesNotMatch(css, /\.nya-color-row\s*\+[^{}]*\{[^}]*margin-top/s);
+	assert.match(css, /\.nya-settings \.nya-color-controls\s*\{[^}]*justify-content: flex-end[^}]*gap: 8px/s);
+	assert.match(css, /\.nya-settings \.nya-color-code\s*\{[^}]*font-variant-numeric: tabular-nums/s);
+	assert.match(css, /\.nya-settings \.nya-scope-toggle\.setting-item\s*\{[^}]*min-height: 32px[^}]*padding: 0[^}]*margin: 0[^}]*border: 0/s);
+	assert.match(css, /\.nya-settings \.nya-scope-details\[hidden\]\s*\{\s*display: none/s);
+	assert.match(css, /@container \(max-width: 360px\)\s*\{[^}]*\.nya-scope-toggle\.setting-item[^}]*grid-template-columns: minmax\(0, 1fr\)/s);
+	assert.match(css, /\.nya-settings \.nya-toolbar-row-options\s*\{[^}]*align-items: center[^}]*min-height: 32px[^}]*gap: 12px/s);
 });

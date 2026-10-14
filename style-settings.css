@@ -71,4 +71,22 @@ settings:
         opacity: true
         format: hex
         default: '#ff0000'
+    -
+        id: nya-scope-background
+        title: Search selection background
+        title.zh: 搜索选区背景
+        type: variable-text
+        default: var(--background-modifier-hover)
+    -
+        id: nya-scope-border-color
+        title: Search selection border color
+        title.zh: 搜索选区边框颜色
+        type: variable-text
+        default: var(--interactive-accent)
+    -
+        id: nya-scope-border-width
+        title: Search selection border width (0px to hide)
+        title.zh: 搜索选区边框粗细（0px 隐藏）
+        type: variable-text
+        default: 0px
 */
