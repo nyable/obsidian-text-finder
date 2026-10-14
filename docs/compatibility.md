@@ -28,6 +28,8 @@
 | Obsidian setTooltip／aria-label 自动悬浮提示 | 控件功能说明 | 用户反馈确认宿主会由 aria-label 产生提示；非操作容器改为 aria-labelledby 标题引用，真实操作保留提示。自动测试检查标签结构，不证明宿主提示实际位置／消失时机 | `src/settings-tab.ts:section()`、`src/color-picker.ts`、`src/Toolbar.svelte`、`tests/main-settings.test.mjs` |
 | DOM combobox／listbox、owner Window 视口与焦点 | 外观页位置下拉 | body 挂载避免滚动裁切，限制视口并上翻，关闭／销毁清监听；jsdom 验证导航、提交、清理与模拟定位，不证明 Obsidian 主题绘制、触屏、读屏或默认开启的实际视觉对齐 | `src/settings-select.ts`、`src/settings-tab.ts`、`tests/settings-select.test.mjs`、`tests/main-settings.test.mjs` |
 | 内部 `editor.cm` | CodeMirror 文档、事务及高亮 | 缺失时返回无编辑上下文，不向其他活动编辑器借用目标 | `src/editor-extension.ts:getEditorContext()` |
+| Pointer Events／CSS translate／VisualViewport／safe-area env／ResizeObserver | Finder 临时拖动与贴边、菜单和状态避让 | owner 可见边界与视口取交集；VisualViewport 缺失回退 innerWidth／innerHeight，Observer 缺失仍处理窗口事件；销毁清监听。窗口迁移重建位置控制器，临时坐标不跨 Document 保留。jsdom 不证明软键盘动画、缩放、系统手势、拖动主题绘制或触屏不误触 | `src/finder-position.ts`、`src/SearchBox.svelte:positionFinder()`、`src/Toolbar.svelte:positionMenu()`、`src/SearchStatus.svelte:position()` |
+| Pointer Capture／requestAnimationFrame | 拖动指针保持及帧合并 | 捕获缺失／失败回退 Document 监听；丢失捕获取消，结束／销毁释放捕获和待绘制帧。无 rAF 时同步更新缓存坐标。自动测试可证明无长按和合并机制，不能把“跟手”实机主观验收写成通过 | `src/finder-position.ts`、`tests/finder-position.test.mjs` |
 | 私有 `previewMode.renderer` | 全部分块、渲染等待、虚拟挂载／定位 | shape 检查和运行时异常保护；缺失则不做局部 DOM 冒充全文 | `src/reading-search.ts:rendererFor()`／`supported()` |
 | 内部 `Vault.getConfig("livePreview")` | 用户关闭入口恢复编辑偏好 | 缺失／非布尔／抛错返回 undefined，不切模式；模式 Promise 拒绝提示，不阻止隐藏 | `src/util/obsidian-internal.ts`、`src/SearchBox.svelte:closeFinder()` |
 | 公开 DataAdapter stat／read／write | 原插件 data.json 设置与历史 | stat 不把权限失败当作不存在；直接解析及传播写入错误；共享 realm 的读写队列跨实例重载保持顺序 | `src/settings-storage.ts`、`src/main.ts` |

@@ -32,6 +32,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 | 状态 | 所属／证据 |
 | --- | --- |
 | 查询／替换／选项、可见性／折叠、匹配／索引 | `src/SearchBox.svelte` 的 `cache` |
+| 贴边状态／临时位置 | `src/SearchBox.svelte:docked`，`src/finder-position.ts` 的 owner 局部坐标；不属于查询身份、不持久化 |
 | 历史浏览、暂存输入、连续使用周期 | `src/history.ts:HistoryNavigation` 及组件的 `lastRecordedSearch`／`currentSearch` |
 | 匹配上下文、查询身份、阅读／编辑定位请求代次 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest`／`positionRequest` 等 |
 | 菜单、焦点、状态提示延迟／定位 | `src/Toolbar.svelte`、`src/SearchStatus.svelte` |
@@ -94,6 +95,8 @@ interface PluginSettings {
   defaultRegexMode: boolean; // 新建 Finder 的初始正则选项
   defaultCaseSensitive: boolean; // 新建 Finder 的初始大小写选项
   defaultWholeWord: boolean; // 新建 Finder 的初始全字匹配选项
+  finderDockSide: "left" | "right"; // 历史兼容字段，无设置控件；不覆盖已有值
+  finderAutoDock: boolean; // 默认 false，拖动松手自动贴边
   appearanceColors: Partial<Record<AppearanceColorKey, string>>; // 默认 {}，规范化 hex RGB/RGBA
 }
 ```
@@ -105,7 +108,9 @@ interface PluginSettings {
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
 - `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
 - 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。
-- `wholeWord` 属于每视图 `SearchOptions`，不持久化当前手动值；仅持久化 `defaultWholeWord`。编辑 `queryKey()` 和阅读 `Request.key` 均包含它，Worker 请求复制完整选项，查找／替换／同步重试最终复用 `text-helper.ts:isWholeWordMatch()`。阅读在全文逻辑索引上判定，不以文本节点切分；切换只重算匹配而复用有效索引。旧工具栏保留合法顺序和 placement，由 `normalizeToolbar()` 在末尾补齐 `wholeWord`，新安装／恢复默认则使用正则、大小写、全字匹配、上一项、下一项、历史的顺序。
+- `wholeWord` 属于每视图 `SearchOptions`，不持久化当前手动值；仅持久化 `defaultWholeWord`。编辑 `queryKey()` 和阅读 `Request.key` 均包含它，Worker 请求复制完整选项，查找／替换／同步重试最终复用 `text-helper.ts:isWholeWordMatch()`。阅读在全文逻辑索引上判定，不以文本节点切分；切换只重算匹配而复用有效索引。`normalizeToolbar()` 将精确旧默认以及上一版末尾追加全字的默认布局迁移到新默认顺序；其他布局仍保留合法顺序／placement 并补齐缺失动作。无历史自定义标记，无法区分人为设置成精确旧默认与历史默认，两者均按默认迁移。
+- `createFinderPosition()` 使用独立 CSS `translate` 保留原有 transform／top／right 和公开定位接口，只在会话中保存 owner 相对位置。观察 owner／面板尺寸、所属 Window／VisualViewport 变化；拖动监听在结束、取消、隐藏、收起、销毁时清理，安全区探针和 Observer 在销毁时释放。移动不触发查找／保存；`nya-finder-position` 事件让 More／状态提示重新定位。
+- 自动贴边方向为局部会话值；历史 `finderDockSide` 保留但不再有配置控件，`finderAutoDock` 默认关闭。`finder-position.ts` 分离完整框 manual 和紧凑标记 marker／markerEdge，标记自由位置不被后台更新吸回边缘；缓存几何，pointermove 只更新最新坐标，requestAnimationFrame 合并写入 translate，pointerup 刷新最终坐标；只有布局／视口变化重新测量。无长按计时，捕获、待绘制帧、click 抑制和候选随生命周期清理；替换是否可收起由组件回调校验。`mobile-toolbar.ts` 搬移已有常驻 DOM 节点，More 不搬；`Toolbar.svelte:beforeUpdate` 数据变化前归还节点以保证 keyed 生命周期。
 - `appearanceColors` 仅接受 `focusBorder`、`accentStrip`、`matchBackground`、`matchText`、`currentMatchBackground`、`currentMatchText`。`normalizeColor()` 接受 3／4／6／8 位十六进制，展开简写并转小写、不透明 alpha 归并为 RGB；未知／非法值丢弃，旧数据缺失时补 `{}`，不产生额外样式覆盖。`src/appearance.ts` 定义键与既有公开变量映射。
 - `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
 - `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。

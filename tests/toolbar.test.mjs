@@ -64,3 +64,34 @@ test("old toolbar settings append whole word without changing existing order or 
 	assert.equal(settings.defaultWholeWord, false);
 	assert.equal(settingsSource.normalizeSettings(settings).changed, false);
 });
+
+test("exact legacy default and previously appended default group all three match options", () => {
+	const defaults = defaultToolbar("search"), legacy = defaults.filter((item) => item.id !== "wholeWord");
+	for (const searchToolbar of [legacy, [...legacy, { id: "wholeWord", placement: "inline" }]]) {
+		const raw = structuredClone(searchToolbar);
+		assert.deepEqual(normalizeToolbar(raw, "search"), defaults);
+		assert.deepEqual(raw, searchToolbar, "migration does not mutate the supplied array");
+		const { settings, changed } = settingsSource.normalizeSettings({ ...settingsSource.defaultSettings(), searchToolbar: raw });
+		assert.equal(changed, true); assert.deepEqual(settings.searchToolbar, defaults);
+		assert.equal(settingsSource.normalizeSettings(settings).changed, false);
+	}
+	const customized = [...legacy, { id: "wholeWord", placement: "more" }];
+	assert.deepEqual(normalizeToolbar(customized, "search"), customized);
+	const reordered = [...legacy.slice(1), legacy[0], { id: "wholeWord", placement: "inline" }];
+	assert.deepEqual(normalizeToolbar(reordered, "search"), reordered);
+});
+
+test("finder dock side validates and persists only left/right", () => {
+	for (const value of [undefined, null, true, "bottom", 1]) assert.equal(settingsSource.normalizeSettings({ finderDockSide: value }).settings.finderDockSide, "right");
+	for (const value of ["left", "right"]) {
+		const { settings } = settingsSource.normalizeSettings({ finderDockSide: value });
+		assert.equal(settings.finderDockSide, value); assert.equal(settingsSource.normalizeSettings(settings).changed, false);
+	}
+});
+
+test("automatic edge collapse accepts only booleans and defaults off without dropping old side", () => {
+	for (const finderAutoDock of [undefined, null, "true", 1]) assert.equal(settingsSource.normalizeSettings({ finderAutoDock }).settings.finderAutoDock, false);
+	const { settings } = settingsSource.normalizeSettings({ finderAutoDock: true, finderDockSide: "left" });
+	assert.equal(settings.finderAutoDock, true); assert.equal(settings.finderDockSide, "left");
+	assert.equal(settingsSource.normalizeSettings(settings).changed, false);
+});

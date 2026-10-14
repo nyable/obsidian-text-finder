@@ -3,15 +3,17 @@
 		X,
 		ChevronDown,
 		ChevronRight,
+		GripVertical, Search,
 	} from "lucide-svelte";
 	import type { EditorSearch } from "./editor-extension";
 	import { searchCacheEffect } from "./search-highlight";
 	import type { EditorContext } from "./editor-context";
 	import { i18n } from "./i18n";
-	import { Platform, type MarkdownView } from "obsidian";
+	import { Platform, Menu, type MarkdownView } from "obsidian";
 	import { findTextOffsets, prepareReplacements } from "./util/text-helper";
 	import { HistoryNavigation } from "./history";
-	import { onMount } from "svelte";
+	import { onMount, tick } from "svelte";
+	import { createFinderPosition, type FinderPlacement } from "./finder-position";
 	import { getLivePreviewPreference } from "./util/obsidian-internal";
 	import type { TransactionSpec } from "@codemirror/state";
 	import type { MatchExecutor, MatchResult } from "./match-protocol";
@@ -54,6 +56,14 @@
 	};
 	let positionRequest = 0;
 	let disposed = false;
+	let docked = false;
+	let panelIntent = 0;
+	let dockSide: "left" | "right" = editorSearch?.plugin.settings.finderDockSide ?? "right";
+	let placement: ReturnType<typeof createFinderPosition> | undefined;
+	let refreshPlacement: ((state: FinderPlacement) => void) | undefined;
+	let mobileInlineTarget: HTMLDivElement;
+	let autoDock = editorSearch?.plugin.settings.finderAutoDock ?? false;
+	let edgeMenu: Menu | undefined;
 	let searchMode = "source";
 	let statusContext = ownerView?.file;
 	const isReading = () => ownerView.getMode?.() === "preview";
@@ -86,7 +96,7 @@
 			const text = historyNavigation.reconcile(getSortedHistory());
 			if (text !== undefined) setFindText(text, false);
 		});
-		return () => { disposed = true; positionRequest++; cancelEditing(); unsubscribe(); };
+		return () => { disposed = true; edgeMenu?.hide(); positionRequest++; cancelEditing(); unsubscribe(); };
 	});
 
 	// Continuous navigation counts once; explicit history reuse starts a new use.
@@ -97,9 +107,10 @@
 	};
 
 	$: isCollapsed = readingMode || cache.collapse;
-	$: finderTabIndex = !cache.visible ? -1 : isCollapsed ? 0 : 1;
-	$: commonTabIndex = !cache.visible ? -1 : isCollapsed ? 0 : 2;
-	$: replacerTabIndex = !cache.visible || isCollapsed ? -1 : 1;
+	$: expanded = cache.visible && !docked;
+	$: finderTabIndex = !expanded ? -1 : isCollapsed ? 0 : 1;
+	$: commonTabIndex = !expanded ? -1 : isCollapsed ? 0 : 2;
+	$: replacerTabIndex = !expanded || isCollapsed ? -1 : 1;
 	const isMobile = Platform.isMobile;
 	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
@@ -111,15 +122,99 @@
 		const focused = finderEl.ownerDocument.activeElement;
 		if (!cache.visible && focused && finderEl.contains(focused)) (focused as HTMLElement).blur();
 		finderEl.setAttribute("aria-hidden", String(!cache.visible));
+		finderEl.classList.toggle("nya-finder--docked", docked);
+		finderEl.querySelectorAll<HTMLElement>(".main-part, .nya-toggle, .nya-dragger, .nya-float-act").forEach((child) => {
+			child.toggleAttribute("inert", !cache.visible || docked);
+			child.setAttribute("aria-hidden", String(!cache.visible || docked));
+			if (docked) child.style.setProperty("display", "none", "important");
+			else child.style.removeProperty("display");
+		});
+		refreshPlacement?.(placementState());
 	};
+	const placementState = (): FinderPlacement => ({ visible: cache.visible, docked, side: dockSide,
+		toolsHeight: isMobile ? (finderEl?.querySelector<HTMLElement>(".nya-float-act")?.offsetHeight || 28) : 0, autoDock });
 	function guardHiddenFocus(node: HTMLElement) {
 		// Reject late focus requests as well as removing hidden controls from Tab order.
 		const guard = (event: FocusEvent) => {
-			if (!cache.visible) (event.target as HTMLElement).blur();
+			if (!cache.visible || (docked && !(event.target as HTMLElement).closest(".nya-dock-tab"))) (event.target as HTMLElement).blur();
 		};
 		node.addEventListener("focusin", guard);
 		return { destroy() { node.removeEventListener("focusin", guard); } };
 	}
+	function positionFinder(node: HTMLElement, state: FinderPlacement) {
+		let doc = node.ownerDocument;
+		const create = () => createFinderPosition(node, ownerView.containerEl, (side) => dockFinder(side), () => !replacementTask);
+		placement = create();
+		const update = (next: FinderPlacement) => {
+			if (node.ownerDocument !== doc) {
+				placement?.destroy(); doc = node.ownerDocument;
+				placement = create();
+			}
+			placement?.update(next);
+		};
+		refreshPlacement = update; update(state);
+		return { update, destroy() { placement?.destroy(); placement = undefined; refreshPlacement = undefined; } };
+	}
+	export function dockFinder(side: "left" | "right" = dockSide) {
+		if (!cache.visible || replacementTask || disposed) return false;
+		// Avoid queued navigation selecting/scrolling text after the user asks to
+		// read it unobstructed; matching itself continues and keeps highlights.
+		positionRequest++;
+		if (editingComputation) { editingComputation.scroll = false; editingComputation.direction = 0; }
+		if (isReading()) editorSearch.getReadingSearch(ownerView).pauseNavigation();
+		docked = true;
+		dockSide = side;
+		const intent = ++panelIntent;
+		const focused = finderEl.ownerDocument.activeElement;
+		if (focused && finderEl.contains(focused)) (focused as HTMLElement).blur();
+		syncFinderVisibility();
+		void tick().then(() => {
+			if (!disposed && panelIntent === intent && cache.visible && docked) {
+				refreshPlacement?.(placementState());
+				finderEl.querySelector<HTMLButtonElement>(".nya-dock-expand")?.focus();
+			}
+		});
+		return true;
+	}
+	export function expandFinder() {
+		if (!cache.visible || disposed) return;
+		const intent = ++panelIntent;
+		docked = false; syncFinderVisibility();
+		void tick().then(() => { if (!disposed && panelIntent === intent && cache.visible && !docked) refreshPlacement?.(placementState()); });
+		// Do not focus/select the query: tapping the edge tab must not open a keyboard.
+	}
+	const expandFromTab = () => {
+		expandFinder();
+		const intent = panelIntent;
+		void tick().then(() => {
+			if (!disposed && panelIntent === intent && cache.visible && !docked) finderEl.querySelector<HTMLElement>(isMobile ? ".nya-move-handle" : ".nya-dragger")?.focus();
+		});
+	};
+	const expandFromClick = (event: MouseEvent) => { if (!placement?.consumeClick(event)) expandFromTab(); };
+	const dockMenu = (event: MouseEvent) => {
+		event.preventDefault();
+		if (!cache.visible || finderEl.classList.contains("nya-finder--dragging")) return;
+		edgeMenu?.hide(); const intent = panelIntent;
+		const current = () => !disposed && panelIntent === intent && cache.visible && docked;
+		edgeMenu = new Menu(); edgeMenu.addItem((item) => item.setTitle(i18n.t("search.tip.Close")).setIcon("x").onClick(() => { if (current()) closeFinder(); }))
+			.addItem((item) => item.setTitle(i18n.t("search.tip.ResetFinderPosition")).setIcon("rotate-ccw").onClick(() => { if (current()) resetFinderPosition(); }))
+			.showAtMouseEvent(event);
+	};
+	function dragToMove(node: HTMLElement, enabled: boolean) {
+		const start = (event: PointerEvent) => { if (enabled) placement?.start(event); };
+		const context = (event: MouseEvent) => { if (enabled) event.preventDefault(); };
+		node.addEventListener("pointerdown", start); node.addEventListener("contextmenu", context);
+		return { update(next: boolean) { enabled = next; }, destroy() { node.removeEventListener("pointerdown", start); node.removeEventListener("contextmenu", context); } };
+	}
+	$: if (finderEl) syncFinderVisibility();
+	export function resetFinderPosition() { if (docked) expandFinder(); placement?.reset(); }
+	const moveFinderKey = (event: KeyboardEvent) => {
+		if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+		const step = event.shiftKey ? 32 : 8;
+		const delta = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+		if (delta) { event.preventDefault(); event.stopPropagation(); placement?.moveBy(delta[0], delta[1]); }
+		else if (event.key === "Home") { event.preventDefault(); resetFinderPosition(); }
+	};
 	const composingInputs = new WeakSet<EventTarget>();
 	function trackComposition(node: HTMLTextAreaElement) {
 		const start = () => composingInputs.add(node);
@@ -152,6 +247,7 @@
 		searchToolbar = editorSearch.plugin.settings.searchToolbar ?? defaultToolbar("search");
 		replaceToolbar = editorSearch.plugin.settings.replaceToolbar ?? defaultToolbar("replace");
 		historyEnabled = editorSearch.plugin.settings.enableHistory;
+		autoDock = editorSearch.plugin.settings.finderAutoDock ?? false;
 	}
 
 	// Derive the spacer from the current controls, never from the row/input widths:
@@ -208,7 +304,10 @@
 		searchText?: string,
 		historyIndexOverride?: number,
 	) {
+		edgeMenu?.hide();
 		positionRequest++;
+		docked = false;
+		panelIntent++;
 		cache.visible = flag;
 		syncFinderVisibility();
 		const settings = editorSearch.plugin.settings;
@@ -271,6 +370,8 @@
 		cache.index = 0;
 		cache.matches = [];
 		cache.visible = false;
+		docked = false;
+		panelIntent++;
 		syncFinderVisibility();
 		cache.collapse = true;
 		cache.options = {
@@ -652,6 +753,7 @@
 	};
 
 	const replaceText = (inputText: string, all: boolean): ReplaceResult => {
+		if (docked) expandFinder();
 		const prepared = prepareReplacement(inputText);
 		const { matches, search, replace, index } = cache;
 		const matchSize = matches.length;
@@ -710,6 +812,7 @@
 		const result: ReplaceResult = { changed: false, changeCount: 0, search: cache.search, replace: cache.replace,
 			beforeCount: 0, afterCount: 0, status: "cancelled" };
 		if (disposed || isReading()) return result;
+		if (docked) expandFinder();
 		const context = getEditorContext();
 		if (!context) return result;
 		const index = matchedContext && (matchedContext.file !== context.file || matchedContext.editorView !== context.editorView) ? 0 : cache.index;
@@ -915,6 +1018,7 @@
 	};
 
 	export const matchAgain = (scroll = true) => {
+		syncFinderVisibility();
 		if (replacementTask?.committing || (!scroll && replacementTask && replacementCurrent(replacementTask))) return;
 		const { search } = cache;
 		if (cache.visible) {
@@ -956,22 +1060,44 @@
 	class:nya-finder--reading={readingMode}
 	class:nya-mobile={isMobile}
 	class:nya-finder--custom-toolbar={customToolbar}
+	class:nya-finder--docked={docked}
+	class:nya-finder--dock-left={dockSide === "left"}
+	use:positionFinder={{ visible: cache.visible, docked, side: dockSide, toolsHeight: isMobile ? 28 : 0, autoDock }}
 	use:alignRows={[isCollapsed, customToolbar, searchToolbar, replaceToolbar]}
 >
-	<SearchStatus visible={cache.visible} pending={readingPending} unsupported={readingUnsupported}
+	<SearchStatus visible={expanded} pending={readingPending} unsupported={readingUnsupported}
 		error={readingError} query={cache.search} context={statusContext} retry={retrySearch}
 		{readingMode} {workerError} synchronousRetry={retrySynchronously} cancel={() => setVisible(false)}
 		committed={replacementCommittedError}
 		replacing={replacementTask?.phase === "prepare"} rematching={replacementTask?.phase === "committed"}
 		nativeFind={() => editorSearch.openNativeSearch(ownerView)} />
-	<!-- TODO: 允许通过拖动该控件改变输入框宽度，临时生效。 -->
-	<div class="nya-dragger"></div>
+	{#if docked}
+		<div class="nya-dock-tab">
+			<button type="button" class="nya-dock-expand" tabindex={cache.visible ? 0 : -1} on:click={expandFromClick} use:dragToMove={cache.visible}
+				on:keydown={moveFinderKey} on:contextmenu={dockMenu}
+				aria-labelledby={`nya-expand-label-${cid}`} aria-expanded="false" aria-busy={readingPending}>
+				<span id={`nya-expand-label-${cid}`} class="nya-move-help">{i18n.t("search.tip.ExpandFinder")}</span>
+				<Search size={16} aria-hidden="true" />
+				{#if readingPending || readingError || readingUnsupported}
+					<span class="nya-dock-state" role="status" aria-label={i18n.t(readingPending ? "search.MatchPending" : "search.StatusError")}>{readingPending ? "…" : "!"}</span>
+				{/if}
+			</button>
+		</div>
+	{/if}
+	{#if !isMobile}
+		<div class="nya-dragger nya-drag-handle" use:dragToMove={expanded} role="button" tabindex={expanded ? 0 : -1}
+			aria-labelledby={`nya-move-label-${cid}`} on:keydown={moveFinderKey}>
+			<span id={`nya-move-label-${cid}`} class="nya-move-help">{i18n.t("search.tip.MoveFinder")}</span>
+		</div>
+	{:else}
+		<div class="nya-dragger"></div>
+	{/if}
 	{#if !readingMode}
 	<div
 		class={`nya-toggle nya-focus`}
 		on:click={toggleCollapse}
 		role="button"
-		tabindex={cache.visible ? 0 : -1}
+		tabindex={expanded ? 0 : -1}
 		aria-label={i18n.t("search.tip.ToggleReplace")}
 		on:keydown={defaultEnterEvent}
 	>
@@ -1001,6 +1127,11 @@
 			/>
 			{#if isMobile}
 				<div class="nya-float-act">
+					<button type="button" class="nya-move-handle nya-btn nya-focus" tabindex={commonTabIndex}
+						aria-labelledby={`nya-move-label-${cid}`} use:dragToMove={expanded} on:keydown={moveFinderKey}>
+						<span id={`nya-move-label-${cid}`} class="nya-move-help">{i18n.t("search.tip.MoveFinder")}</span>
+						<GripVertical size={iconSize} aria-hidden="true" />
+					</button>
 					<div class="nya-float-tip">
 						{#if readingPending || readingUnsupported || readingError}
 							<div aria-label={i18n.t(readingPending ? (readingMode ? "search.ReadingPending" : "search.MatchPending") : "search.StatusError")} title={i18n.t(readingPending ? (readingMode ? "search.ReadingPendingDetail" : "search.MatchPending") : "search.StatusError")} aria-busy={readingPending}>{readingPending ? "…" : "!"}</div>
@@ -1017,8 +1148,10 @@
 							</div>
 						{/if}
 					</div>
+					<div class="nya-mobile-inline" bind:this={mobileInlineTarget}></div>
 					<div
 						class="nya-btn nya-focus"
+						class:nya-mobile-close={isMobile}
 						on:click={closeFinder}
 						role="button"
 						tabindex={commonTabIndex}
@@ -1048,7 +1181,8 @@
 			{/if}
 			<div class="finder-act">
 				<Toolbar items={searchToolbar} run={runToolbarAction} regexMode={cache.options.regexMode}
-					caseSensitive={cache.options.caseSensitive} wholeWord={cache.options.wholeWord} {historyEnabled} tabindex={commonTabIndex} visible={cache.visible} />
+					caseSensitive={cache.options.caseSensitive} wholeWord={cache.options.wholeWord} {historyEnabled} tabindex={commonTabIndex} visible={expanded}
+					inlineTarget={isMobile ? mobileInlineTarget : undefined} />
 				{#if !isMobile}
 					<div
 						class="nya-btn nya-focus"
@@ -1081,7 +1215,7 @@
 			<div class="replacer-act"
 				style:padding-right={replaceOffset === undefined ? undefined : `${replaceOffset}px`}
 				style:--nya-search-actions-width={searchActionsWidth === undefined ? undefined : `${searchActionsWidth}px`}>
-				<Toolbar items={replaceToolbar} run={runToolbarAction} tabindex={commonTabIndex} visible={cache.visible && !isCollapsed} />
+				<Toolbar items={replaceToolbar} run={runToolbarAction} tabindex={commonTabIndex} visible={expanded && !isCollapsed} />
 			</div>
 		</div>
 	</div>
@@ -1097,7 +1231,8 @@
 			opacity 0.2s linear,
 			right 0.3s cubic-bezier(0.45, 0.05, 0.55, 0.95);
 		height: 72px;
-		min-width: var(--nya-default-width);
+		min-width: min(var(--nya-default-width), var(--nya-available-width, 100vw));
+		max-width: var(--nya-available-width, calc(100vw - 16px));
 		top: 88px;
 		right: 48px;
 		z-index: 20;
@@ -1105,11 +1240,35 @@
 		flex-direction: row;
 		justify-content: center;
 		align-items: center;
+		&--dragging { transition: opacity 0.12s ease; opacity: 0.8; user-select: none; cursor: grabbing; }
+		&:global([data-dock-preview="left"]) { border-left-color: var(--interactive-accent); box-shadow: -3px 0 0 var(--interactive-accent); }
+		&:global([data-dock-preview="right"]) { border-right-color: var(--interactive-accent); box-shadow: 3px 0 0 var(--interactive-accent); }
+		&.nya-finder--docked {
+			min-width: 0; width: 30px !important;
+			box-shadow: none;
+			.main-part, .nya-toggle, .nya-dragger, .nya-float-act { display: none !important; }
+		}
+		.nya-dock-tab button {
+			display: flex; align-items: center; justify-content: center; margin: 0; padding: 0;
+			width: 32px; height: 100%; border: 0; box-shadow: none; background: transparent; color: var(--text-normal);
+			&:hover { background: var(--background-modifier-hover); }
+			&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+		}
+		.nya-drag-handle, .nya-move-handle, .nya-dock-expand { touch-action: none; cursor: grab; }
+		&--dragging .nya-drag-handle, &--dragging .nya-move-handle, &--dragging .nya-dock-expand { cursor: grabbing; }
+		.nya-drag-handle { position: relative; outline-offset: 2px; }
+		.nya-drag-handle::after { content: ""; position: absolute; left: -6px; right: -2px; top: 0; bottom: 0; }
+		.nya-drag-handle:focus-visible { outline: 2px solid var(--interactive-accent); }
+		.nya-dock-tab { display: flex; width: 100%; height: 100%; }
+		.nya-dock-tab button { width: 100%; }
+		.nya-dock-tab .nya-dock-expand { position: relative; }
+		.nya-dock-state { position: absolute; top: 0; right: 2px; font-size: 12px; }
 		// overflow: hidden;
 
 		&--collapsed {
 			height: 38px;
 		}
+		&.nya-finder--docked { height: 30px; }
 
 		&--hidden {
 			transform: translateY(-100%);
@@ -1145,6 +1304,7 @@
 		}
 
 		.main-part {
+			min-width: 0;
 			padding: 4px 0px;
 			flex: 1;
 			flex-direction: column;
@@ -1187,7 +1347,7 @@
 
 		&.nya-finder--custom-toolbar .main-part {
 			display: grid;
-			grid-template-columns: minmax(177px, 1fr) auto auto;
+			grid-template-columns: minmax(0, 1fr) auto auto;
 			grid-template-rows: 28px 28px;
 			row-gap: 6px;
 			.finder, .replacer { display: contents; }
@@ -1207,18 +1367,21 @@
 	}
 	.nya-input {
 		@include finder.input;
+		min-width: 0; flex: 1;
 	}
 	.nya-focus {
 		@include finder.focus;
 	}
+	.nya-move-help { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 	:global(.is-mobile) {
 		.nya-finder.nya-mobile {
-			min-width: auto;
-			max-width: 416px;
+			min-width: 0;
+			max-width: min(416px, var(--nya-available-width, calc(100vw - 16px)));
 			width: 100%;
 			right: 50%;
 			transform: translateX(50%);
+			&.nya-finder--docked { width: 40px !important; height: 40px; }
 			.nya-tip {
 				background-color: var(--background-primary);
 				top: -22px;
@@ -1233,30 +1396,39 @@
 			.nya-float-act {
 				font-size: 12px;
 				background-color: var(--background-primary);
-				top: -38px;
+				bottom: 100%; left: -1px; top: auto;
 				position: absolute;
 				right: 0px;
-				border-radius: 4px;
+				border-radius: 4px 4px 0 0;
 				border: 1px solid var(--modal-border-color);
-				height: 36px;
+				min-height: 28px;
+				height: auto;
 				display: flex;
 				flex-direction: row;
-				justify-content: center;
+				flex-wrap: wrap;
+				justify-content: flex-end;
 				align-items: center;
+				.nya-move-handle { border: 0; box-shadow: none; background: transparent; color: var(--text-normal); cursor: grab; flex-shrink: 0; }
+				.nya-mobile-inline { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; }
+				.nya-mobile-inline { flex-shrink: 1; max-width: calc(100% - 56px); }
+				> .nya-btn { flex-shrink: 0; }
 				.nya-float-tip {
 					display: flex;
 					align-items: center;
 					font-size: 12px;
 					text-align: left;
 					font-family: auto;
-					min-width: 88px;
+					min-width: 0;
+					flex: 1; max-width: 100%;
+					overflow: hidden;
 					text-wrap: nowrap;
 					padding: 0 4px;
+					> div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 				}
 			}
 
 			.nya-input {
-				min-width: 100px;
+				min-width: 0;
 				&::-webkit-scrollbar {
 					display: none;
 				}
@@ -1273,10 +1445,12 @@
 				padding-right: unset;
 			}
 			&.nya-finder--custom-toolbar .main-part {
-				grid-template-columns: minmax(100px, 1fr) auto;
-				.finder-act { grid-column: 2; width: auto; }
-				.replacer-act { grid-column: 2; width: auto; }
+				display: flex;
+				.finder, .replacer { display: flex; }
+				.finder-act { width: auto; }
+				.replacer-act { width: auto; justify-content: flex-start; }
 			}
 		}
 	}
+	@media (prefers-reduced-motion: reduce) { .nya-finder { transition: none; } }
 </style>

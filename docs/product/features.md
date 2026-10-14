@@ -6,7 +6,7 @@
 
 - 编辑模式搜索／替换所属视图的完整 Markdown 源码，包括源码中的标记。
 - 阅读模式搜索当前笔记的渲染正文，不支持替换；两个模式的匹配数量可以不同。
-- 插件注册命令和设置页，面板通过命令懒创建。未注册 Ribbon 或右键菜单入口，也未定义默认快捷键；用户在 Obsidian 中自行分配。
+- 插件注册命令和设置页，面板通过命令懒创建。未注册 Ribbon 或笔记右键菜单入口；边缘标签有关闭／恢复菜单。未定义默认快捷键，用户在 Obsidian 中自行分配。
 
 依据：`src/editor-extension.ts` 的 `registerCommand()`／`getFinder()`、`src/SearchBox.svelte` 的 `setFindText()`／`prepareReplacement()`；使用说明见 `README-zh_CN.md`。
 
@@ -15,6 +15,7 @@
 | `text-finder-show-find` | 打开查找 | 编辑／阅读 |
 | `text-finder-show-find-and-replace` | 打开查找与替换 | 编辑 |
 | `text-finder-hide-find` | 关闭查找 | 当前 Markdown 视图 |
+| `text-finder-reset-position` | 恢复查找框默认位置 | 当前 Markdown 视图的已有 Finder，不创建新实例 |
 | `text-finder-toggle-find` | 切换查找显示 | 当前 Markdown 视图 |
 | `text-finder-toggle-replace` | 切换替换区域 | 编辑 |
 | `text-finder-previous-match` | 上一个匹配 | 编辑／阅读 |
@@ -70,6 +71,18 @@
 
 依据：`src/history.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte`、`src/Toolbar.svelte`、`src/settings-tab.ts` 的 `toolbar()`。
 
+## 面板避让
+
+- 桌面编辑／阅读统一直接拖动左侧装饰条，约 3px 位移启动，无长按等待；扩大命中区不覆盖折叠箭头。折叠箭头仅负责替换行，不再承担移动或附带移动说明。移动端结果栏手柄同样直接拖动；原折叠箭头和 More 原位。实际拖动时透明度 80%，松手／取消恢复；移动入口用 aria-labelledby 保留读屏名称，不产生 aria-label／title 悬浮提示。
+- 移动端按实际按钮尺寸保留输入可用宽度，放不下的常驻动作后缀搬到结果栏，More／隐藏操作不搬；复用原按钮节点、保留排序和焦点，不改设置。恢复宽度后回流；结果栏可换行、计数可省略但读屏仍保留全文。
+- “拖到边缘时自动收起”默认关闭，开启后拖近左右边缘松手才收起。宽度达到可用宽度 85% 时改用横向位移至少 56px 且超过纵向 1.4 倍的意图，不因满宽或上下移动误收起。非满宽需有朝边缘至少 12px 的移动及 16px 内边缘距离；预览可撤回，取消不收起，阈值为实机待调初值。
+- 收起为桌面 30px／移动端 40px 的查找标记（16px 图标、无面板阴影），可直接二维拖动；松手靠边吸附，不靠边保持紧凑状态停留，不强制回边缘。拖动不展开，单击展开不聚焦输入；右键菜单提供关闭／恢复，关闭命令及 Escape 仍可用。展开围绕标记位置限制在视图内，满宽水平居中、保留高度；不因展开靠边而再次收起。查询、替换行、当前项及高亮保留。
+- 方向键移动 8px、Shift＋方向键 32px，Home／恢复位置命令恢复默认；查找设置的恢复入口作用于已有各视图，不占面板按钮。位置仅保留到具体视图销毁，不保存像素坐标。
+- 收起不是关闭，不执行清空输入或源码模式恢复；正常关闭仍遵守原契约。收起放弃尚未完成的导航意图但保留计算，后续命令导航仍可用。替换候选／提交后重算期间禁止收起；收起时执行替换命令先展开显示进度。
+- 位置限制在 owner 可见边界与 VisualViewport 的交集，考虑安全区；移动端以垂直避让为主，resize／键盘／视口滚动后重新约束。More 和状态提示随位置更新，菜单可上翻并限制尺寸。没有自动收起、惯性或宿主正文布局改写。
+
+依据：`src/finder-position.ts:createFinderPosition()`、`src/SearchBox.svelte:dockFinder()`／`expandFinder()`／`positionFinder()`、`src/reading-search.ts:pauseNavigation()`。回归：`tests/finder-position.test.mjs`、`tests/search-box-dom.test.mjs`；移动端软键盘与宿主几何仍待实测。
+
 ## 设置语义
 
 默认值的唯一代码来源为 `src/settings.ts:defaultSettings()` 和 `src/toolbar.ts:defaultToolbar()`。
@@ -82,11 +95,13 @@
 | 查找 | `sourceModeWhenSearch` | 默认开启；编辑匹配定位时强制源码模式 |
 | 查找 | `moveCursorToMatch` | 默认开启；选中当前编辑匹配 |
 | 查找 | `useObsidianSearchInRead` | 新安装默认关闭；已有显式原生偏好保留 |
+| 兼容字段（无控件） | `finderDockSide` | 保留历史 left／right 值，缺省 right；新手势由拖动方向选择两侧，不覆盖历史持久化值 |
+| 查找 | `finderAutoDock` | 默认关闭；完整框拖动松手时自动贴边收起，左右均可；不保存临时位置 |
 | 替换 | `useEscapeCharInReplace` | 默认开启；仅作用于正则替换 |
 | 历史 | `enableHistory` | 默认开启 |
 | 历史 | `historyMaxCount` | 默认 10；1–200，Enter／blur 提交 |
 | 历史 | `historySortOrder` | 默认 `lastUsedAt` |
-| 外观 | `searchToolbar` | 新安装正则、大小写、全字匹配、上一项、下一项常驻；历史隐藏。旧布局保留顺序及位置并追加缺失新动作 |
+| 外观 | `searchToolbar` | 正则、大小写、全字匹配、上一项、下一项常驻；历史隐藏。精确旧默认及上一版末尾追加全字的默认布局迁移到此顺序；其他自定义布局保留顺序及位置并追加缺失动作 |
 | 外观 | `replaceToolbar` | 单次替换、全部替换常驻 |
 | 外观 | `defaultRegexMode` | 默认关闭；仅初始化新建视图查找器的正则选项 |
 | 外观 | `defaultCaseSensitive` | 默认关闭；仅初始化新建视图查找器的大小写选项 |

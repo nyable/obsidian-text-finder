@@ -22,6 +22,10 @@
 	"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
     "tip": {
       "More": "更多操作",
+      "MoveFinder": "拖动移动查找框；方向键移动，Home 恢复位置",
+      "ResetFinderPosition": "恢复查找框位置",
+      "DockFinder": "贴边收起查找框",
+      "ExpandFinder": "展开查找框",
       "NoResults": "无结果",
       "HasResults": "第{{current}}项，共{{total}}项",
       "ToggleReplace": "切换替换",
@@ -95,6 +99,15 @@
     "ClearAfterHidden": {
       "name": "清空查找和替换文本",
       "desc": "关闭查找器时清空两个输入框，保留正则、大小写和全字匹配选项。"
+    },
+    "FinderDockSide": {
+      "name": "查找框收起边缘",
+      "desc": "将查找框收起到所属笔记视图的这一侧，保留查找和高亮；点击标签展开不会唤起键盘。",
+      "left": "左侧", "right": "右侧"
+    },
+    "FinderAutoDock": {
+      "name": "拖到边缘时自动收起",
+      "desc": "拖动移动控件靠近左右边缘，松手收起。接近满宽时，明确向左或右拖动即可；上下移动不收起。替换计算期间保持展开。"
     },
     "EnableInputHotkeys": {
       "name": "启用输入框的快捷键",

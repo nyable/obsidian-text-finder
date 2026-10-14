@@ -20,6 +20,8 @@ export interface PluginSettings {
 	defaultRegexMode: boolean;
 	defaultCaseSensitive: boolean;
 	defaultWholeWord: boolean;
+	finderDockSide: "left" | "right";
+	finderAutoDock: boolean;
 	appearanceColors: AppearanceColors;
 }
 
@@ -32,6 +34,8 @@ export function defaultSettings(): PluginSettings {
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
 		defaultRegexMode: false, defaultCaseSensitive: false, defaultWholeWord: false,
 		appearanceColors: {},
+		finderDockSide: "right",
+		finderAutoDock: false,
 	};
 }
 
@@ -42,7 +46,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	for (const key of [
 		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
 		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
-		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord",
+		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord", "finderAutoDock",
 	] as const) {
 		if (typeof input[key] === "boolean") settings[key] = input[key];
 	}
@@ -53,6 +57,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	}
 	settings.searchHistory = trimHistory(normalizeHistory(input.searchHistory, now), settings.historyMaxCount, settings.historySortOrder);
 	settings.searchToolbar = normalizeToolbar(input.searchToolbar, "search");
+	if (input.finderDockSide === "left" || input.finderDockSide === "right") settings.finderDockSide = input.finderDockSide;
 	settings.replaceToolbar = normalizeToolbar(input.replaceToolbar, "replace");
 	settings.appearanceColors = normalizeAppearanceColors(input.appearanceColors);
 	return { settings, changed: raw != null && !sameData(raw, settings) };

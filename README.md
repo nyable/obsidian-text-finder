@@ -64,6 +64,14 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 - Punctuation at the start/end of the match can itself satisfy that boundary: `C++` also matches `C++17`. Regex checks use the actual complete match without changing captures or replacement templates.
 - Reading search checks the continuous rendered text, not individual DOM nodes; its results can differ from Markdown source search. Native-find fallback keeps Obsidian's own semantics.
 
+## Move or collapse the finder
+
+- On desktop, drag the left accent strip directly in either editing or reading mode. The replace-fold arrow only folds the replace row. On mobile, use the grip in the result/close bar. Movement starts after about 3px without holding; dragging fades the finder to 80% opacity, and release/cancel restores it. Move controls use accessible names without hover tooltips.
+- Enable “Collapse when dragged to an edge” in Find settings (off by default). Drag near either edge and release; a near-full-width finder instead requires a clear horizontal drag, so vertical movement does not collapse it. The compact search marker is 30px on desktop and 40px on mobile. Drag it freely in both directions: release near an edge to snap there, or elsewhere to leave it compact at that position. Dragging does not expand it; click to expand without opening the keyboard. Its context menu offers close/reset; Escape and close commands retain their normal behavior.
+- Queries, options, current match, replace-row state and highlights remain active while collapsed. Replacement calculation cannot auto-collapse; replacement commands first expand the finder to show progress. Full-width expansion is centered at the chosen height. No collapse on scroll, mouse leave or resize.
+- Mobile More stays beside the input. Only inline actions that do not fit move to the result bar, preserving their order and settings; they return when space allows. The result bar may wrap rather than clip controls.
+- Arrow keys on the move control shift 8px (Shift: 32px), Home resets. “Restore finder position” is also available in commands (current view) and Find settings (existing views). Positions are session-only and bounded by the note view and visible viewport.
+
 ## Reading-mode search
 
 -   Run “Open search in current file” in reading mode for case-sensitive search, whole-word matching, regex, highlights and match navigation. Replacement is not available.
@@ -103,7 +111,7 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 - Colors, search toolbar and replacement toolbar sections fold independently and start collapsed. An undo-style icon beside each heading shows a Restore default settings tooltip. Clicking directly restores that section; individual color resets affect only that color, with no confirmation dialog. All resets show the same brief “Default settings restored” notice.
 - The preview uses the fixed query `text` and an empty replacement field. The English sample below shows current and other match highlights using the existing highlight colors and CSS customizations.
 - Customize the focus border, accent strip, and text/background colors of current and other matches. Click a swatch to open the color/opacity picker; adjustments only affect the preview until you click Apply. Canceling or leaving settings discards the draft. Unset colors inherit existing CSS; resetting a color or the color section removes overrides without changing toolbar configuration.
-- Set “Enabled by default” on the regex, match-case and whole-word items. These defaults initialize new finders for each Markdown view; existing finders and reopening or switching files/modes retain manual choices. Upgrading preserves existing toolbar order/placements and appends the new whole-word action.
+- Set “Enabled by default” on the regex, match-case and whole-word items. These defaults initialize new finders for each Markdown view; existing finders and reopening or switching files/modes retain manual choices. Exact historical default layouts migrate to group all three match options; customized orders/placements are preserved.
 - Restore defaults affects only its toolbar: search restores the layout and turns off all three default options; replace restores its layout. Existing finders keep their options. Hiding a button does not turn its mode off.
 
 ## Customize Style

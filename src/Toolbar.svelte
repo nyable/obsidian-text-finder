@@ -3,10 +3,11 @@
 </script>
 
 <script lang="ts">
-	import { tick } from "svelte";
+	import { tick, beforeUpdate } from "svelte";
 	import { ArrowDown, ArrowUp, ReplaceAll, Replace, Regex, CaseSensitive, WholeWord, History, Ellipsis } from "lucide-svelte";
 	import { i18n } from "./i18n";
 	import { toolbarLabels, type ToolbarItem, type ToolbarAction } from "./toolbar";
+	import { mobileToolbar } from "./mobile-toolbar";
 	export let items: ToolbarItem[];
 	export let run: (action: ToolbarAction) => void;
 	export let regexMode = false;
@@ -17,11 +18,21 @@
 	export let visible = true;
 	// Presentation-only branch: no controls, menu or document listeners.
 	export let preview = false;
+	export let inlineTarget: HTMLElement | undefined = undefined;
 	const icons = { regex: Regex, case: CaseSensitive, wholeWord: WholeWord, previous: ArrowUp, next: ArrowDown, history: History, replace: Replace, replaceAll: ReplaceAll };
 	const isToggle = (id: ToolbarAction) => id === "regex" || id === "case" || id === "wholeWord";
 	let open = false;
 	let root: HTMLDivElement;
 	let trigger: HTMLDivElement;
+	let previousItems: ToolbarItem[] | undefined;
+	beforeUpdate(() => {
+		if (root && inlineTarget && previousItems !== items) {
+			const more = root.querySelector(".nya-toolbar-overflow"), focused = root.ownerDocument.activeElement as HTMLElement | null;
+			inlineTarget.querySelectorAll<HTMLElement>("[data-toolbar-action]").forEach((el) => root.insertBefore(el, more));
+			if (focused && root.contains(focused)) focused.focus({ preventScroll: true });
+		}
+		previousItems = items;
+	});
 	const triggerId = `nya-toolbar-more-${++nextToolbarId}`;
 	$: inline = items.filter((item) => item.placement === "inline");
 	$: more = items.filter((item) => item.placement === "more");
@@ -39,11 +50,40 @@
 		if (event.key === "Enter" || event.key === " ") { event.preventDefault(); (event.currentTarget as HTMLElement).click(); }
 	};
 	function outside(event: PointerEvent) { if (open && !root.contains(event.target as Node)) open = false; }
-	function ownerEvents(node: HTMLElement) {
+	function ownerEvents(node: HTMLElement, _visible: boolean) {
 		if (preview) return {};
-		const doc = node.ownerDocument;
+		let doc = node.ownerDocument;
 		doc.addEventListener("pointerdown", outside);
-		return { destroy() { doc.removeEventListener("pointerdown", outside); } };
+		return { update() {
+			if (node.ownerDocument !== doc) {
+				open = false; doc.removeEventListener("pointerdown", outside); doc = node.ownerDocument;
+				doc.addEventListener("pointerdown", outside);
+			}
+		}, destroy() { doc.removeEventListener("pointerdown", outside); } };
+	}
+	function positionMenu(node: HTMLElement) {
+		const win = node.ownerDocument.defaultView, finder = root.closest<HTMLElement>(".nya-finder");
+		let dx = 0, dy = 0;
+		const measure = () => {
+			const owner = finder?.parentElement?.getBoundingClientRect(), viewport = win?.visualViewport;
+			const left = Math.max(owner?.left ?? 0, viewport?.offsetLeft ?? 0) + 8;
+			const right = Math.min(owner?.right || Infinity, (viewport?.offsetLeft ?? 0) + (viewport?.width ?? win?.innerWidth ?? Infinity)) - 8;
+			const top = Math.max(owner?.top ?? 0, viewport?.offsetTop ?? 0) + 8;
+			const bottom = Math.min(owner?.bottom || Infinity, (viewport?.offsetTop ?? 0) + (viewport?.height ?? win?.innerHeight ?? Infinity)) - 8;
+			node.style.maxWidth = `${Math.max(0, right - left)}px`; node.style.minWidth = `min(180px, ${Math.max(0, right - left)}px)`;
+			node.style.maxHeight = `${Math.max(0, bottom - top)}px`;
+			const box = node.getBoundingClientRect(), baseLeft = box.left - dx, baseTop = box.top - dy;
+			dx = Math.max(left, Math.min(baseLeft, right - box.width)) - baseLeft;
+			dy = (baseTop + box.height > bottom ? Math.max(top, (trigger.getBoundingClientRect().top - box.height - 6)) : Math.max(top, baseTop)) - baseTop;
+			node.style.translate = `${dx}px ${dy}px`;
+		};
+		const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
+		observer?.observe(node); win?.addEventListener("resize", measure); finder?.addEventListener("nya-finder-position", measure);
+		win?.visualViewport?.addEventListener("resize", measure); win?.visualViewport?.addEventListener("scroll", measure); measure();
+		return { destroy() {
+			observer?.disconnect(); win?.removeEventListener("resize", measure); finder?.removeEventListener("nya-finder-position", measure);
+			win?.visualViewport?.removeEventListener("resize", measure); win?.visualViewport?.removeEventListener("scroll", measure);
+		} };
 	}
 	async function toggle() {
 		open = !open;
@@ -63,7 +103,7 @@
 	}
 </script>
 
-<div class="nya-toolbar" bind:this={root} use:ownerEvents>
+<div class="nya-toolbar" bind:this={root} use:ownerEvents={visible} use:mobileToolbar={preview ? undefined : inlineTarget}>
 	{#if preview}
 		{#each inline as item (item.id)}
 			<span class="nya-btn" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
@@ -75,8 +115,8 @@
 			<span class="nya-btn" aria-hidden="true" data-preview-action="more"><Ellipsis size={18} /></span>
 		{/if}
 	{:else}
-		{#each inline as item (item.id)}
-			<div class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
+		{#each inline as item, index (item.id)}
+			<div data-toolbar-action={item.id} data-toolbar-order={index} class="nya-btn nya-focus" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}
 				role="button" tabindex={item.id === "history" && !historyEnabled ? -1 : controlTabIndex} aria-label={i18n.t(toolbarLabels[item.id])}
 				aria-pressed={isToggle(item.id) ? activeIds.has(item.id) : undefined}
 				aria-disabled={item.id === "history" && !historyEnabled} on:click={() => execute(item.id)} on:keydown={activate}>
@@ -91,7 +131,7 @@
 					<Ellipsis size={18} />
 				</div>
 				{#if open}
-					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-labelledby={triggerId} on:keydown={menuKeys}>
+					<div class="nya-toolbar-menu" role="menu" tabindex="-1" aria-labelledby={triggerId} on:keydown={menuKeys} use:positionMenu>
 						{#each more as item (item.id)}
 							<button type="button" role={isToggle(item.id) ? "menuitemcheckbox" : "menuitem"}
 								aria-checked={isToggle(item.id) ? activeIds.has(item.id) : undefined}
@@ -119,6 +159,7 @@
 	}
 	.nya-toolbar-overflow { position: relative; }
 	.nya-toolbar-menu {
+		overflow-y: auto;
 		position: absolute; top: calc(100% + 6px); right: 0; z-index: 30;
 		min-width: 180px; max-width: min(300px, 85vw); padding: 4px;
 		background: var(--background-primary); color: var(--text-normal);

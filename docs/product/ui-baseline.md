@@ -30,9 +30,10 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 区域 | 源码事实 | 依据 |
 | --- | --- | --- |
 | 桌面 Finder | 绝对定位 top 88px／right 48px；展开 72px、折叠 38px；4px 圆角、阴影、边框；隐藏 transform／opacity 动画，同时同步 visibility | `src/SearchBox.svelte` 的 `.nya-finder`／`syncFinderVisibility()` |
-| 输入与按钮 | 输入高 28px、桌面最小宽 177px；图标 18px；工具栏按钮 24×24px、margin 2px、padding 4px | `src/SearchBox.svelte`、`src/Toolbar.svelte` |
+| 输入与按钮 | 输入高 28px、可收缩以适配 owner 可见宽度；图标 18px；工具栏按钮 24×24px、margin 2px、padding 4px | `src/SearchBox.svelte`、`src/Toolbar.svelte` |
 | 默认／自定义布局 | 默认替换行测量当前计数和操作区做补偿；自定义工具栏用 Grid，阅读／移动／折叠不使用默认补偿 | `src/SearchBox.svelte:alignRows()` 及 `.nya-finder--custom-toolbar` |
-| 移动布局 | 居中，最大 416px；输入最小宽 100px；计数和关闭浮置上方；查找操作区按内容宽度、不收缩，替换操作区保留 112px；单独的操作区布局 | `src/SearchBox.svelte` 的 `.is-mobile` 样式；jsdom 尺寸规则检查不代替触屏／窄宽实测 |
+| 移动布局 | 默认居中，最大 416px 且限制 owner／视口；结果／手柄／关闭栏紧贴整框上沿，同背景边框圆角，28px 起自然换行，长计数省略；输入行保留约 100px 输入空间，常驻溢出后缀移到结果栏，More 原位。替换动作仍在替换行 | `src/SearchBox.svelte`、`src/mobile-toolbar.ts`；模拟尺寸规则不代替触屏／窄宽实测 |
+| 面板移动／贴边 | 桌面左侧装饰条直接拖动，命中区约 12px（主要向框外扩展，不覆盖箭头）；移动端 grip 与结果／关闭一体。3px 位移后 opacity 0.8，无长按，位置不做过渡；候选主题色边框反馈；收起标记桌面 30×30px／移动 40×40px、16px 图标、无阴影。移动入口 aria-labelledby、不产生大片提示；二维拖动／单击展开，尊重 reduced-motion | `src/SearchBox.svelte`、`src/finder-position.ts`；真实跟手／键盘避让待实测 |
 | More | 右侧绝对定位，最小宽 180px、最大受视口限制；菜单与选项状态样式 | `src/Toolbar.svelte` |
 | 全字匹配控件 | `WholeWord`／`whole-word` 图标，复用既有 18px 图标、按钮几何、激活／聚焦和 More 勾选样式；新默认顺序为正则、大小写、全字匹配、上一项、下一项。设置支持默认开启和纯展示激活预览；不改变公开宽度变量 | `src/toolbar.ts`、`src/Toolbar.svelte`、`src/settings-tab.ts`、`src/ToolbarPreview.svelte`；窄分屏、移动端与宿主悬浮提示待实测 |
 | 查找状态 | 编辑／阅读均使用面板外部提示，空间不足时上翻；等待文案不拦截指针，取消／重试／同步重试操作可点击 | `src/SearchStatus.svelte:position()` 及样式 |

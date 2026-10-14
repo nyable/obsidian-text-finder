@@ -76,8 +76,9 @@ function environment() {
 		matches: helper.findTextOffsets(source, query, options.regexMode, options.caseSensitive), synchronous: true }), cancel() {} });
 	const finder = (view) => {
 		const component = loadSource("../src/SearchBox.svelte", {
-			svelte: { onMount() {} }, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
+			svelte: { onMount() {}, tick: () => Promise.resolve() }, "./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 			"./toolbar": toolbarSource,
+			"./i18n": { i18n: { t: (key) => key } },
 			"./search-highlight": highlightStub,
 			"./editor-extension": highlightStub,
 			"./util/text-helper": helper, "./constants": loadSource("../src/constants.ts"),

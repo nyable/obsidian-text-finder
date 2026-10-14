@@ -37,6 +37,7 @@ function environment() {
 		toNextMatch: () => calls.push(["next"]),
 		toPreviousMatch: () => calls.push(["previous"]),
 		matchAgain: () => calls.push(["refresh"]),
+		resetFinderPosition: () => calls.push(["reset-position"]),
 		$destroy: () => calls.push(["destroy"]),
 	};
 	let open = true;
@@ -73,6 +74,14 @@ test("reading ShowFind checks without side effects and opens the plugin without 
 	assert.deepEqual(h.calls, [["visible", true, undefined]]);
 	assert.equal(h.notices.length, 0);
 	h.search.destoryAll();
+});
+
+test("reset-position command operates on an existing owner only and sets no default shortcut", () => {
+	const h = environment(), command = h.commands.get("text-finder-reset-position");
+	assert.equal(command.checkCallback(true), true); assert.equal(h.created(), 0); assert.equal(command.hotkeys, undefined);
+	const finder = h.search.getFinder(h.view); h.calls.length = 0; h.search.finderViews.set(h.view, finder);
+	command.checkCallback(false); assert.deepEqual(h.calls, [["reset-position"]]);
+	h.close(); assert.equal(command.checkCallback(true), false); h.search.destoryAll();
 });
 
 test("reading selection comes from the owning preview document and ignores outside selections", () => {
@@ -227,7 +236,7 @@ test("late layout callbacks do not initialize unloaded plugins and initializatio
 	editorExtensionProvider(plugin); unloaded = true; callback();
 	assert.equal(plugin.editorSearch, null); assert.equal(commands, 0);
 	unloaded = false; callback(); callback();
-	assert.equal(commands, 10); assert.equal(extensions, 1); plugin.editorSearch.destoryAll();
+	assert.equal(commands, 11); assert.equal(extensions, 1); plugin.editorSearch.destoryAll();
 });
 
 test("unload closes tracked history modals exactly once", () => {

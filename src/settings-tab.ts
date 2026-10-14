@@ -157,6 +157,7 @@ export class SettingTab extends PluginSettingTab {
 		new Setting(root).setName(i18n.t(`settings.${name}.name`)).setDesc(i18n.t(`settings.${name}.desc`))
 			.addToggle((toggle) => toggle.setValue(this.plugin.settings[key]).onChange((value) => {
 				this.plugin.settings[key] = value;
+				if (key === "finderAutoDock") this.plugin.editorSearch?.refreshToolbars();
 				if (key === "enableHistory") {
 					this.plugin.history.notify();
 					this.plugin.editorSearch?.refreshToolbars();
@@ -173,6 +174,9 @@ export class SettingTab extends PluginSettingTab {
 			this.toggle(root, "sourceModeWhenSearch", "SourceModeWhenSearch");
 			this.toggle(root, "moveCursorToMatch", "MoveCursorToMatch");
 			this.toggle(root, "useObsidianSearchInRead", "UseObsidianSearchInRead");
+			this.toggle(root, "finderAutoDock", "FinderAutoDock");
+			new Setting(root).setName(i18n.t("search.tip.ResetFinderPosition"))
+				.addButton((button) => button.setButtonText(i18n.t("search.tip.ResetFinderPosition")).onClick(() => this.plugin.editorSearch?.resetFinderPositions()));
 		} else if (this.page === "replace") {
 			this.toggle(root, "useEscapeCharInReplace", "UseEscapeCharInReplace");
 		} else if (this.page === "history") {

@@ -35,6 +35,11 @@ class Setting {
 	}
 	setName(name) { this.name = name; this.row.dataset.name = name; return this; }
 	setDesc() { return this; }
+	addButton(callback) {
+		const el = dom.window.document.createElement("button"); this.row.append(el);
+		const button = { setButtonText(text) { el.textContent = text; return this; }, onClick(fn) { el.addEventListener("click", fn); return this; } };
+		callback(button); return this;
+	}
 	addToggle(callback) {
 		const toggleEl = dom.window.document.createElement("button"); this.row.append(toggleEl);
 		const toggle = { toggleEl, value: false, setValue(value) { this.value = value; return this; }, onChange(fn) { this.change = fn; return this; } };
@@ -85,6 +90,17 @@ function plugin(data) {
 	return p;
 }
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
+test("finder automatic edge setting defaults off and refreshes views; reset needs no panel button", async () => {
+	const p = plugin(null); await p.onload(); let refreshes = 0;
+	let resets = 0; p.editorSearch = { refreshToolbars: () => refreshes++, resetFinderPositions: () => resets++, destoryAll() {} };
+	const tab = tabs.at(-1); tab.display();
+	assert.equal(p.settings.finderAutoDock, false);
+	fields.get("settings.FinderAutoDock.name").change(true); await p.flushSettings();
+	assert.equal(p.settings.finderAutoDock, true); assert.equal(p.writes.at(-1).finderAutoDock, true); assert.equal(refreshes, 1);
+	tab.containerEl.querySelector('[data-name="search.tip.ResetFinderPosition"] button').click(); assert.equal(resets, 1);
+	p.onunload();
+});
 function resetSection(section) {
 	section.querySelector('.nya-settings-section-reset').click();
 }

@@ -22,6 +22,10 @@
 	"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
     "tip": {
       "More": "More actions",
+      "MoveFinder": "Drag to move finder; arrow keys move, Home restores position",
+      "ResetFinderPosition": "Restore finder position",
+      "DockFinder": "Collapse finder to edge",
+      "ExpandFinder": "Expand finder",
       "NoResults": "No results",
       "HasResults": "{{current}} of {{total}}",
       "ToggleReplace": "Toggle replace",
@@ -95,6 +99,15 @@
     "ClearAfterHidden": {
       "name": "Clear search and replacement text",
       "desc": "Clear both inputs when closing the finder. Regex, match-case and whole-word options are retained."
+    },
+    "FinderDockSide": {
+      "name": "Finder collapse edge",
+      "desc": "Collapse the finder to this edge of its note view. Search and highlights remain active; expanding the tab does not open the keyboard.",
+      "left": "Left", "right": "Right"
+    },
+    "FinderAutoDock": {
+      "name": "Collapse when dragged to an edge",
+      "desc": "Drag the move control near either edge and release. For near-full-width panels, drag clearly left or right; vertical movement does not collapse the finder. Replacement progress stays expanded."
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",

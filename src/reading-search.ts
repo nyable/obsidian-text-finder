@@ -98,6 +98,8 @@ export class ReadingSearch {
 		private waitTimeoutMs = 5000, private matcher?: MatchExecutor) {}
 
 	retrySynchronously() { this.synchronousRetry = true; }
+	/** Keep a pending match/render request, but relinquish its navigation intent. */
+	pauseNavigation() { if (this.request) { this.request.scroll = false; this.request.direction = 0; } }
 
 	static supported(view: MarkdownView): boolean {
 		try {

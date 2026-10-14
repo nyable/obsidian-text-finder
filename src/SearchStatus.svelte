@@ -36,14 +36,22 @@
 		const parent = node.parentElement!;
 		const measure = () => {
 			const box = parent.getBoundingClientRect();
-			const height = node.offsetHeight;
-			above = box.bottom + height + 8 > (node.ownerDocument.defaultView?.innerHeight ?? Infinity)
-				&& box.top > height + 8;
+			const win = node.ownerDocument.defaultView, viewport = win?.visualViewport;
+			const owner = parent.parentElement?.getBoundingClientRect();
+			const top = Math.max(owner?.top ?? 0, viewport?.offsetTop ?? 0) + 8;
+			const bottom = Math.min(owner?.bottom || Infinity, (viewport?.offsetTop ?? 0) + (viewport?.height ?? win?.innerHeight ?? Infinity)) - 8;
+			const belowSpace = Math.max(0, bottom - box.bottom - 6), aboveSpace = Math.max(0, box.top - top - 6);
+			above = node.scrollHeight > belowSpace && aboveSpace > belowSpace;
+			node.style.maxHeight = `${Math.max(0, above ? aboveSpace : belowSpace)}px`;
 		};
 		const win = node.ownerDocument.defaultView;
 		const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
-		observer?.observe(node); win?.addEventListener("resize", measure); measure();
-		return { destroy() { observer?.disconnect(); win?.removeEventListener("resize", measure); } };
+		observer?.observe(node); win?.addEventListener("resize", measure); parent.addEventListener("nya-finder-position", measure);
+		win?.visualViewport?.addEventListener("resize", measure); win?.visualViewport?.addEventListener("scroll", measure); measure();
+		return { destroy() {
+			observer?.disconnect(); win?.removeEventListener("resize", measure); parent.removeEventListener("nya-finder-position", measure);
+			win?.visualViewport?.removeEventListener("resize", measure); win?.visualViewport?.removeEventListener("scroll", measure);
+		} };
 	}
 	onDestroy(() => clearTimeout(timer));
 </script>
@@ -69,6 +77,7 @@
 
 <style>
 	.nya-search-status {
+		overflow-y: auto;
 		position: absolute; top: calc(100% + 6px); left: 22px; right: 4px;
 		padding: 3px 6px; font-size: 12px; line-height: 1.5;
 		color: var(--text-muted); background: var(--background-primary);

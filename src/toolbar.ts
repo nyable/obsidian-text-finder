@@ -19,6 +19,14 @@ export function defaultToolbar(kind: ToolbarKind): ToolbarItem[] {
 /** Keep valid user order, ignore duplicate/foreign actions, add new actions with their defaults. */
 export function normalizeToolbar(raw: unknown, kind: ToolbarKind): ToolbarItem[] {
 	const defaults = defaultToolbar(kind);
+	// Only exact historical defaults are migrated. Customized orders/placements
+	// still belong to the user, including a deliberately separated whole-word item.
+	if (kind === "search" && Array.isArray(raw)) {
+		const legacy = defaults.filter((item) => item.id !== "wholeWord");
+		const appended = [...legacy, defaults.find((item) => item.id === "wholeWord")!];
+		if ([legacy, appended].some((layout) => layout.length === raw.length && layout.every((item, index) =>
+			raw[index]?.id === item.id && raw[index]?.placement === item.placement))) return defaults;
+	}
 	const items: ToolbarItem[] = [];
 	if (Array.isArray(raw)) for (const item of raw) {
 		if (!item || typeof item !== "object" || !defaults.some((entry) => entry.id === item.id)

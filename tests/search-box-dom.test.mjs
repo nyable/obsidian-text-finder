@@ -29,18 +29,18 @@ const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const componentStyles = [];
 const bundle = await build({
-	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte';`, resolveDir: root },
+	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte'; export {Platform} from 'obsidian';`, resolveDir: root },
 	bundle: true, write: false, format: "cjs", platform: "browser",
 	plugins: [matchWorkerPlugin(), {
 		name: "search-box-dom",
 		setup(build) {
 			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/(i18n|search-highlight)$/ }, ({ path }) => ({ path, namespace: "stub" }));
 			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
-				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false};` };
+				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false}; export class Menu { addItem(fn) { fn({setTitle(){return this},setIcon(){return this},onClick(fn){return this}});return this } showAtMouseEvent(){} hide(){} }` };
 				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
 				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value};` };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
+				return { contents: icon + `\nexport {Component as GripVertical, Component as PanelRightClose, Component as RotateCcw, Component as Search, Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
 			});
 			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
 				const source = readFileSync(filename, "utf8")
@@ -64,7 +64,7 @@ globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
-const { SearchBox, MatchEngine, tick } = module.exports;
+const { SearchBox, MatchEngine, tick, Platform } = module.exports;
 
 function mount(t, matcher, settings = {}) {
 	const target = document.createElement("div");
@@ -110,6 +110,226 @@ const deferred = () => {
 	return { promise, resolve, reject };
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+test("edge collapse retains session, highlights and replace expansion without closing or input focus", async (t) => {
+	const h = mount(t, undefined, { clearAfterHidden: true }); await tick();
+	h.component.setCollapse(false); h.component.getSearchCache().replace = "dog"; await tick();
+	const before = structuredClone(h.component.getSearchCache()), specs = h.specs.length, scrolls = h.scrolls.length;
+	h.component.dockFinder(); await tick();
+	assert.equal(h.component.isVisible(), true); assert.deepEqual(h.component.getSearchCache(), before);
+	assert.equal(h.specs.length, specs); assert.equal(h.scrolls.length, scrolls);
+	assert.ok(h.target.querySelector(".nya-finder--docked"));
+	assert.equal(h.target.querySelector(".main-part").hasAttribute("inert"), true);
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).display, "none");
+	assert.equal(h.target.querySelector("textarea").tabIndex, -1);
+	h.target.querySelector("textarea").focus(); assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+	h.target.querySelector(".nya-dock-expand").click(); await tick();
+	assert.equal(h.target.querySelector(".main-part").hasAttribute("inert"), false);
+	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+	assert.deepEqual(h.component.getSearchCache(), before);
+	h.component.dockFinder(); await tick();
+	h.component.setVisible(true); await tick();
+	assert.equal(h.target.querySelector(".nya-dock-tab"), null); assert.equal(document.activeElement, h.target.querySelector("textarea"));
+	h.component.dockFinder(); await tick(); h.component.closeFinder(); await tick();
+	assert.equal(h.component.isVisible(), false); assert.equal(h.component.getSearchCache().search, "");
+	assert.equal(h.component.getSearchCache().replace, ""); assert.equal(h.target.querySelector(".nya-dock-tab"), null);
+});
+
+test("collapsed pending editor matches publish highlights but relinquish scroll; close still rejects late results", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher); await tick();
+	const cancels = matcher.cancels ?? 0; h.component.dockFinder(); await tick();
+	assert.equal(matcher.cancels ?? 0, cancels);
+	assert.equal(h.target.querySelector(".nya-dock-state").textContent, "…");
+	matcher.requests[0].resolve(matchedCats); await settlePosition();
+	assert.equal(h.component.getSearchCache().matches.length, 2); assert.equal(h.scrolls.length, 0);
+	assert.equal(h.specs.at(-1).effects[0].visible, true);
+	h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false); await tick();
+	assert.equal(matcher.requests.length, 2);
+	h.component.closeFinder(); const count = h.specs.length;
+	matcher.requests[1].resolve(matchedCats); await settlePosition(); assert.equal(h.specs.length, count);
+});
+
+test("edge collapse blocks during replacement prepare/rematch and replacement commands expand it", async (t) => {
+	const h = await mountReplacement(t); h.component.dockFinder(); await tick();
+	const pending = h.component.replaceOnce(); await tick();
+	assert.equal(h.target.querySelector(".nya-dock-tab"), null);
+	assert.equal(h.component.dockFinder(), false);
+	assert.equal(h.target.querySelector('[aria-label="search.tip.DockFinder"]'), null);
+	h.matcher.replacements[0].resolve(candidates()); const result = await pending;
+	assert.equal(h.component.dockFinder(), false);
+	h.matcher.requests[1].resolve(matchedCats); await result.navigationCompletion; await tick();
+	assert.equal(h.component.dockFinder(), true);
+});
+
+test("edge collapse closes More and keeps its hidden controls out of focus", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "regex" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick(); h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
+	assert.ok(h.target.querySelector('[role="menu"]'));
+	h.component.dockFinder(); await tick();
+	assert.equal(h.target.querySelector('[role="menu"]'), null);
+	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]').tabIndex, -1);
+	assert.equal(h.target.querySelector(".nya-panel-tools"), null);
+	const handle = h.target.querySelector(".nya-dragger"); assert.ok(document.getElementById(handle.getAttribute("aria-labelledby")));
+	assert.equal(handle.getAttribute("aria-label"), null); assert.equal(handle.getAttribute("title"), null);
+});
+
+test("edge tab delayed focus never overrides a newer open-search intent", async (t) => {
+	const h = mount(t); await tick(); h.component.dockFinder(); await tick();
+	h.target.querySelector(".nya-dock-expand").click();
+	h.component.setVisible(true); await tick();
+	assert.equal(document.activeElement, h.target.querySelector("textarea"));
+	h.component.dockFinder(); h.component.setVisible(false); h.component.setVisible(true); await tick();
+	assert.equal(document.activeElement, h.target.querySelector("textarea")); assert.equal(h.target.querySelector(".nya-dock-tab"), null);
+});
+
+test("More follows moved finder within owner boundaries and flips above near the bottom", async (t) => {
+	const h = mount(t); await tick();
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 600, bottom: 400 });
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "regex" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick(); h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
+	const menu = h.target.querySelector('[role="menu"]'), trigger = h.target.querySelector('[aria-label="search.tip.More"]');
+	trigger.getBoundingClientRect = () => ({ top: 330 });
+	menu.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (menu.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 500 + x, top: 360 + y, width: 180, height: 100 };
+	};
+	h.target.querySelector(".nya-finder").dispatchEvent(new window.Event("nya-finder-position"));
+	assert.equal(menu.style.translate, "-88px -136px"); assert.equal(menu.style.maxHeight, "384px");
+	h.component.dockFinder(); await tick(); assert.equal(h.target.querySelector('[role="menu"]'), null);
+});
+
+test("finder placement handle supports keyboard movement/reset, owner isolation and closes cleanly", async (t) => {
+	const h = mount(t), other = mount(t); await tick();
+	const node = h.target.querySelector(".nya-finder");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 200 + x, top: 88 + y, right: 648 + x, bottom: 126 + y, width: 448, height: 38 };
+	};
+	window.dispatchEvent(new window.Event("resize"));
+	const handle = h.target.querySelector(".nya-dragger"), before = other.target.querySelector(".nya-finder").style.translate;
+	handle.dispatchEvent(new window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+	assert.equal(node.style.translate, "0px 8px"); assert.equal(other.target.querySelector(".nya-finder").style.translate, before);
+	handle.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Home", bubbles: true, cancelable: true }));
+	assert.equal(node.style.translate, "0px 0px");
+});
+
+test("real mobile branch merges move handle into result bar and keeps original collapse arrow", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	const h = mount(t, undefined, { finderDockSide: "left" }); await tick();
+	Platform.isMobile = false;
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	assert.ok(h.target.querySelector(".nya-mobile")); assert.ok(h.target.querySelector(".nya-float-act"));
+	assert.equal(h.target.querySelector(".nya-panel-tools"), null);
+	assert.ok(h.target.querySelector(".nya-float-act .nya-move-handle")); assert.ok(h.target.querySelector(".nya-toggle"));
+	assert.equal(window.getComputedStyle(h.target.querySelector(".nya-float-act")).minHeight, "28px");
+	h.component.dockFinder(); await tick();
+	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).display, "none");
+	assert.equal(window.getComputedStyle(h.target.querySelector(".nya-finder")).height, "40px");
+	assert.ok(h.target.querySelector(".nya-finder--dock-left"));
+	h.target.querySelector(".nya-dock-expand").click(); await tick();
+	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+	h.component.dockFinder("right"); await tick();
+	assert.equal(h.target.querySelector(".nya-finder--dock-left"), null);
+});
+
+test("position controller follows adopted owner documents and releases old window listeners", async (t) => {
+	const h = mount(t); await tick();
+	const popup = new JSDOM("<!doctype html><body></body>"); t.after(() => popup.window.close());
+	popup.window.document.body.append(popup.window.document.adoptNode(h.target));
+	h.component.matchAgain(false); await tick();
+	assert.equal(popup.window.document.querySelectorAll('div[aria-hidden="true"]').length, 1);
+	const node = h.target.querySelector(".nya-finder");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 200 + x, top: 88 + y, right: 648 + x, bottom: 126 + y, width: 448, height: 38 };
+	};
+	popup.window.dispatchEvent(new popup.window.Event("resize")); assert.equal(node.style.translate, "0px 0px");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 700, bottom: 600, width: 700, height: 600 });
+	window.dispatchEvent(new window.Event("resize")); assert.equal(node.style.getPropertyValue("--nya-available-width"), "784px");
+	popup.window.dispatchEvent(new popup.window.Event("resize")); assert.equal(node.style.getPropertyValue("--nya-available-width"), "684px");
+});
+
+const sendPointer = (target, type, x = 0, y = 0) => {
+	const event = new window.Event(type, { bubbles: true, cancelable: true });
+	Object.assign(event, { clientX: x, clientY: y, button: 0, pointerId: 1, isPrimary: true }); target.dispatchEvent(event); return event;
+};
+
+test("desktop drag uses the accent strip without tooltip labels or delays; arrow only toggles", async (t) => {
+	const h = mount(t); await tick();
+	const arrow = h.target.querySelector(".nya-toggle"), node = h.target.querySelector(".nya-finder");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 200 + x, top: 88 + y, right: 648 + x, bottom: 126 + y, width: 448, height: 38 };
+	};
+	assert.equal(h.target.querySelector(".nya-panel-tools"), null);
+	sendPointer(arrow, "pointerdown"); sendPointer(document, "pointerup"); arrow.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+	assert.equal(h.component.getSearchCache().collapse, false);
+	const strip = h.target.querySelector(".nya-dragger");
+	sendPointer(strip, "pointerdown"); sendPointer(document, "pointermove", 8, 0);
+	assert.equal(window.getComputedStyle(node).opacity, "0.8");
+	sendPointer(document, "pointerup", 8, 0); await tick();
+	assert.equal(h.component.getSearchCache().collapse, false); assert.notEqual(window.getComputedStyle(node).opacity, "0.8");
+	assert.equal(strip.getAttribute("aria-label"), null); assert.equal(strip.getAttribute("title"), null);
+	assert.equal(arrow.getAttribute("aria-describedby"), null);
+	arrow.dispatchEvent(new window.KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); await tick();
+	assert.equal(h.component.getSearchCache().collapse, true);
+});
+
+test("compact marker drags immediately without accidental expansion, while a click still expands", async (t) => {
+	const h = mount(t); await tick(); h.component.dockFinder(); await tick();
+	const node = h.target.querySelector(".nya-finder"), marker = h.target.querySelector(".nya-dock-expand");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		const size = node.classList.contains("nya-finder--docked") ? 30 : 448;
+		return { left: 200 + x, top: 88 + y, right: 200 + x + size, bottom: 118 + y, width: size, height: 30 };
+	};
+	window.dispatchEvent(new window.Event("resize"));
+	assert.equal(window.getComputedStyle(node).height, "30px"); assert.equal(window.getComputedStyle(node).width, "30px");
+	assert.equal(marker.getAttribute("aria-label"), null);
+	assert.ok(document.getElementById(marker.getAttribute("aria-labelledby")));
+	sendPointer(marker, "pointerdown", 100, 100); sendPointer(document, "pointermove", 20, 130); sendPointer(document, "pointerup", 20, 130);
+	marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+	assert.ok(h.target.querySelector(".nya-finder--docked"));
+	const box = node.getBoundingClientRect(); assert.ok(box.left < 762); assert.equal(box.top, 118);
+	sendPointer(marker, "pointerdown", 20, 130); sendPointer(document, "pointerup", 20, 130);
+	marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+	assert.equal(h.target.querySelector(".nya-finder--docked"), null);
+	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+});
+
+test("mobile relocates only overflow inline controls without moving More, replacing nodes or changing settings", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	const h = mount(t); Platform.isMobile = false; await tick();
+	t.after(() => document.body.classList.remove("is-mobile"));
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "history" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick();
+	const stored = structuredClone(h.plugin.settings.searchToolbar), row = h.target.querySelector(".finder"), target = h.target.querySelector(".nya-mobile-inline");
+	assert.equal(window.getComputedStyle(row).display, "flex", "custom mobile toolbar has a measurable row, not display:contents");
+	let available = 248; row.getBoundingClientRect = () => ({ width: available });
+	const buttons = [...h.target.querySelectorAll('[data-toolbar-action]')];
+	for (const button of buttons) button.getBoundingClientRect = () => ({ width: 24 });
+	const more = h.target.querySelector(".nya-toolbar-overflow"); more.getBoundingClientRect = () => ({ width: 28 });
+	const next = h.target.querySelector('[data-toolbar-action="next"]'); next.focus();
+	window.dispatchEvent(new window.Event("resize")); await settlePosition();
+	assert.deepEqual([...target.children].map((node) => node.dataset.toolbarAction), ["next"]);
+	assert.equal(document.activeElement, next); assert.equal(more.closest(".finder-act") !== null, true);
+	const sameNext = target.querySelector('[data-toolbar-action="next"]'); sameNext.click(); await tick();
+	assert.equal(h.component.getSearchCache().index, 1);
+	available = 220; window.dispatchEvent(new window.Event("resize")); await settlePosition();
+	assert.deepEqual([...target.children].map((node) => node.dataset.toolbarAction), ["previous", "next"]);
+	assert.deepEqual(h.plugin.settings.searchToolbar, stored);
+	// Keyed settings reorder while elements live outside their original parent.
+	h.plugin.settings.searchToolbar = [...h.plugin.settings.searchToolbar].reverse(); h.component.refreshToolbar(); await settlePosition();
+	assert.equal(h.target.querySelectorAll('[data-toolbar-action="next"]').length, 1);
+	available = 500; window.dispatchEvent(new window.Event("resize")); await settlePosition();
+	assert.equal(target.children.length, 0); assert.equal(h.target.querySelector('[data-toolbar-action="next"]'), sameNext);
+	assert.equal(h.target.querySelectorAll('[data-toolbar-action]').length, buttons.length);
+});
 
 test("whole word toolbar toggle filters counts and synchronous replacement against the current document", async (t) => {
 	const h = mount(t); await tick();
@@ -631,7 +851,7 @@ function mountReading(t, matcher, settings = {}) {
 		updateVirtualDisplay() { if (this.target) preview.append(this.target.el); },
 		onRendered() {},
 	};
-	const view = { file: { path: "a.md" }, getMode: () => "preview", previewMode: { renderer, containerEl: preview } };
+	const view = { containerEl: target, file: { path: "a.md" }, getMode: () => "preview", previewMode: { renderer, containerEl: preview } };
 	const plugin = {
 		settings: { enableInputHotkeys: true, enableHistory: true, historyMaxCount: 10, searchHistory: [], ...settings },
 		saveSettings: async () => {},
@@ -648,6 +868,16 @@ function mountReading(t, matcher, settings = {}) {
 	scrolls.length = 0;
 	return { component, target, preview, view, sections, plugin, scrolls, renderer, search };
 }
+
+test("reading edge collapse retains pending computation and highlights without late navigation", async (t) => {
+	const matcher = delayedMatcher(), h = mountReading(t, matcher); await tick();
+	h.component.toNextMatch(); h.component.dockFinder(); await tick();
+	matcher.requests[0].resolve({ ...matchedCats, matches: [{ from: 0, to: 3, index: 0 }, { from: 4, to: 7, index: 1 }, { from: 13, to: 16, index: 2 }] });
+	await settlePosition();
+	assert.equal(h.scrolls.length, 0); assert.equal(h.component.getSearchCache().matches.length, 3);
+	assert.equal(h.component.getSearchCache().index, 0); assert.ok(window.CSS.highlights.get("nya-reading-matches").size > 0);
+	h.component.expandFinder(); await tick(); assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+});
 
 test("reading whole word control uses logical boundaries, not inline formatting boundaries", async (t) => {
 	const h = mountReading(t); await tick();

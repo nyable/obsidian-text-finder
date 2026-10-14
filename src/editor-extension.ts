@@ -28,6 +28,7 @@ export const CMD = {
 	NEXT_MATCH: "text-finder-next-match",
 	REPLACE: "text-finder-replace",
 	REPLACE_ALL: "text-finder-replace-all",
+	RESET_POSITION: "text-finder-reset-position",
 };
 
 export class EditorSearch {
@@ -154,6 +155,7 @@ export class EditorSearch {
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
 	refreshToolbars() { this.finderViews.forEach((finder) => finder.refreshToolbar()); }
+	resetFinderPositions() { this.finderViews.forEach((finder) => finder.resetFinderPosition()); }
 	openHistory() {
 		if (this.disposed) return;
 		const modal = new HistoryModal(this.plugin.app, this.plugin, () => this.historyModals.delete(modal));
@@ -294,6 +296,13 @@ export class EditorSearch {
 
 	private registerCommand() {
 		const { plugin } = this;
+		plugin.addCommand({ id: CMD.RESET_POSITION, name: i18n.t("search.tip.ResetFinderPosition"),
+			checkCallback: (checking) => {
+				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!view || !this.isViewOpen(view)) return false;
+				if (!checking) this.finderViews.get(view)?.resetFinderPosition();
+				return true;
+			} });
 		plugin.addCommand({
 			id: CMD.SHOW_FIND,
 			name: i18n.t("commands.ShowFind.name"),
