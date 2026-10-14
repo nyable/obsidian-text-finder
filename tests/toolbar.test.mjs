@@ -95,3 +95,11 @@ test("automatic edge collapse accepts only booleans and defaults off without dro
 	assert.equal(settings.finderAutoDock, true); assert.equal(settings.finderDockSide, "left");
 	assert.equal(settingsSource.normalizeSettings(settings).changed, false);
 });
+
+test("floating opening default validates booleans, migrates old settings off and is idempotent", () => {
+	for (const showFloatingFinderOnOpen of [undefined, null, "true", 1]) {
+		assert.equal(settingsSource.normalizeSettings({ showFloatingFinderOnOpen }).settings.showFloatingFinderOnOpen, false);
+	}
+	const { settings } = settingsSource.normalizeSettings({ showFloatingFinderOnOpen: true });
+	assert.equal(settings.showFloatingFinderOnOpen, true); assert.equal(settingsSource.normalizeSettings(settings).changed, false);
+});

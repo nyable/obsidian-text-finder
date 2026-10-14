@@ -74,7 +74,7 @@
     }
   },
   "settings": {
-    "Tabs": { "label": "Settings categories", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Appearance" },
+    "Tabs": { "label": "Settings categories", "general": "General", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Appearance" },
     "Appearance": {
       "colors": "Colors", "panel": "Finder", "match": "Other matches", "current": "Current match",
       "focusBorder": "Focus border", "accentStrip": "Accent strip",
@@ -108,6 +108,10 @@
     "FinderAutoDock": {
       "name": "Collapse when dragged to an edge",
       "desc": "Drag the move control near either edge and release. For near-full-width panels, drag clearly left or right; vertical movement does not collapse the finder. Replacement progress stays expanded."
+    },
+    "ShowFloatingFinderOnOpen": {
+      "name": "Show floating search entry when opening notes",
+      "desc": "Show a compact search icon when opening Markdown notes, without searching or taking focus. Click to expand or drag to move; enabling this also applies to notes already open."
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",

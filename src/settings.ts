@@ -22,6 +22,7 @@ export interface PluginSettings {
 	defaultWholeWord: boolean;
 	finderDockSide: "left" | "right";
 	finderAutoDock: boolean;
+	showFloatingFinderOnOpen: boolean;
 	appearanceColors: AppearanceColors;
 }
 
@@ -36,6 +37,7 @@ export function defaultSettings(): PluginSettings {
 		appearanceColors: {},
 		finderDockSide: "right",
 		finderAutoDock: false,
+		showFloatingFinderOnOpen: false,
 	};
 }
 
@@ -46,7 +48,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	for (const key of [
 		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
 		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
-		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord", "finderAutoDock",
+		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord", "finderAutoDock", "showFloatingFinderOnOpen",
 	] as const) {
 		if (typeof input[key] === "boolean") settings[key] = input[key];
 	}

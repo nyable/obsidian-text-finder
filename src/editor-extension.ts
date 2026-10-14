@@ -42,11 +42,27 @@ export class EditorSearch {
 	private finderEvents = new Map<MarkdownView, () => void>();
 	private disposed = false;
 	private historyModals = new Set<HistoryModal>();
+	private entryFiles = new WeakMap<MarkdownView, string>();
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
 		this.registerEvent();
 		this.registerCommand();
+		this.syncFloatingEntries();
+	}
+
+	/** Apply the opening default once per owner/file, not on every activation. */
+	syncFloatingEntries() {
+		if (this.disposed || !this.plugin.settings?.showFloatingFinderOnOpen) return;
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			const view = leaf.view;
+			if (!(view instanceof MarkdownView) || !view.file) return;
+			const path = view.file.path;
+			if (this.entryFiles.get(view) === path) return;
+			const finder = this.getFinder(view);
+			this.entryFiles.set(view, path);
+			if (!finder.isVisible()) finder.showFloatingEntry();
+		});
 	}
 
 	/**
@@ -200,6 +216,7 @@ export class EditorSearch {
 		});
 		this.finderCache.clear();
 		this.finderViews.clear();
+		this.entryFiles = new WeakMap();
 	}
 
 	/**
@@ -228,6 +245,7 @@ export class EditorSearch {
 				"active-leaf-change",
 				(leaf: WorkspaceLeaf | null) => {
 					if (!this.disposed && leaf?.view instanceof MarkdownView) {
+						this.syncFloatingEntries();
 						this.finderViews.get(leaf.view)?.matchAgain(false);
 					}
 				}
@@ -247,6 +265,7 @@ export class EditorSearch {
 		// A leaf may open a different file without becoming active again.
 		this.plugin.registerEvent(workspace.on("file-open", () => {
 			if (this.disposed) return;
+			this.syncFloatingEntries();
 			this.finderViews.forEach((finder) => finder.matchAgain(false));
 		}));
 		this.plugin.registerEvent(workspace.on("css-change", () => {
@@ -254,6 +273,7 @@ export class EditorSearch {
 		}));
 		this.plugin.registerEvent(workspace.on("layout-change", () => {
 			if (this.disposed) return;
+			this.syncFloatingEntries();
 			this.finderViews.forEach((finder, view) => {
 				if (this.isViewOpen(view)) finder.matchAgain(false);
 				else {
@@ -267,6 +287,7 @@ export class EditorSearch {
 					this.finderEvents.delete(view);
 					finder.$destroy();
 					this.finderViews.delete(view);
+					this.entryFiles.delete(view);
 					this.finderCache.forEach((cached, cid) => { if (cached === finder) this.finderCache.delete(cid); });
 				}
 			});
@@ -283,15 +304,22 @@ export class EditorSearch {
 		return selection.toString() || undefined;
 	}
 
-	private showFinder(view: MarkdownView) {
+	/** Shared by explicit find commands and clicks on automatic entries. */
+	activateFloatingFinder(view: MarkdownView): boolean {
+		if (!this.isViewOpen(view)) return false;
 		const native = this.plugin.settings.useObsidianSearchInRead;
 		if (view.getMode() === "preview" && (native || !this.canSearchReading(view))) {
 			this.finderViews.get(view)?.setVisible(false);
 			if (!native) new Notice(i18n.t("search.ReadingUnsupported"));
 			view.showSearch();
-			return;
+			return false;
 		}
-		this.getFinder(view).setVisible(true, this.selectionText(view));
+		return true;
+	}
+	private showFinder(view: MarkdownView) {
+		if (!this.activateFloatingFinder(view)) return;
+		const finder = this.getFinder(view);
+		finder.setVisible(true, finder.isDocked() ? undefined : this.selectionText(view));
 	}
 
 	private registerCommand() {
@@ -327,12 +355,11 @@ export class EditorSearch {
 			editorCallback: (editor, ctx) => {
 				const finder = this.getCommandFinder(editor, ctx);
 				if (!finder) return;
-				finder.setCollapse(false);
 				const { useSelectionAsSearch } = plugin.settings;
 				const defaultSearchText = useSelectionAsSearch
 					? editor.getSelection()
 					: "";
-				finder.setVisible(true, defaultSearchText);
+				finder.showReplace(defaultSearchText);
 			},
 		});
 		plugin.addCommand({
@@ -354,7 +381,7 @@ export class EditorSearch {
 				if (!view || !this.isViewOpen(view)) return false;
 				if (!checking) {
 					const finder = this.finderViews.get(view);
-					if (finder?.isVisible()) finder.closeFinder();
+					if (finder?.isVisible() && !finder.isDocked()) finder.closeFinder();
 					else this.showFinder(view);
 				}
 				return true;
@@ -365,7 +392,7 @@ export class EditorSearch {
 			id: CMD.TOGGLE_REPLACE,
 			name: i18n.t("commands.ToggleReplace.name"),
 			editorCallback: (editor, ctx) => {
-				this.getCommandFinder(editor, ctx)?.toggleCollapse();
+				this.getCommandFinder(editor, ctx)?.toggleReplaceFromCommand();
 			},
 		});
 

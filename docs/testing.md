@@ -28,6 +28,9 @@ git diff --check
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
 - 统一关闭入口、清空两种输入、隐藏 Escape、模式异常与保留正则／大小写／全字匹配偏好。
 - 临时移动与贴边：`finder-position.test.mjs` 覆盖 3px 直接启动、Pointer Capture／取消释放、绘制帧合并与无逐事件布局读取、左右候选确认／撤回／替换阻止、满宽避让、标记二维停留／吸附和资源释放；`search-box-dom.test.mjs` 覆盖装饰条无 tooltip 标签、箭头不承担拖动、30px／40px 标记单击／拖动区分、80% 反馈和原查询／高亮／焦点安全。`mobile-toolbar.test.mjs` 继续覆盖常驻溢出回流／More 原位。模拟不证明宿主实际跟手、触屏或安全区。
+- 移动行高／手柄：真实组件的 `real mobile branch uses equal row heights, centered top grip and original collapse arrow` 覆盖 40px 基础外高、Grid 中央手柄及无提示标签；`mobile inputs override host padding and line height without hiding multi-line content` 用模拟宿主 textarea 样式检查 border-box 30px／20px 行高／4px padding 可容纳单行及保留多行输入；`mobile center grip drags directly and cancels without making counters or close draggable` 检查直接拖动／取消／计数关闭隔离和顶部栏高度 footprint。jsdom 不测真实 scrollHeight／字体排版或系统边缘手势，不可宣称实机空输入滚动已消失。
+- 默认悬浮入口：`floating-entry.test.mjs` 覆盖默认懒创建、启用后已有笔记／同文件双分屏、新文件／视图、关闭后普通激活不重现、关闭设置不隐藏及销毁清理。真实 `search-box-dom.test.mjs` 覆盖被动入口／后台刷新／位置恢复不匹配不抢焦点、点击展开不滚动、原生委托、替换 UI 命令展开／输入保留／聚焦和迟到焦点失效；`reading-commands.test.mjs` 覆盖小图标切换不是关闭、选区不覆盖及阅读降级。`main-settings.test.mjs`／`toolbar.test.mjs` 覆盖五分类、设置归属和布尔迁移。
+- 快捷键展开聚焦：`search-box-dom.test.mjs` 的 `empty-query compact command expansion focuses only after layout with preventScroll and no ancestor panning` 用模拟几何／焦点滚动检查展开 DOM、位置和替换行先于聚焦提交，无查询中间焦点；`compact query focus is invalidated by close, re-collapse, owner changes or destruction` 覆盖迟到请求，`non-compact query opening keeps immediate focus without scrolling and still navigates real matches` 区分焦点滚动与正文导航。jsdom 不实现真实焦点滚动，不能据此宣称宿主 header 横滑已实机消失；需复测空查询的显示／切换查找和替换命令、左右停放／窄分屏／移动软键盘。
 - 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
 - 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。
 - `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
@@ -139,6 +142,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 | 隐藏与重新打开 | 关闭后 Tab／Shift+Tab 不进入隐藏控件，More 关闭；重新打开聚焦并选中查询。覆盖编辑／阅读、展开／折叠及目标移动平台 |
 | 文档安全 | 同文件双分屏独立当前项；改正文、撤销／重做、换文件／模式后不使用旧坐标；后台重算不主动滚动 |
 | 移动／贴边 | 装饰条直接拖动无长按／折叠提示，箭头只折叠替换行；拖动透明度和捕获跟随、Escape／失焦回滚；30px／40px 标记二维拖动不展开、可停正文空白并换边吸附、单击展开不唤起键盘；配置默认关闭／满宽上下移动不收起。More 原位、常驻溢出回流／排序隐藏无重复；另测软键盘、横竖屏、分屏、窗口迁移和替换计算不能收起 |
+| 默认悬浮入口／命令展开 | 常规页默认关闭；开启及重载后已有笔记显示小图标、不搜索不抢焦点、不闪出软键盘；同文件双分屏／新笔记各自入口；关闭后切回不重现、换笔记可显示；查找快捷键展开并聚焦查询、替换栏命令展开并聚焦替换输入；图标点击不唤起键盘，阅读原生偏好／不兼容回退不变。关闭设置不强制隐藏，恢复位置不激活被动入口 |
 | 全字匹配 | 对 `cat cat2 cat_name xcat cat-dog` 查找 `cat`，关闭为 5 项、开启为 2 项；开启后全部替换只改两项并可一次撤销。覆盖正则捕获、快速切换、More、默认开启／恢复、关闭重开和双分屏；另查 `中文`／`中文内容` 及 `C++`／`C++17` 的既定边界、窄宽与移动布局和实际提示范围 |
 | 关闭语义 | 各用户关闭入口一致；清空开关清两种输入但保留选项；隐藏后 Escape 无副作用；缺失／非布尔／抛错 livePreview 偏好不写模式 |
 

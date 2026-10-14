@@ -10,9 +10,9 @@ import { appearanceColors, colorKeys, resolvedAppearanceColor, type AppearanceCo
 import { openColorPicker } from "./color-picker";
 import { createSettingsSelect, type SettingsSelect } from "./settings-select";
 
-type SettingsPage = "find" | "replace" | "history" | "toolbar";
+type SettingsPage = "general" | "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
-const pages: SettingsPage[] = ["find", "replace", "history", "toolbar"];
+const pages: SettingsPage[] = ["general", "find", "replace", "history", "toolbar"];
 const actionIcons: Record<ToolbarAction, string> = {
 	regex: "regex", case: "case-sensitive", wholeWord: "whole-word", previous: "arrow-up", next: "arrow-down",
 	history: "history", replace: "replace", replaceAll: "replace-all",
@@ -21,7 +21,7 @@ const actionIcons: Record<ToolbarAction, string> = {
 let nextSettingsId = 0;
 
 export class SettingTab extends PluginSettingTab {
-	private page: SettingsPage = "find";
+	private page: SettingsPage = "general";
 	private cleanupDrag?: () => void;
 	private preview?: ToolbarPreview;
 	private previewRoot?: HTMLElement;
@@ -158,6 +158,7 @@ export class SettingTab extends PluginSettingTab {
 			.addToggle((toggle) => toggle.setValue(this.plugin.settings[key]).onChange((value) => {
 				this.plugin.settings[key] = value;
 				if (key === "finderAutoDock") this.plugin.editorSearch?.refreshToolbars();
+				if (key === "showFloatingFinderOnOpen" && value) this.plugin.editorSearch?.syncFloatingEntries();
 				if (key === "enableHistory") {
 					this.plugin.history.notify();
 					this.plugin.editorSearch?.refreshToolbars();
@@ -167,16 +168,18 @@ export class SettingTab extends PluginSettingTab {
 	}
 
 	private renderPage(root: HTMLElement) {
-		if (this.page === "find") {
+		if (this.page === "general") {
+			this.toggle(root, "showFloatingFinderOnOpen", "ShowFloatingFinderOnOpen");
+			this.toggle(root, "finderAutoDock", "FinderAutoDock");
+			new Setting(root).setName(i18n.t("search.tip.ResetFinderPosition"))
+				.addButton((button) => button.setButtonText(i18n.t("search.tip.ResetFinderPosition")).onClick(() => this.plugin.editorSearch?.resetFinderPositions()));
+		} else if (this.page === "find") {
 			this.toggle(root, "clearAfterHidden", "ClearAfterHidden");
 			this.toggle(root, "enableInputHotkeys", "EnableInputHotkeys");
 			this.toggle(root, "useSelectionAsSearch", "UseSelectionAsSearch");
 			this.toggle(root, "sourceModeWhenSearch", "SourceModeWhenSearch");
 			this.toggle(root, "moveCursorToMatch", "MoveCursorToMatch");
 			this.toggle(root, "useObsidianSearchInRead", "UseObsidianSearchInRead");
-			this.toggle(root, "finderAutoDock", "FinderAutoDock");
-			new Setting(root).setName(i18n.t("search.tip.ResetFinderPosition"))
-				.addButton((button) => button.setButtonText(i18n.t("search.tip.ResetFinderPosition")).onClick(() => this.plugin.editorSearch?.resetFinderPositions()));
 		} else if (this.page === "replace") {
 			this.toggle(root, "useEscapeCharInReplace", "UseEscapeCharInReplace");
 		} else if (this.page === "history") {

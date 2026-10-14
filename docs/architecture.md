@@ -39,6 +39,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 | 设置与共享历史 | `src/main.ts:settings`、`src/history.ts:HistoryController` |
 | 历史选择／详情 | `src/HistoryModal.svelte:selectedTexts`／`viewingItem` |
 | Finder、适配器、监听与模式观察器 | `src/editor-extension.ts:EditorSearch` 的各 Map |
+| 自动入口应用过的 owner／文件、被动入口状态 | `EditorSearch.entryFiles` WeakMap 与 `SearchBox.svelte:passiveEntry`；不持久化，同文件双分屏独立 |
 | 阅读索引、端点、请求、计时器及 Document 高亮所有权 | `src/reading-search.ts:ReadingSearch` 和文档级 `documents` WeakMap |
 
 编辑链路：输入／操作 → `setFindText()` → 原文匹配 → 校验 owner／文档／查询 → CodeMirror effect／选择／滚动。文档变化立即清旧高亮，重算后再提交新结果。依据：`src/SearchBox.svelte` 的上下文方法、`src/search-highlight.ts:textMatchMarker`。
@@ -97,6 +98,7 @@ interface PluginSettings {
   defaultWholeWord: boolean; // 新建 Finder 的初始全字匹配选项
   finderDockSide: "left" | "right"; // 历史兼容字段，无设置控件；不覆盖已有值
   finderAutoDock: boolean; // 默认 false，拖动松手自动贴边
+  showFloatingFinderOnOpen: boolean; // 默认 false，打开笔记时显示无焦点的小图标
   appearanceColors: Partial<Record<AppearanceColorKey, string>>; // 默认 {}，规范化 hex RGB/RGBA
 }
 ```
@@ -111,6 +113,9 @@ interface PluginSettings {
 - `wholeWord` 属于每视图 `SearchOptions`，不持久化当前手动值；仅持久化 `defaultWholeWord`。编辑 `queryKey()` 和阅读 `Request.key` 均包含它，Worker 请求复制完整选项，查找／替换／同步重试最终复用 `text-helper.ts:isWholeWordMatch()`。阅读在全文逻辑索引上判定，不以文本节点切分；切换只重算匹配而复用有效索引。`normalizeToolbar()` 将精确旧默认以及上一版末尾追加全字的默认布局迁移到新默认顺序；其他布局仍保留合法顺序／placement 并补齐缺失动作。无历史自定义标记，无法区分人为设置成精确旧默认与历史默认，两者均按默认迁移。
 - `createFinderPosition()` 使用独立 CSS `translate` 保留原有 transform／top／right 和公开定位接口，只在会话中保存 owner 相对位置。观察 owner／面板尺寸、所属 Window／VisualViewport 变化；拖动监听在结束、取消、隐藏、收起、销毁时清理，安全区探针和 Observer 在销毁时释放。移动不触发查找／保存；`nya-finder-position` 事件让 More／状态提示重新定位。
 - 自动贴边方向为局部会话值；历史 `finderDockSide` 保留但不再有配置控件，`finderAutoDock` 默认关闭。`finder-position.ts` 分离完整框 manual 和紧凑标记 marker／markerEdge，标记自由位置不被后台更新吸回边缘；缓存几何，pointermove 只更新最新坐标，requestAnimationFrame 合并写入 translate，pointerup 刷新最终坐标；只有布局／视口变化重新测量。无长按计时，捕获、待绘制帧、click 抑制和候选随生命周期清理；替换是否可收起由组件回调校验。`mobile-toolbar.ts` 搬移已有常驻 DOM 节点，More 不搬；`Toolbar.svelte:beforeUpdate` 数据变化前归还节点以保证 keyed 生命周期。
+- `showFloatingFinderOnOpen` 只接受布尔值，旧数据补 false。常规页启用时调用 `syncFloatingEntries()`；EditorSearch 初始化及文件／活动视图／布局事件按 owner 和文件路径去重应用，关闭 leaf 删除记录。`showFloatingEntry()` 只同步可见／收起和模式，不调用聚焦或匹配；`passiveEntry` 阻止后台刷新搜索旧查询，显式输入／导航／展开再激活。入口点击通过 `activateFloatingFinder()` 共用阅读降级，而非直接绕过宿主策略。
+- `SearchBox.svelte:focusInput()` 统一查询／替换输入焦点目标；小图标展开及替换命令等待 `tick()`，重新校正位置后使用 `focus({ preventScroll: true })`。捕获面板 intent、文件、模式和 Document 后校验，销毁或更新意图即失效；无计时器／帧监听需要额外释放。非收起态查询打开仍同步聚焦，绑定更新后仅补选中。替换入口不再先聚焦查询。
+- 移动结果栏使用左计数／中央手柄／右 `.nya-mobile-actions` 三列，`.nya-mobile-inline` 仍为原跨容器节点迁移目标，不重建 Toolbar 按钮。结果栏及单行框基础高 40px，`FinderPlacement.toolsHeight` 移动 fallback 同步为 40，优先读取实际 offsetHeight；动作换行后整个顶部栏仍被纳入可达范围，ResizeObserver 继续观察其高度。移动面板自然高度及显式输入尺寸不修改共享桌面／预览 primitives。
 - `appearanceColors` 仅接受 `focusBorder`、`accentStrip`、`matchBackground`、`matchText`、`currentMatchBackground`、`currentMatchText`。`normalizeColor()` 接受 3／4／6／8 位十六进制，展开简写并转小写、不透明 alpha 归并为 RGB；未知／非法值丢弃，旧数据缺失时补 `{}`，不产生额外样式覆盖。`src/appearance.ts` 定义键与既有公开变量映射。
 - `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
 - `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。

@@ -36,6 +36,7 @@
 | CSS highlights／Highlight／Range | 阅读高亮与定位 | 能力检测，所属 Document 注册表，普通／当前优先级；运行失败清理所有权 | `src/reading-search.ts`、`src/reading-text.ts:endpointRange()` |
 | MutationObserver／ResizeObserver／Pointer／Selection | 模式、正文、布局、工具栏拖动、阅读选区 | 多数操作使用 ownerDocument；不能由 jsdom 推定窗口／移动宿主表现 | `src/editor-extension.ts`、组件 actions、`src/settings-tab.ts` |
 | Workspace window-open／window-close／layout-change、Document style／pagehide | 跨窗口显式颜色覆盖与清理 | 按 Document 管理，不写宿主 inline 样式；旧宿主事件缺失时依赖布局扫描／owner 注册，弹窗实际注入与级联需实测 | `src/main.ts`、`src/appearance.ts` |
+| Workspace iterateAllLeaves／file-open／active-leaf-change／layout-change | 打开笔记的默认悬浮入口 | 初始化及事件扫描 Markdown owner／文件，按视图去重，不以全局编辑器替代 owner；布局未就绪或无文件不创建。自动入口不启动阅读能力探测或匹配，点击／显式查找后仍执行原生偏好和不支持降级。真实宿主事件顺序、后台标签挂载和软键盘待实测 | `src/editor-extension.ts:syncFloatingEntries()`／`activateFloatingFinder()`、`src/SearchBox.svelte:showFloatingEntry()` |
 | vanilla-colorful／Custom Elements／Shadow DOM／requestAnimationFrame | 颜色／色相／alpha 与局部草稿预览 | 工厂绑定 owner realm、清库的拖动监听，私有注册名可重载复用；jsdom 覆盖真实库键盘／拖动监听，但不证明实机触摸、弹窗定位或绘制性能 | `src/color-picker.ts`、`tools/color-picker-build.mjs`、`tests/color-picker.test.mjs` |
 | Clipboard／crypto／moment | 历史复制、ID、日期／语言 | Clipboard 使用所属 Document，失败提示；crypto 缺失可降级；语言由 moment locale 映射，英文 fallback | `src/HistoryModal.svelte`、`src/util/common-helper.ts`、`src/i18n/index.ts` |
 

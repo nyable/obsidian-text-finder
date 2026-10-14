@@ -74,7 +74,7 @@
     }
   },
   "settings": {
-    "Tabs": { "label": "设置分类", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "外观" },
+    "Tabs": { "label": "设置分类", "general": "常规", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "外观" },
     "Appearance": {
       "colors": "颜色", "panel": "查找面板", "match": "普通匹配", "current": "当前匹配",
       "focusBorder": "聚焦边框", "accentStrip": "左侧装饰条",
@@ -108,6 +108,10 @@
     "FinderAutoDock": {
       "name": "拖到边缘时自动收起",
       "desc": "拖动移动控件靠近左右边缘，松手收起。接近满宽时，明确向左或右拖动即可；上下移动不收起。替换计算期间保持展开。"
+    },
+    "ShowFloatingFinderOnOpen": {
+      "name": "打开笔记时显示悬浮搜索入口",
+      "desc": "打开 Markdown 笔记时显示收起的小搜索图标，不自动搜索或抢占焦点。单击展开，拖动调整位置；启用后也适用于已经打开的笔记。"
     },
     "EnableInputHotkeys": {
       "name": "启用输入框的快捷键",

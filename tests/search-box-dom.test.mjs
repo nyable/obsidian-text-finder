@@ -57,7 +57,9 @@ const bundle = await build({
 });
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
 const style = dom.window.document.createElement("style");
-style.textContent = componentStyles.join("\n");
+// Simulate host mobile textarea metrics before the plugin styles. jsdom does
+// not faithfully resolve specificity between separately injected stylesheets.
+style.textContent = "body.is-mobile textarea { padding: 12px 10px; line-height: 32px; min-height: 52px; height: 52px; box-sizing: content-box; }\n" + componentStyles.join("\n");
 dom.window.document.head.append(style);
 globalThis.window = dom.window;
 globalThis.document = dom.window.document;
@@ -66,7 +68,7 @@ const module = { exports: {} };
 new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
 const { SearchBox, MatchEngine, tick, Platform } = module.exports;
 
-function mount(t, matcher, settings = {}) {
+function mount(t, matcher, settings = {}, open = true) {
 	const target = document.createElement("div");
 	document.body.append(target);
 	const scrolls = [];
@@ -99,7 +101,7 @@ function mount(t, matcher, settings = {}) {
 		} },
 	} });
 	t.after(() => { component.$destroy(); target.remove(); resolve(); });
-	component.setVisible(true, "cat");
+	if (open) component.setVisible(true, "cat");
 	scrolls.length = 0;
 	return { component, target, scrolls, specs, plugin, view, resolve, saves: () => saves };
 }
@@ -110,6 +112,147 @@ const deferred = () => {
 	return { promise, resolve, reject };
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+test("automatic floating entry and background refreshes never search, scroll or take focus", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher, {}, false); await tick();
+	const input = document.createElement("input"); document.body.append(input); t.after(() => input.remove()); input.focus();
+	h.component.getSearchCache().search = "cat";
+	h.component.getSearchCache().matches = [{ from: 0, to: 3 }];
+	h.component.showFloatingEntry(); await tick();
+	assert.equal(h.component.isVisible(), true); assert.equal(h.component.isDocked(), true);
+	assert.deepEqual(h.component.getSearchCache().matches, [], "idle icon never shows old file coordinates or counts");
+	assert.equal(document.activeElement, input); assert.equal(matcher.requests.length, 0);
+	h.component.matchAgain(false); h.component.matchAgain(false); await tick();
+	h.component.resetFinderPosition(); await tick(); assert.equal(h.component.isDocked(), true);
+	assert.equal(matcher.requests.length, 0); assert.equal(h.scrolls.length, 0); assert.equal(h.specs.length, 0);
+	h.target.querySelector(".nya-dock-expand").click(); await tick();
+	assert.equal(h.component.isDocked(), false); assert.equal(matcher.requests.length, 1);
+	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
+	matcher.requests[0].resolve(matchedCats); await settlePosition(); assert.equal(h.scrolls.length, 0);
+});
+
+test("automatic entry activation can delegate to native search without expanding or focusing input", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick();
+	const input = document.createElement("input"); document.body.append(input); t.after(() => input.remove()); input.focus();
+	let calls = 0;
+	// Change the existing controller shared with the component.
+	h.component.$set({ editorSearch: { plugin: h.plugin, getEditorContext: () => null,
+		activateFloatingFinder: (owner) => { assert.equal(owner, h.view); calls++; h.component.setVisible(false); return false; } } });
+	await tick(); h.component.showFloatingEntry(); await tick();
+	h.target.querySelector(".nya-dock-expand").click(); await tick();
+	assert.equal(calls, 1); assert.equal(h.component.isVisible(), false); assert.equal(document.activeElement, input);
+});
+
+test("replace UI commands expand compact and closed sessions, preserve inputs and focus replacement", async (t) => {
+	const h = mount(t); await tick(); h.component.getSearchCache().replace = "dog";
+	h.component.setCollapse(false); h.component.dockFinder(); await tick();
+	h.component.showReplace("different selection"); await tick();
+	assert.equal(h.component.isDocked(), false); assert.equal(h.component.getSearchCache().collapse, false);
+	assert.equal(h.component.getSearchCache().search, "cat"); assert.equal(h.component.getSearchCache().replace, "dog");
+	assert.equal(document.activeElement, h.target.querySelector(".replacer textarea"));
+	h.component.dockFinder(); await tick(); h.component.toggleReplaceFromCommand(); await tick();
+	assert.equal(h.component.getSearchCache().collapse, false, "compact state must not toggle an already open replacement row off");
+	assert.equal(document.activeElement, h.target.querySelector(".replacer textarea"));
+	h.component.toggleReplaceFromCommand(); await tick(); assert.equal(h.component.getSearchCache().collapse, true);
+	h.component.toggleReplaceFromCommand(); await tick(); assert.equal(h.component.getSearchCache().collapse, false);
+	h.component.closeFinder(); await tick(); h.component.toggleReplaceFromCommand(); await tick();
+	assert.equal(h.component.isVisible(), true); assert.equal(h.component.getSearchCache().collapse, false);
+	assert.equal(document.activeElement, h.target.querySelector(".replacer textarea"));
+});
+
+test("queued replacement focus cannot override close, a newer find command, owner file or reading mode", async (t) => {
+	for (const action of ["close", "find", "file", "reading"]) {
+		const h = mount(t); await tick(); h.component.showReplace();
+		if (action === "close") h.component.closeFinder();
+		else if (action === "find") h.component.setVisible(true);
+		else if (action === "file") h.view.file = { path: "b.md" };
+		else h.view.getMode = () => "preview";
+		await tick();
+		assert.notEqual(document.activeElement, h.target.querySelector(".replacer textarea"));
+	}
+});
+
+test("empty-query compact command expansion focuses only after layout with preventScroll and no ancestor panning", async (t) => {
+	for (const target of ["search", "replace"]) {
+		const h = mount(t, undefined, {}, false); await tick();
+		const node = h.target.querySelector(".nya-finder"), query = node.querySelector("textarea"), replace = node.querySelector(".replacer textarea");
+		h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600 });
+		node.getBoundingClientRect = () => {
+			const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+			const width = node.classList.contains("nya-finder--docked") ? 30 : 448;
+			return { left: 752 - width + x, top: 88 + y, right: 752 + x, bottom: 126 + y, width, height: 38 };
+		};
+		h.target.scrollLeft = 23; h.target.scrollTop = 37;
+		const header = document.createElement("header"); h.target.prepend(header);
+		h.component.showFloatingEntry(); await tick();
+		const input = target === "search" ? query : replace, nativeFocus = input.focus;
+		const queryFocus = target === "replace" ? t.mock.method(query, "focus", query.focus) : null;
+		const focus = t.mock.method(input, "focus", function(options) {
+			// jsdom does not implement focus scrolling. Model its possible ancestor
+			// effect, and separately assert layout is already committed at this call.
+			if (!options?.preventScroll) { h.target.scrollLeft = 400; h.target.scrollTop = 0; }
+			assert.equal(node.querySelector(".nya-dock-tab"), null, "expanded DOM is committed before input focus");
+			assert.equal(input.tabIndex >= 0, true);
+			const box = node.getBoundingClientRect(); assert.ok(box.left >= 8 && box.right <= 792, "placement is corrected before focus");
+			if (target === "replace") assert.equal(node.querySelector(".replacer").style.display, "");
+			return nativeFocus.call(this, options);
+		});
+		if (target === "search") h.component.setVisible(true); else h.component.showReplace();
+		assert.equal(focus.mock.calls.length, 0, "compact expansion waits for layout");
+		await tick();
+		assert.equal(focus.mock.calls.length, 1); assert.deepEqual(focus.mock.calls[0].arguments, [{ preventScroll: true }]);
+		assert.equal(queryFocus?.mock.calls.length ?? 0, 0, "replacement command never focuses query first");
+		assert.equal(document.activeElement, input); assert.equal(h.target.scrollLeft, 23); assert.equal(h.target.scrollTop, 37);
+		assert.equal(h.scrolls.length, 0, "empty query never invokes match navigation");
+		assert.equal(h.target.querySelector("header"), header);
+	}
+});
+
+test("compact query focus is invalidated by close, re-collapse, owner changes or destruction", async (t) => {
+	for (const action of ["close", "dock", "file", "mode", "document", "destroy"]) {
+		const h = mount(t, undefined, {}, false); await tick(); h.component.showFloatingEntry(); await tick();
+		const input = h.target.querySelector("textarea"), focus = t.mock.method(input, "focus", input.focus);
+		h.component.setVisible(true);
+		if (action === "close") h.component.setVisible(false);
+		else if (action === "dock") h.component.dockFinder();
+		else if (action === "file") h.view.file = { path: "other.md" };
+		else if (action === "mode") h.view.getMode = () => "preview";
+		else if (action === "document") {
+			const foreign = new JSDOM("<!doctype html><body></body>"); t.after(() => foreign.window.close());
+			foreign.window.document.body.append(foreign.window.document.adoptNode(h.target));
+		} else h.component.$destroy();
+		await tick(); assert.equal(focus.mock.calls.length, 0, action);
+	}
+});
+
+test("non-compact query opening keeps immediate focus without scrolling and still navigates real matches", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick();
+	const input = h.target.querySelector("textarea"), focus = t.mock.method(input, "focus", input.focus);
+	h.component.setVisible(true, "cat");
+	assert.equal(document.activeElement, input); assert.equal(focus.mock.calls.length, 1);
+	assert.deepEqual(focus.mock.calls[0].arguments, [{ preventScroll: true }]);
+	assert.ok(h.scrolls.length > 0, "preventScroll applies to focus, not intentional match navigation");
+	await tick(); assert.equal(input.selectionStart, 0); assert.equal(input.selectionEnd, 3);
+});
+
+test("new replacement intent supersedes queued compact query focus and selects only the replacement text", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick(); h.component.getSearchCache().replace = "dog";
+	h.component.showFloatingEntry(); await tick();
+	const query = h.target.querySelector("textarea"), replace = h.target.querySelector(".replacer textarea");
+	const queryFocus = t.mock.method(query, "focus", query.focus), replaceFocus = t.mock.method(replace, "focus", replace.focus);
+	h.component.setVisible(true, "cat"); h.component.showReplace(); await tick();
+	assert.equal(queryFocus.mock.calls.length, 0); assert.equal(replaceFocus.mock.calls.length, 1);
+	assert.deepEqual(replaceFocus.mock.calls[0].arguments, [{ preventScroll: true }]);
+	assert.equal(document.activeElement, replace); assert.equal(replace.selectionStart, 0); assert.equal(replace.selectionEnd, 3);
+});
+
+test("replacement UI commands do not open or change a reading-mode entry", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick(); h.view.getMode = () => "preview";
+	h.component.showFloatingEntry(); await tick(); const before = structuredClone(h.component.getSearchCache());
+	h.component.showReplace("other"); h.component.toggleReplaceFromCommand(); await tick();
+	assert.equal(h.component.isDocked(), true); assert.deepEqual(h.component.getSearchCache(), before);
+	assert.notEqual(document.activeElement, h.target.querySelector(".replacer textarea"));
+});
 
 test("edge collapse retains session, highlights and replace expansion without closing or input focus", async (t) => {
 	const h = mount(t, undefined, { clearAfterHidden: true }); await tick();
@@ -215,7 +358,7 @@ test("finder placement handle supports keyboard movement/reset, owner isolation 
 	assert.equal(node.style.translate, "0px 0px");
 });
 
-test("real mobile branch merges move handle into result bar and keeps original collapse arrow", async (t) => {
+test("real mobile branch uses equal row heights, centered top grip and original collapse arrow", async (t) => {
 	Platform.isMobile = true; document.body.classList.add("is-mobile");
 	const h = mount(t, undefined, { finderDockSide: "left" }); await tick();
 	Platform.isMobile = false;
@@ -223,7 +366,21 @@ test("real mobile branch merges move handle into result bar and keeps original c
 	assert.ok(h.target.querySelector(".nya-mobile")); assert.ok(h.target.querySelector(".nya-float-act"));
 	assert.equal(h.target.querySelector(".nya-panel-tools"), null);
 	assert.ok(h.target.querySelector(".nya-float-act .nya-move-handle")); assert.ok(h.target.querySelector(".nya-toggle"));
-	assert.equal(window.getComputedStyle(h.target.querySelector(".nya-float-act")).minHeight, "28px");
+	const bar = h.target.querySelector(".nya-float-act"), handle = bar.querySelector(".nya-move-handle");
+	const barStyle = window.getComputedStyle(bar), handleStyle = window.getComputedStyle(handle);
+	assert.equal(barStyle.minHeight, "40px"); assert.equal(barStyle.boxSizing, "border-box");
+	assert.equal(barStyle.display, "grid"); assert.equal(barStyle.gridTemplateColumns, "minmax(0, 1fr) 72px minmax(0, 1fr)");
+	assert.equal(handleStyle.gridColumn, "2"); assert.equal(handleStyle.alignSelf, "start");
+	assert.equal(handleStyle.width, "72px"); assert.equal(handleStyle.height, "30px");
+	assert.equal(handle.querySelector(".nya-move-bar").getAttribute("aria-hidden"), "true");
+	assert.equal(handle.getAttribute("aria-label"), null); assert.equal(handle.getAttribute("title"), null);
+	assert.ok(document.getElementById(handle.getAttribute("aria-labelledby")));
+	assert.equal(window.getComputedStyle(bar.querySelector(".nya-mobile-actions")).gridColumn, "3");
+	const panelStyle = window.getComputedStyle(h.target.querySelector(".nya-finder"));
+	const rowStyle = window.getComputedStyle(h.target.querySelector(".finder"));
+	assert.equal(panelStyle.height, "auto"); assert.equal(panelStyle.boxSizing, "border-box");
+	// The shared surface adds two 1px outer borders (theme color is unresolved in jsdom).
+	assert.equal(parseFloat(rowStyle.minHeight) + 2, parseFloat(barStyle.minHeight));
 	h.component.dockFinder(); await tick();
 	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).display, "none");
 	assert.equal(window.getComputedStyle(h.target.querySelector(".nya-finder")).height, "40px");
@@ -232,6 +389,58 @@ test("real mobile branch merges move handle into result bar and keeps original c
 	assert.notEqual(document.activeElement, h.target.querySelector("textarea"));
 	h.component.dockFinder("right"); await tick();
 	assert.equal(h.target.querySelector(".nya-finder--dock-left"), null);
+});
+
+test("mobile inputs override host padding and line height without hiding multi-line content", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	const h = mount(t, undefined, {}, false); Platform.isMobile = false; await tick();
+	h.component.setVisible(true, ""); h.component.setCollapse(false); await tick();
+	for (const input of h.target.querySelectorAll("textarea")) {
+		const css = window.getComputedStyle(input);
+		assert.equal(css.boxSizing, "border-box"); assert.equal(css.height, "30px"); assert.equal(css.minHeight, "0");
+		assert.equal(css.lineHeight, "20px"); assert.equal(css.fontSize, "16px");
+		assert.equal(css.paddingTop, "4px"); assert.equal(css.paddingBottom, "4px");
+		assert.equal(parseFloat(css.height) - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom)
+			- parseFloat(css.borderTopWidth) - parseFloat(css.borderBottomWidth), parseFloat(css.lineHeight), "one empty/single line fits the content box exactly");
+		assert.equal(css.overflow, "auto"); assert.equal(css.overscrollBehavior, "contain");
+		assert.equal(input.rows, 1); assert.equal(input.getAttribute("wrap"), "off");
+		input.value = "cat\ncat"; input.dispatchEvent(new window.Event("input", { bubbles: true })); await tick();
+		assert.equal(input.value, "cat\ncat"); assert.equal(window.getComputedStyle(input).overflow, "auto");
+	}
+	assert.equal(h.component.getSearchCache().search, "cat\ncat"); assert.equal(h.component.getSearchCache().replace, "cat\ncat");
+	h.component.setCollapse(true); await tick();
+	assert.equal(window.getComputedStyle(h.target.querySelector(".finder")).minHeight, "38px");
+});
+
+test("mobile center grip drags directly and cancels without making counters or close draggable", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	const h = mount(t); Platform.isMobile = false; await tick();
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	const node = h.target.querySelector(".nya-finder"), bar = node.querySelector(".nya-float-act"), handle = bar.querySelector(".nya-move-handle");
+	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 400, bottom: 650, width: 400, height: 650 });
+	Object.defineProperty(bar, "offsetHeight", { configurable: true, get: () => 40 });
+	node.getBoundingClientRect = () => {
+		const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+		return { left: 40 + x, top: 100 + y, right: 360 + x, bottom: 140 + y, width: 320, height: 40 };
+	};
+	window.dispatchEvent(new window.Event("resize"));
+	const before = node.style.translate;
+	for (const control of [bar.querySelector(".nya-float-tip"), bar.querySelector(".nya-mobile-close")]) {
+		sendPointer(control, "pointerdown", 200, 100); sendPointer(document, "pointermove", 220, 150); sendPointer(document, "pointerup", 220, 150);
+		assert.equal(node.style.translate, before); assert.equal(node.classList.contains("nya-finder--dragging"), false);
+	}
+	sendPointer(handle.querySelector(".nya-move-bar"), "pointerdown", 200, 70); sendPointer(document, "pointermove", 220, 120);
+	assert.equal(node.style.translate, "20px 50px"); assert.equal(window.getComputedStyle(node).opacity, "0.8");
+	sendPointer(document, "pointercancel", 220, 120);
+	assert.equal(node.style.translate, before); assert.equal(node.classList.contains("nya-finder--dragging"), false);
+	sendPointer(handle, "pointerdown", 200, 70); sendPointer(document, "pointermove", 210, 90); sendPointer(document, "pointerup", 210, 90);
+	assert.equal(node.style.translate, "10px 20px"); assert.equal(h.component.isDocked(), false);
+	// A taller result bar (wrapped actions) remains inside the reachable footprint.
+	Object.defineProperty(bar, "offsetHeight", { configurable: true, get: () => 68 });
+	window.dispatchEvent(new window.Event("resize"));
+	sendPointer(handle, "pointerdown", 200, 70); sendPointer(document, "pointermove", 200, -500); sendPointer(document, "pointerup", 200, -500);
+	assert.equal(node.getBoundingClientRect().top, 76, "68px wrapped result bar stays below the 8px owner inset");
 });
 
 test("position controller follows adopted owner documents and releases old window listeners", async (t) => {

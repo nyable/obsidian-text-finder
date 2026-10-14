@@ -56,6 +56,12 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   In editing mode, use “Open search & replace in current file” for replacements. Press Escape or the close button to hide the finder.
 -   All closing commands use the same behavior. Queries and regex/match-case/whole-word options are retained by default; “Clear search and replacement text” clears both inputs, not the options. Escape has no finder effect while it is hidden.
 
+## General settings and floating search entry
+
+- General settings includes “Show floating search entry when opening notes”, off by default. When enabled, existing and newly opened Markdown notes show a compact search icon without searching, scrolling, taking focus or opening the keyboard. Split views have independent entries.
+- Clicking the icon expands without focusing an input. Show/Toggle Find commands expand and focus the query, retaining existing inputs and options. Open Find and Replace/Toggle Replace commands open the full panel and show the replacement row from a closed or compact state, focusing the replacement input; normal toggling applies when the panel is already expanded.
+- Closing an entry keeps it closed when switching back to that tab; opening another note can show it again. Existing expanded panels are not forced to collapse. Disabling the setting only stops future automatic display. Reading-mode native preferences and compatibility fallback remain unchanged; replacement commands never switch a reading view to editing.
+
 ## Whole-word matching
 
 - Toggle “Match whole word” beside the regex and match-case controls. It is off by default and applies to editing search, reading search and editing replacements; it can be combined with regex.
@@ -66,11 +72,12 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 
 ## Move or collapse the finder
 
-- On desktop, drag the left accent strip directly in either editing or reading mode. The replace-fold arrow only folds the replace row. On mobile, use the grip in the result/close bar. Movement starts after about 3px without holding; dragging fades the finder to 80% opacity, and release/cancel restores it. Move controls use accessible names without hover tooltips.
-- Enable “Collapse when dragged to an edge” in Find settings (off by default). Drag near either edge and release; a near-full-width finder instead requires a clear horizontal drag, so vertical movement does not collapse it. The compact search marker is 30px on desktop and 40px on mobile. Drag it freely in both directions: release near an edge to snap there, or elsewhere to leave it compact at that position. Dragging does not expand it; click to expand without opening the keyboard. Its context menu offers close/reset; Escape and close commands retain their normal behavior.
+- On desktop, drag the left accent strip directly in either editing or reading mode. The replace-fold arrow only folds the replace row. On mobile, use the short horizontal grip at the top center of the result bar; its drag area is larger than the visible grip and avoids the side edges. Movement starts after about 3px without holding; dragging fades the finder to 80% opacity, and release/cancel restores it. Move controls use accessible names without hover tooltips.
+- Enable “Collapse when dragged to an edge” in General settings (off by default). Drag near either edge and release; a near-full-width finder instead requires a clear horizontal drag, so vertical movement does not collapse it. The compact search marker is 30px on desktop and 40px on mobile. Drag it freely in both directions: release near an edge to snap there, or elsewhere to leave it compact at that position. Dragging does not expand it; click to expand without opening the keyboard. Its context menu offers close/reset; Escape and close commands retain their normal behavior.
 - Queries, options, current match, replace-row state and highlights remain active while collapsed. Replacement calculation cannot auto-collapse; replacement commands first expand the finder to show progress. Full-width expansion is centered at the chosen height. No collapse on scroll, mouse leave or resize.
 - Mobile More stays beside the input. Only inline actions that do not fit move to the result bar, preserving their order and settings; they return when space allows. The result bar may wrap rather than clip controls.
-- Arrow keys on the move control shift 8px (Shift: 32px), Home resets. “Restore finder position” is also available in commands (current view) and Find settings (existing views). Positions are session-only and bounded by the note view and visible viewport.
+- The mobile result bar and single-row search panel share a consistent base height. Search/replacement inputs have explicit line height and padding while retaining scrolling for multiline or long text instead of hiding content.
+- Arrow keys on the move control shift 8px (Shift: 32px), Home resets. “Restore finder position” is also available in commands (current view) and General settings (existing views). Positions are session-only and bounded by the note view and visible viewport.
 
 ## Reading-mode search
 

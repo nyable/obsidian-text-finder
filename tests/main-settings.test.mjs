@@ -101,6 +101,18 @@ test("finder automatic edge setting defaults off and refreshes views; reset need
 	tab.containerEl.querySelector('[data-name="search.tip.ResetFinderPosition"] button').click(); assert.equal(resets, 1);
 	p.onunload();
 });
+
+test("floating entry setting defaults off, saves and only enabling applies it to existing notes", async () => {
+	const p = plugin(null); await p.onload(); let syncs = 0;
+	p.editorSearch = { syncFloatingEntries: () => syncs++, destoryAll() {} };
+	const tab = tabs.at(-1); tab.display();
+	assert.equal(p.settings.showFloatingFinderOnOpen, false);
+	fields.get("settings.ShowFloatingFinderOnOpen.name").change(true); await p.flushSettings();
+	assert.equal(p.writes.at(-1).showFloatingFinderOnOpen, true); assert.equal(syncs, 1);
+	fields.get("settings.ShowFloatingFinderOnOpen.name").change(false); await p.flushSettings();
+	assert.equal(p.writes.at(-1).showFloatingFinderOnOpen, false); assert.equal(syncs, 1);
+	p.onunload();
+});
 function resetSection(section) {
 	section.querySelector('.nya-settings-section-reset').click();
 }
@@ -295,13 +307,17 @@ test("settings toggles and sort changes save through the queue and notify subscr
 	unsubscribe();
 });
 
-test("four settings tabs isolate features, include reading preference in Find and support keyboard navigation", async () => {
+test("five settings tabs isolate General, include reading preference in Find and support keyboard navigation", async () => {
 	const p = plugin(null); await p.onload();
 	const tab = tabs.at(-1); tab.display();
 	const root = tab.containerEl;
-	assert.equal(root.querySelectorAll('[role="tab"]').length, 4);
+	assert.equal(root.querySelectorAll('[role="tab"]').length, 5);
 	const names = () => [...root.querySelectorAll('[data-name]')].map((el) => el.dataset.name);
+	assert.equal(root.querySelector('[role="tab"][aria-selected="true"]').id, "nya-settings-tab-general");
+	assert.deepEqual(names(), ["settings.ShowFloatingFinderOnOpen.name", "settings.FinderAutoDock.name", "search.tip.ResetFinderPosition"]);
+	root.querySelector('#nya-settings-tab-general').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 	assert.ok(names().includes("settings.UseObsidianSearchInRead.name"));
+	assert.ok(!names().includes("settings.FinderAutoDock.name"));
 	assert.ok(!names().includes("settings.EnableHistory.name"));
 	root.querySelector('#nya-settings-tab-find').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 	assert.deepEqual(names(), ["settings.UseEscapeCharInReplace.name"]);

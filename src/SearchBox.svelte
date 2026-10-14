@@ -3,7 +3,7 @@
 		X,
 		ChevronDown,
 		ChevronRight,
-		GripVertical, Search,
+		Search,
 	} from "lucide-svelte";
 	import type { EditorSearch } from "./editor-extension";
 	import { searchCacheEffect } from "./search-highlight";
@@ -57,6 +57,8 @@
 	let positionRequest = 0;
 	let disposed = false;
 	let docked = false;
+	// An automatically shown entry is not an active search session yet.
+	let passiveEntry = false;
 	let panelIntent = 0;
 	let dockSide: "left" | "right" = editorSearch?.plugin.settings.finderDockSide ?? "right";
 	let placement: ReturnType<typeof createFinderPosition> | undefined;
@@ -114,10 +116,12 @@
 	const isMobile = Platform.isMobile;
 	const iconSize = 18;
 	let searchEl: HTMLTextAreaElement;
+	let replaceEl: HTMLTextAreaElement;
 	let finderEl: HTMLDivElement;
 	const syncFinderVisibility = () => {
 		if (!finderEl) return;
-		// Update synchronously: opening selects the input before Svelte's next flush.
+		// Clear hidden/inert state synchronously; compact expansion focuses only
+		// after Svelte has rendered the expanded controls and corrected placement.
 		finderEl.style.visibility = cache.visible ? "visible" : "hidden";
 		const focused = finderEl.ownerDocument.activeElement;
 		if (!cache.visible && focused && finderEl.contains(focused)) (focused as HTMLElement).blur();
@@ -132,7 +136,7 @@
 		refreshPlacement?.(placementState());
 	};
 	const placementState = (): FinderPlacement => ({ visible: cache.visible, docked, side: dockSide,
-		toolsHeight: isMobile ? (finderEl?.querySelector<HTMLElement>(".nya-float-act")?.offsetHeight || 28) : 0, autoDock });
+		toolsHeight: isMobile ? (finderEl?.querySelector<HTMLElement>(".nya-float-act")?.offsetHeight || 40) : 0, autoDock });
 	function guardHiddenFocus(node: HTMLElement) {
 		// Reject late focus requests as well as removing hidden controls from Tab order.
 		const guard = (event: FocusEvent) => {
@@ -171,15 +175,19 @@
 		void tick().then(() => {
 			if (!disposed && panelIntent === intent && cache.visible && docked) {
 				refreshPlacement?.(placementState());
-				finderEl.querySelector<HTMLButtonElement>(".nya-dock-expand")?.focus();
+				finderEl.querySelector<HTMLButtonElement>(".nya-dock-expand")?.focus({ preventScroll: true });
 			}
 		});
 		return true;
 	}
 	export function expandFinder() {
 		if (!cache.visible || disposed) return;
+		if (passiveEntry && editorSearch.activateFloatingFinder?.(ownerView) === false) return;
+		const activate = passiveEntry;
+		passiveEntry = false;
 		const intent = ++panelIntent;
 		docked = false; syncFinderVisibility();
+		if (activate) setFindText(cache.search, false);
 		void tick().then(() => { if (!disposed && panelIntent === intent && cache.visible && !docked) refreshPlacement?.(placementState()); });
 		// Do not focus/select the query: tapping the edge tab must not open a keyboard.
 	}
@@ -187,9 +195,26 @@
 		expandFinder();
 		const intent = panelIntent;
 		void tick().then(() => {
-			if (!disposed && panelIntent === intent && cache.visible && !docked) finderEl.querySelector<HTMLElement>(isMobile ? ".nya-move-handle" : ".nya-dragger")?.focus();
+			if (!disposed && panelIntent === intent && cache.visible && !docked) finderEl.querySelector<HTMLElement>(isMobile ? ".nya-move-handle" : ".nya-dragger")?.focus({ preventScroll: true });
 		});
 	};
+
+	export function showFloatingEntry() {
+		if (disposed || cache.visible) return;
+		// Hidden sessions can retain old coordinates; an idle icon must not display
+		// those results for a newly opened file or resume an earlier computation.
+		cancelEditing(); positionRequest++; readingRequest++;
+		cache.matches = []; cache.index = 0; matchedContext = null;
+		readingPending = false; readingUnsupported = false; readingError = undefined;
+		workerError = false; replacementCommittedError = false;
+		passiveEntry = true;
+		cache.visible = true;
+		docked = true;
+		readingMode = isReading();
+		panelIntent++;
+		syncFinderVisibility();
+		// Unlike dockFinder(), do not focus the marker or initiate matching.
+	}
 	const expandFromClick = (event: MouseEvent) => { if (!placement?.consumeClick(event)) expandFromTab(); };
 	const dockMenu = (event: MouseEvent) => {
 		event.preventDefault();
@@ -207,7 +232,7 @@
 		return { update(next: boolean) { enabled = next; }, destroy() { node.removeEventListener("pointerdown", start); node.removeEventListener("contextmenu", context); } };
 	}
 	$: if (finderEl) syncFinderVisibility();
-	export function resetFinderPosition() { if (docked) expandFinder(); placement?.reset(); }
+	export function resetFinderPosition() { if (docked && !passiveEntry) expandFinder(); placement?.reset(); }
 	const moveFinderKey = (event: KeyboardEvent) => {
 		if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
 		const step = event.shiftKey ? 32 : 8;
@@ -299,13 +324,38 @@
 		return cache;
 	}
 
+	function focusInput(target: "search" | "replace", afterLayout: boolean) {
+		const intent = panelIntent, file = ownerView.file, reading = isReading();
+		const doc = finderEl?.ownerDocument;
+		const current = () => !disposed && panelIntent === intent && cache.visible && !docked
+			&& ownerView.file === file && isReading() === reading && finderEl?.ownerDocument === doc
+			&& ownerView.containerEl?.ownerDocument === doc && (target !== "replace" || (!reading && !cache.collapse));
+		const focus = () => {
+			if (!current()) return;
+			if (afterLayout) refreshPlacement?.(placementState());
+			if (!current()) return;
+			const input = target === "replace" ? replaceEl : searchEl;
+			if (!input?.isConnected || input.ownerDocument !== doc) return;
+			input.focus({ preventScroll: true });
+			const select = () => { if (current() && doc?.activeElement === input) input.select(); };
+			select();
+			// Immediate opening may supply a new query before bind:value flushes.
+			// Reselect that rendered value, without issuing another focus request.
+			if (!afterLayout) void tick().then(select);
+		};
+		if (afterLayout) void tick().then(focus); else focus();
+	}
+
 	export function setVisible(
 		flag: boolean,
 		searchText?: string,
 		historyIndexOverride?: number,
+		focusTarget: "search" | "replace" = "search",
 	) {
 		edgeMenu?.hide();
+		const wasDocked = docked;
 		positionRequest++;
+		passiveEntry = false;
 		docked = false;
 		panelIntent++;
 		cache.visible = flag;
@@ -313,8 +363,7 @@
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
 			setFindText(searchText !== undefined ? searchText : cache.search);
-			searchEl.focus();
-			searchEl.select();
+			focusInput(focusTarget, wasDocked || focusTarget === "replace");
 			if (historyIndexOverride !== undefined) historyNavigation.select(cache.search, getSortedHistory());
 			else historyNavigation.reset();
 		} else {
@@ -354,6 +403,22 @@
 		cache.collapse = isReading() ? true : flag;
 	}
 
+	export function showReplace(searchText?: string) {
+		if (disposed || isReading()) return;
+		// Expanding a compact session must not replace its query with a selection.
+		const query = docked ? undefined : searchText;
+		setCollapse(false);
+		// Focus the replacement input directly, never the query as an intermediate
+		// target (which could scroll ancestors or briefly open the wrong keyboard).
+		setVisible(true, query, undefined, "replace");
+	}
+
+	export function toggleReplaceFromCommand() {
+		if (disposed || isReading()) return;
+		if (!cache.visible || docked) showReplace();
+		else toggleCollapse();
+	}
+
 	export function resetAll() {
 		cancelEditing();
 		positionRequest++;
@@ -370,6 +435,7 @@
 		cache.index = 0;
 		cache.matches = [];
 		cache.visible = false;
+		passiveEntry = false;
 		docked = false;
 		panelIntent++;
 		syncFinderVisibility();
@@ -383,7 +449,7 @@
 	}
 
 	export function toggleVisible() {
-		if (cache.visible) closeFinder();
+		if (cache.visible && !docked) closeFinder();
 		else setVisible(true);
 	}
 
@@ -394,6 +460,7 @@
 	export function isVisible() {
 		return cache.visible;
 	}
+	export function isDocked() { return docked; }
 
 	const onSearchChanged = (e: Event) => {
 		historyNavigation.reset();
@@ -447,19 +514,19 @@
 	};
 	export const toggleRegexMode = () => {
 		cache.options.regexMode = !cache.options.regexMode;
-		searchEl.focus();
+		searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
 	export const toggleMatchCaseMode = () => {
 		cache.options.caseSensitive = !cache.options.caseSensitive;
-		searchEl.focus();
+		searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
 	export const toggleWholeWordMode = () => {
 		cache.options.wholeWord = !cache.options.wholeWord;
-		searchEl.focus();
+		searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
@@ -519,6 +586,7 @@
 		// Host editor-change/layout events can fire synchronously during our commit.
 		// They must not cancel post-commit matching, or replay the edit.
 		if (replacementTask?.committing) return;
+		passiveEntry = false;
 		if (replacementTask && !scroll && text === cache.search && replacementCurrent(replacementTask)) return;
 		if (replacementTask) cancelEditing();
 		replacementRetry = null; replacementCommittedError = false;
@@ -1019,6 +1087,7 @@
 
 	export const matchAgain = (scroll = true) => {
 		syncFinderVisibility();
+		if (passiveEntry) { readingMode = isReading(); return; }
 		if (replacementTask?.committing || (!scroll && replacementTask && replacementCurrent(replacementTask))) return;
 		const { search } = cache;
 		if (cache.visible) {
@@ -1062,7 +1131,7 @@
 	class:nya-finder--custom-toolbar={customToolbar}
 	class:nya-finder--docked={docked}
 	class:nya-finder--dock-left={dockSide === "left"}
-	use:positionFinder={{ visible: cache.visible, docked, side: dockSide, toolsHeight: isMobile ? 28 : 0, autoDock }}
+	use:positionFinder={{ visible: cache.visible, docked, side: dockSide, toolsHeight: isMobile ? 40 : 0, autoDock }}
 	use:alignRows={[isCollapsed, customToolbar, searchToolbar, replaceToolbar]}
 >
 	<SearchStatus visible={expanded} pending={readingPending} unsupported={readingUnsupported}
@@ -1127,10 +1196,10 @@
 			/>
 			{#if isMobile}
 				<div class="nya-float-act">
-					<button type="button" class="nya-move-handle nya-btn nya-focus" tabindex={commonTabIndex}
+					<button type="button" class="nya-move-handle nya-focus" tabindex={commonTabIndex}
 						aria-labelledby={`nya-move-label-${cid}`} use:dragToMove={expanded} on:keydown={moveFinderKey}>
 						<span id={`nya-move-label-${cid}`} class="nya-move-help">{i18n.t("search.tip.MoveFinder")}</span>
-						<GripVertical size={iconSize} aria-hidden="true" />
+						<span class="nya-move-bar" aria-hidden="true"></span>
 					</button>
 					<div class="nya-float-tip">
 						{#if readingPending || readingUnsupported || readingError}
@@ -1148,17 +1217,19 @@
 							</div>
 						{/if}
 					</div>
-					<div class="nya-mobile-inline" bind:this={mobileInlineTarget}></div>
-					<div
-						class="nya-btn nya-focus"
-						class:nya-mobile-close={isMobile}
-						on:click={closeFinder}
-						role="button"
-						tabindex={commonTabIndex}
-						on:keydown={defaultEnterEvent}
-						aria-label={i18n.t("search.tip.Close")}
-					>
-						<X size={iconSize} />
+					<div class="nya-mobile-actions">
+						<div class="nya-mobile-inline" bind:this={mobileInlineTarget}></div>
+						<div
+							class="nya-btn nya-focus"
+							class:nya-mobile-close={isMobile}
+							on:click={closeFinder}
+							role="button"
+							tabindex={commonTabIndex}
+							on:keydown={defaultEnterEvent}
+							aria-label={i18n.t("search.tip.Close")}
+						>
+							<X size={iconSize} />
+						</div>
 					</div>
 				</div>
 			{:else}
@@ -1199,6 +1270,7 @@
 		</div>
 		<div class="replacer" style={isCollapsed ? "display: none" : ""}>
 			<textarea
+				bind:this={replaceEl}
 				use:trackComposition
 				wrap="off"
 				autocorrect="off"
@@ -1376,12 +1448,21 @@
 
 	:global(.is-mobile) {
 		.nya-finder.nya-mobile {
+			box-sizing: border-box;
+			height: auto;
 			min-width: 0;
 			max-width: min(416px, var(--nya-available-width, calc(100vw - 16px)));
 			width: 100%;
 			right: 50%;
 			transform: translateX(50%);
 			&.nya-finder--docked { width: 40px !important; height: 40px; }
+			.main-part {
+				height: auto; padding: 0; gap: 0;
+				.finder, .replacer {
+					box-sizing: border-box; min-height: 38px; padding: 4px 0;
+					margin: 0; align-items: center;
+				}
+			}
 			.nya-tip {
 				background-color: var(--background-primary);
 				top: -22px;
@@ -1398,21 +1479,32 @@
 				background-color: var(--background-primary);
 				bottom: 100%; left: -1px; top: auto;
 				position: absolute;
-				right: 0px;
+				right: -1px;
 				border-radius: 4px 4px 0 0;
 				border: 1px solid var(--modal-border-color);
-				min-height: 28px;
+				box-sizing: border-box; min-height: 40px; padding: 4px;
 				height: auto;
-				display: flex;
-				flex-direction: row;
-				flex-wrap: wrap;
-				justify-content: flex-end;
+				display: grid;
+				grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
 				align-items: center;
-				.nya-move-handle { border: 0; box-shadow: none; background: transparent; color: var(--text-normal); cursor: grab; flex-shrink: 0; }
+				.nya-move-handle {
+					grid-column: 2; grid-row: 1; align-self: start;
+					box-sizing: border-box; width: 72px; height: 30px; min-height: 0;
+					margin: 0; padding: 4px 0 0; display: flex; align-items: flex-start; justify-content: center;
+					border: 0; border-radius: 4px; box-shadow: none; background: transparent;
+					color: var(--text-muted); cursor: grab;
+					&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+				}
+				.nya-move-bar { width: 32px; height: 4px; border-radius: 2px; background: currentColor; pointer-events: none; }
+				.nya-mobile-actions {
+					grid-column: 3; grid-row: 1; min-width: 0; display: flex;
+					justify-content: flex-end; align-items: center; flex-wrap: wrap;
+					> .nya-btn { flex-shrink: 0; }
+				}
 				.nya-mobile-inline { display: flex; flex-wrap: wrap; align-items: center; min-width: 0; }
-				.nya-mobile-inline { flex-shrink: 1; max-width: calc(100% - 56px); }
-				> .nya-btn { flex-shrink: 0; }
+				.nya-mobile-inline { flex-shrink: 1; max-width: calc(100% - 28px); }
 				.nya-float-tip {
+					grid-column: 1; grid-row: 1;
 					display: flex;
 					align-items: center;
 					font-size: 12px;
@@ -1428,17 +1520,24 @@
 			}
 
 			.nya-input {
-				min-width: 0;
+				box-sizing: border-box; min-width: 0; min-height: 0;
+				height: 30px; margin: 0; padding: 4px 6px;
+				font-family: var(--font-interface); font-size: 16px; line-height: 20px;
+				border-width: 1px; border-style: solid; border-color: var(--background-modifier-border);
+				overflow: auto; overscroll-behavior: contain;
+				&:focus { border-color: var(--nya-focus-border-color); }
 				&::-webkit-scrollbar {
 					display: none;
 				}
 			}
 			.finder-act {
+				height: 30px;
 				min-width: unset;
 				width: auto;
 				flex-shrink: 0;
 			}
 			.replacer-act {
+				height: 30px;
 				min-width: unset;
 				width: 112px;
 				justify-content: flex-start;

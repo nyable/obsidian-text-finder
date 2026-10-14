@@ -31,6 +31,7 @@ function environment() {
 	const commands = new Map();
 	view.showSearch = () => calls.push(["native"]);
 	const finder = {
+		isDocked: () => false,
 		closeFinder: () => calls.push(["close"]),
 		setVisible: (...args) => calls.push(["visible", ...args]),
 		toggleVisible: () => calls.push(["toggle"]),
@@ -121,10 +122,41 @@ test("ToggleFind uses the same native fallback and closes an already-open plugin
 	h.plugin.settings.useObsidianSearchInRead = true;
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
 	assert.deepEqual(h.calls, [["native"]]);
-	h.search.finderViews.set(h.view, { isVisible: () => true, closeFinder: () => h.calls.push(["close"]) });
+	h.search.finderViews.set(h.view, { isVisible: () => true, isDocked: () => false, closeFinder: () => h.calls.push(["close"]) });
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
 	assert.deepEqual(h.calls.at(-1), ["close"]);
 	h.search.finderViews.clear();
+	h.search.destoryAll();
+});
+
+test("find commands expand a compact Finder instead of closing it or replacing its stored query", () => {
+	const h = environment();
+	const finder = { isVisible: () => true, isDocked: () => true,
+		setVisible: (...args) => h.calls.push(["visible", ...args]), closeFinder: () => h.calls.push(["close"]), $destroy() {} };
+	h.search.finderViews.set(h.view, finder); h.search.getFinder = () => finder;
+	const selection = h.dom.window.getSelection(), range = h.dom.window.document.createRange();
+	range.selectNodeContents(h.root.querySelector("strong")); selection.addRange(range);
+	for (const id of ["text-finder-toggle-find", "text-finder-show-find"]) {
+		const command = h.commands.get(id);
+		command.checkCallback(true); assert.equal(h.calls.length, id.endsWith("toggle-find") ? 0 : 1);
+		command.checkCallback(false);
+	}
+	assert.deepEqual(h.calls, [["visible", true, undefined], ["visible", true, undefined]]);
+	h.plugin.settings.useObsidianSearchInRead = true;
+	h.commands.get("text-finder-toggle-find").checkCallback(false);
+	assert.deepEqual(h.calls.slice(-2), [["visible", false], ["native"]]);
+	h.search.destoryAll();
+});
+
+test("automatic entry activation shares native preference, unsupported fallback and owner validity", () => {
+	const h = environment();
+	assert.equal(h.search.activateFloatingFinder(h.view), true); assert.equal(h.calls.length, 0);
+	h.plugin.settings.useObsidianSearchInRead = true;
+	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.deepEqual(h.calls, [["native"]]);
+	h.plugin.settings.useObsidianSearchInRead = false; delete h.dom.window.Highlight;
+	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.equal(h.notices.length, 1);
+	h.close(); const count = h.calls.length;
+	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.equal(h.calls.length, count);
 	h.search.destoryAll();
 });
 
