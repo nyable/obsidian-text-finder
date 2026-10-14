@@ -27,5 +27,6 @@
 | 缓存历史排序下标；删除或缩容后索引越界 | 精确文本浏览身份，删除转存活邻近项，清空恢复暂存输入 | `src/history.ts:HistoryNavigation`；`tests/history.test.mjs`、`tests/search-box-dom.test.mjs` 的邻近项测试 |
 | 为单次替换展开所有模板；前缀／后缀导致多余字符串工作 | 全文匹配保持语义，但只展开实际写入的目标 | `src/util/text-helper.ts:prepareReplacements()`；`tests/regex-replacement.test.mjs` 的 lazily expands 测试 |
 | 将 setState Promise 返回当作定位成功；同数量替换在拒绝前已额外前进 | 正文提交不重试，异步定位成功且请求／上下文仍有效后才前进；同查询乱序也用代次区分 | `src/SearchBox.svelte:scrollToMatch()`／`replaceOnce()`；`tests/search-box-dom.test.mjs` 的 async replacement／out-of-order／mode rebuild 测试 |
+| 用动画中的 getBoundingClientRect 基础位置计算独立 translate；right／transform 动画结束后补偿过期，纯位置变化不保证触发 ResizeObserver | 移动收起／展开均不动画 right／transform，tick 只等待 DOM 提交，不当作动画结束；保留透明度效果及最终宽度边界校正 | `src/SearchBox.svelte` 移动 CSS、`src/finder-position.ts:measure()`；`tests/search-box-dom.test.mjs` 的 `mobile marker expansion stays inside bounds after positional animations would have finished`（模拟中间坐标，修改前失败／修改后通过；非 Android 动画实测） |
 
 使用这些经验时引用对应行为契约，而不是把历史实现原样复制回来。新的回归经验应说明具体症状、原因和可执行证据；尚未确认的风险放在兼容性验证边界，不伪装成历史缺陷。

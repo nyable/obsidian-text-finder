@@ -1505,6 +1505,10 @@
 	:global(.is-mobile) {
 		.nya-finder.nya-mobile {
 			.nya-move-handle, .nya-dock-expand { -webkit-touch-callout: none; user-select: none; }
+			// Expansion changes right/transform; measuring an animated base would
+			// leave a stale translate that pushes the panel out after the animation.
+			transition: opacity 0.2s linear;
+			&.nya-finder--dragging, &.nya-finder--docked { transition: opacity 0.12s ease; }
 			box-sizing: border-box;
 			height: auto;
 			min-width: 0;
@@ -1612,5 +1616,5 @@
 			}
 		}
 	}
-	@media (prefers-reduced-motion: reduce) { .nya-finder { transition: none; } }
+	@media (prefers-reduced-motion: reduce) { .nya-finder { transition: none !important; } }
 </style>

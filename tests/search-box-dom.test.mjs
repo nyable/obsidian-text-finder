@@ -194,6 +194,74 @@ test("mobile automatic entry corrects post-layout edge geometry and preserves ma
 	}
 });
 
+test("mobile marker expansion stays inside bounds after positional animations would have finished", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	for (const side of ["left", "right"]) {
+		for (const ownerWidth of [400, 600]) {
+			const h = mount(t, undefined, { finderDockSide: side }, false); await tick();
+			const node = h.target.querySelector(".nya-finder");
+			let settled = false, delayedWidth = false;
+			h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: ownerWidth, bottom: 650, width: ownerWidth, height: 650 });
+			node.getBoundingClientRect = () => {
+				const [x = 0, y = 0] = (node.style.translate || "0px 0px").split(" ").map(parseFloat);
+				const compact = node.classList.contains("nya-finder--docked");
+				const width = compact || (delayedWidth && node.querySelector(".nya-dock-tab")) ? 40 : Math.min(416, ownerWidth - 16);
+				const css = window.getComputedStyle(node);
+				// jsdom does not animate or lay out boxes. Model the bad intermediate
+				// transform position only when the actual compiled CSS permits it.
+				const movingBase = !settled && /\b(?:transform|right|all)\b/.test(css.transition);
+				const base = compact ? (side === "left" ? 8 : ownerWidth - 8 - width)
+					: (ownerWidth - width) / 2 - (movingBase ? width / 2 : 0);
+				return { left: base + x, right: base + x + width, top: 88 + y, bottom: 128 + y, width, height: 40 };
+			};
+			h.component.showFloatingEntry(); await tick();
+			// Cover the middle, both safe edges, and content-size changes at tick.
+			for (const [markerLeft, delayed] of [[ownerWidth / 2 - 20, false], [8, false], [ownerWidth - 48, false], [ownerWidth / 2 - 20, true]]) {
+				if (!h.component.isDocked()) { h.component.dockFinder(side); await tick(); }
+				const marker = node.querySelector(".nya-dock-expand"), start = node.getBoundingClientRect();
+				sendPointer(marker, "pointerdown", start.left + 20, start.top + 20);
+				sendPointer(document, "pointermove", markerLeft + 20, 200);
+				sendPointer(document, "pointerup", markerLeft + 20, 200);
+				assert.equal(node.getBoundingClientRect().left, markerLeft);
+				const markerTop = node.getBoundingClientRect().top;
+				settled = false; delayedWidth = delayed;
+				// A fresh short tap clears drag-click suppression, as on Android.
+				sendPointer(marker, "pointerdown", markerLeft + 20, 200); sendPointer(document, "pointerup", markerLeft + 20, 200);
+				marker.dispatchEvent(new window.MouseEvent("click", { detail: 1, bubbles: true })); await tick();
+				const placed = node.getBoundingClientRect();
+				assert.ok(placed.left >= 8 && placed.right <= ownerWidth - 8, "expanded layout is clamped");
+				if (!delayed) {
+					const expectedLeft = placed.width >= (ownerWidth - 16) * 0.85 ? (ownerWidth - placed.width) / 2
+						: Math.max(8, Math.min(markerLeft + 20 - placed.width / 2, ownerWidth - 8 - placed.width));
+					assert.equal(placed.left, expectedLeft, "full-width panels center; narrower panels expand around the marker");
+				}
+				assert.equal(placed.top, markerTop, "expansion preserves reachable marker height");
+				settled = true;
+				assert.deepEqual(node.getBoundingClientRect(), placed, "CSS completion without resize cannot push the panel outside the viewport");
+				assert.doesNotMatch(window.getComputedStyle(node).transition, /\b(?:transform|right|all)\b/);
+				assert.notEqual(document.activeElement, node.querySelector("textarea"));
+				assert.equal(h.scrolls.length, 0);
+			}
+		}
+	}
+});
+
+test("mobile position transitions are disabled without changing desktop transitions or reduced-motion rules", async (t) => {
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	for (const mobile of [false, true]) {
+		Platform.isMobile = mobile; document.body.classList.toggle("is-mobile", mobile);
+		const h = mount(t); await tick();
+		const node = h.target.querySelector(".nya-finder"), transition = window.getComputedStyle(node).transition;
+		if (mobile) assert.equal(transition, "opacity 0.2s linear");
+		else { assert.match(transition, /transform 0.2s linear/); assert.match(transition, /right 0.3s/); }
+		node.classList.add("nya-finder--dragging");
+		assert.equal(window.getComputedStyle(node).transition, "opacity 0.12s ease");
+	}
+	Platform.isMobile = false; document.body.classList.remove("is-mobile");
+	assert.match(style.textContent, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*transition:\s*none\s*!important/);
+});
+
 test("queued automatic entry placement cannot override close, expansion, file changes or destruction", async (t) => {
 	for (const action of ["close", "expand", "file", "destroy"]) {
 		const h = mount(t, undefined, {}, false); await tick();
