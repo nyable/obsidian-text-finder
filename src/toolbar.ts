@@ -1,18 +1,20 @@
 export type ToolbarKind = "search" | "replace";
 export type ToolbarPlacement = "inline" | "more" | "hidden";
-export type ToolbarAction = "regex" | "case" | "wholeWord" | "previous" | "next" | "history" | "replace" | "replaceAll";
+export type ToolbarAction = "regex" | "case" | "wholeWord" | "selection" | "previous" | "next" | "history" | "replace" | "replaceAll";
 export interface ToolbarItem { id: ToolbarAction; placement: ToolbarPlacement; }
 
 export const toolbarLabels: Record<ToolbarAction, string> = {
 	regex: "search.tip.UseRegularExpression", case: "search.tip.MatchCase",
 	wholeWord: "search.tip.MatchWholeWord",
+	selection: "search.tip.FindInSelection",
 	previous: "search.tip.PreviousMatch", next: "search.tip.NextMatch",
 	history: "commands.ShowSearchHistory.name", replace: "search.tip.Replace", replaceAll: "search.tip.ReplaceAll",
 };
 
 export function defaultToolbar(kind: ToolbarKind): ToolbarItem[] {
 	return kind === "search"
-		? ["regex", "case", "wholeWord", "previous", "next", "history"].map((id) => ({ id: id as ToolbarAction, placement: id === "history" ? "hidden" : "inline" }))
+		? ["regex", "case", "wholeWord", "previous", "next", "selection", "history"].map((id) => ({ id: id as ToolbarAction,
+			placement: id === "history" ? "hidden" : id === "selection" ? "more" : "inline" }))
 		: ["replace", "replaceAll"].map((id) => ({ id: id as ToolbarAction, placement: "inline" }));
 }
 
@@ -22,9 +24,10 @@ export function normalizeToolbar(raw: unknown, kind: ToolbarKind): ToolbarItem[]
 	// Only exact historical defaults are migrated. Customized orders/placements
 	// still belong to the user, including a deliberately separated whole-word item.
 	if (kind === "search" && Array.isArray(raw)) {
-		const legacy = defaults.filter((item) => item.id !== "wholeWord");
+		const previous = defaults.filter((item) => item.id !== "selection");
+		const legacy = previous.filter((item) => item.id !== "wholeWord");
 		const appended = [...legacy, defaults.find((item) => item.id === "wholeWord")!];
-		if ([legacy, appended].some((layout) => layout.length === raw.length && layout.every((item, index) =>
+		if ([legacy, appended, previous].some((layout) => layout.length === raw.length && layout.every((item, index) =>
 			raw[index]?.id === item.id && raw[index]?.placement === item.placement))) return defaults;
 	}
 	const items: ToolbarItem[] = [];

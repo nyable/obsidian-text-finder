@@ -4,6 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
+import { scopeSource } from "./search-scope-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 const readingText = loadSource("../src/reading-text.ts");
@@ -11,7 +12,7 @@ const readingSearch = loadSource("../src/reading-search.ts", {
 	"./reading-text": readingText, "./util/text-helper": helper,
 });
 class MarkdownView {}
-const highlightStub = { CLS: { FINDER: "nya-finder" }, searchCacheEffect: { of: (value) => value } };
+const highlightStub = { ...scopeSource, CLS: { FINDER: "nya-finder" }, searchCacheEffect: { of: (value) => value } };
 
 function editorView(content) {
 	const view = new MarkdownView();
@@ -342,6 +343,15 @@ for (const id of ["text-finder-replace", "text-finder-replace-all"]) {
 		assert.ok(h.a.scrolls.length > 0 || h.a.editor.getValue().includes("dog"));
 	});
 }
+
+test("selection command routes the supplied editor to its owner and leaves query seeding to the component", () => {
+	const h = environment(); h.activate(h.b); let calls = 0;
+	h.fa.findInSelection = () => calls++;
+	const command = h.commands.get("text-finder-find-in-selection");
+	assert.equal(command.hotkeys, undefined);
+	command.editorCallback(h.a.editor, { file: h.a.file }); assert.equal(calls, 1);
+	h.close(h.a); command.editorCallback(h.a.editor, h.a); assert.equal(calls, 1);
+});
 
 for (const id of ["text-finder-next-match", "text-finder-previous-match"]) {
 	test(`${id} resolves the active Markdown owner without creating a Finder during checks`, () => {

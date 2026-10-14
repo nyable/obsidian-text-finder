@@ -38,12 +38,12 @@ export class MatchEngine implements MatchExecutor {
 	constructor(private getWindow: () => Window | null,
 		private compatibility: (error: unknown) => void = () => {}, private startupTimeoutMs = 3000) {}
 
-	match(source: string, query: string, options: SearchOptions): MatchResult | Promise<MatchResult> {
-		return this.execute({ id: ++this.sequence, source, query, options: { ...options } });
+	match(source: string, query: string, options: SearchOptions, ranges?: readonly SearchRange[]): MatchResult | Promise<MatchResult> {
+		return this.execute({ id: ++this.sequence, source, query, options: { ...options }, ranges: ranges?.map((range) => ({ ...range })) });
 	}
-	replace(source: string, query: string, replacement: string, options: SearchOptions, index: number, all: boolean): MatchResult | Promise<MatchResult> {
+	replace(source: string, query: string, replacement: string, options: SearchOptions, index: number, all: boolean, ranges?: readonly SearchRange[]): MatchResult | Promise<MatchResult> {
 		return this.execute({ id: ++this.sequence, source, query, options: { ...options }, replacement, index,
-			operation: all ? "replaceAll" : "replaceOne" });
+			ranges: ranges?.map((range) => ({ ...range })), operation: all ? "replaceAll" : "replaceOne" });
 	}
 	private execute(request: MatchRequest): MatchResult | Promise<MatchResult> {
 		if (this.disposed) return { status: "cancelled" };
@@ -68,14 +68,14 @@ export class MatchEngine implements MatchExecutor {
 		try {
 			if (request.operation) {
 				const prepared = prepareReplacements(request.source, request.query, request.replacement ?? "",
-					request.options.regexMode, request.options.caseSensitive, request.options.wholeWord);
+					request.options.regexMode, request.options.caseSensitive, request.options.wholeWord, request.ranges);
 				const index = this.replacementIndex(request, prepared.matches.length);
 				const selected = request.operation === "replaceOne" ? prepared.one(index) : undefined;
 				return { status: "completed", synchronous: true, matches: prepared.matches,
 					changes: request.operation === "replaceAll" ? prepared.all() : selected ? [selected] : [] };
 			}
 			return { status: "completed", synchronous: true, matches: findTextOffsets(
-				request.source, request.query, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord) };
+				request.source, request.query, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord, request.ranges) };
 		}
 		catch (error) { return { status: "failed", error }; }
 	}
@@ -128,6 +128,9 @@ export class MatchEngine implements MatchExecutor {
 				const from = offsets[index * 2], to = offsets[index * 2 + 1];
 				if (!Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < end || to <= from || to > pending.request.source.length) {
 					throw new Error("Invalid Worker match coordinates");
+				}
+				if (pending.request.ranges && !pending.request.ranges.some((range) => from >= range.from && to <= range.to)) {
+					throw new Error("Worker match outside search scope");
 				}
 				matches.push({ from, to, index }); end = to;
 			}

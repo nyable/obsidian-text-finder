@@ -28,9 +28,14 @@
 	}
 }
 
-@mixin focus {
+@mixin focus($keyboardOnly: false) {
 	&:hover { background-color: rgba(90, 93, 94, 0.31); }
-	&:focus { box-shadow: 0 0 0 1px var(--nya-focus-border-color); }
+	@if $keyboardOnly {
+		&:focus:not(:focus-visible) { outline: none; }
+		&:focus-visible { outline: 2px solid var(--nya-focus-border-color); outline-offset: 1px; }
+	} @else {
+		&:focus { box-shadow: 0 0 0 1px var(--nya-focus-border-color); }
+	}
 }
 
 @mixin counter {

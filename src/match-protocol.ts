@@ -5,6 +5,7 @@ export interface MatchRequest {
 	source: string;
 	query: string;
 	options: SearchOptions;
+	ranges?: readonly SearchRange[];
 	operation?: "replaceOne" | "replaceAll";
 	replacement?: string;
 	index?: number;
@@ -19,8 +20,8 @@ export type MatchResult = { status: "completed"; matches: MatchOffset[]; synchro
 	| { status: "failed"; error: unknown };
 
 export interface MatchExecutor {
-	match(source: string, query: string, options: SearchOptions): MatchResult | Promise<MatchResult>;
-	replace?(source: string, query: string, replacement: string, options: SearchOptions, index: number, all: boolean): MatchResult | Promise<MatchResult>;
+	match(source: string, query: string, options: SearchOptions, ranges?: readonly SearchRange[]): MatchResult | Promise<MatchResult>;
+	replace?(source: string, query: string, replacement: string, options: SearchOptions, index: number, all: boolean, ranges?: readonly SearchRange[]): MatchResult | Promise<MatchResult>;
 	cancel(): void;
 	destroy(): void;
 }

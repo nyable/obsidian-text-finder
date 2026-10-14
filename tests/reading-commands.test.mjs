@@ -181,11 +181,22 @@ for (const [id, action] of [
 
 test("reading replace and replace-all command callbacks never resolve an editable Finder", () => {
 	const h = environment();
-	for (const id of ["text-finder-replace", "text-finder-replace-all", "text-finder-show-find-and-replace", "text-finder-toggle-replace"]) {
+	for (const id of ["text-finder-replace", "text-finder-replace-all", "text-finder-show-find-and-replace", "text-finder-toggle-replace", "text-finder-find-in-selection"]) {
 		h.commands.get(id).editorCallback(h.view.editor, h.view);
 	}
 	assert.equal(h.created(), 0);
 	assert.equal(h.calls.length, 0);
+	h.search.destoryAll();
+});
+
+test("ordinary open commands preserve a scoped session query instead of seeding from the current match", () => {
+	const h = environment(); h.view.getMode = () => "source";
+	h.view.editor.cm = { state: { doc: {} } }; h.view.editor.getSelection = () => "selected match";
+	const finder = h.search.getFinder(h.view); finder.hasSelectionScope = () => true;
+	finder.showReplace = (...args) => h.calls.push(["replace-ui", ...args]);
+	h.commands.get("text-finder-show-find").checkCallback(false);
+	h.commands.get("text-finder-show-find-and-replace").editorCallback(h.view.editor, h.view);
+	assert.deepEqual(h.calls, [["visible", true, undefined], ["replace-ui", undefined]]);
 	h.search.destoryAll();
 });
 
@@ -268,7 +279,7 @@ test("late layout callbacks do not initialize unloaded plugins and initializatio
 	editorExtensionProvider(plugin); unloaded = true; callback();
 	assert.equal(plugin.editorSearch, null); assert.equal(commands, 0);
 	unloaded = false; callback(); callback();
-	assert.equal(commands, 11); assert.equal(extensions, 1); plugin.editorSearch.destoryAll();
+	assert.equal(commands, 12); assert.equal(extensions, 1); plugin.editorSearch.destoryAll();
 });
 
 test("unload closes tracked history modals exactly once", () => {

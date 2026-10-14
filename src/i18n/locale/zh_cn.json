@@ -3,6 +3,7 @@
     "name": "Text Finder"
   },
   "search": {
+	"SelectionRequired": "请先在当前笔记的编辑器中选择文字，再启用选区查找。",
 	"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
 	"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",
 	"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",
@@ -31,6 +32,9 @@
       "ToggleReplace": "切换替换",
       "MatchCase": "区分大小写",
       "MatchWholeWord": "全字匹配",
+      "FindInSelection": "在选定内容中查找",
+      "FindInSelectionUnavailable": "在选定内容中查找（选区不可用；请重新选择并执行选区查找命令，或关闭范围限制）",
+      "MoreActive": "更多操作中已开启：{{modes}}",
       "UseRegularExpression": "使用正则表达式",
       "PreviousMatch": "上一个匹配项",
       "NextMatch": "下一个匹配项",
@@ -42,6 +46,7 @@
     }
   },
   "commands": {
+    "FindInSelection": { "name": "在选定内容中打开查找" },
     "ShowFind": {
       "name": "在当前文件中：打开查找"
     },

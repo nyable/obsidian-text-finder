@@ -3,6 +3,7 @@
     "name": "Text Finder"
   },
   "search": {
+	"SelectionRequired": "Select text in this note's editor before enabling Find in selection.",
 	"WorkerCompatibility": "Worker unavailable. Using synchronous compatibility mode; complex regular expressions may block the interface.",
 	"WorkerFailed": "Search execution failed. Retry in a Worker, or explicitly retry synchronously (complex regex may block the interface).",
 	"MatchPending": "Searching… Close or cancel to stop the Worker.",
@@ -31,6 +32,9 @@
       "ToggleReplace": "Toggle replace",
       "MatchCase": "Match case",
       "MatchWholeWord": "Match whole word",
+      "FindInSelection": "Find in selection",
+      "FindInSelectionUnavailable": "Find in selection (selection unavailable; select again and run Open find in selection, or turn off the scope)",
+      "MoreActive": "Active modes in More: {{modes}}",
       "UseRegularExpression": "Use regular expression",
       "PreviousMatch": "Previous match",
       "NextMatch": "Next match",
@@ -42,6 +46,7 @@
     }
   },
   "commands": {
+    "FindInSelection": { "name": "Open find in selection" },
     "ShowFind": {
       "name": "Open search in current file"
     },

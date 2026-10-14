@@ -12,6 +12,10 @@ body {
 	color: var(--nya-match-color);
 }
 
+.nya-text-finder-scope {
+	&:not(.nya-text-finder-match) { background-color: var(--background-modifier-hover); }
+}
+
 .nya-text-finder-match-current {
 	background-color: var(--nya-match-curbgColor);
 	color: var(--nya-match-curColor);

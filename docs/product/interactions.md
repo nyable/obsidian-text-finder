@@ -16,7 +16,7 @@
 - 文件变化保留查询、重算结果；模式变化清除另一模式结果，保留查询和选项。阅读界面强制隐藏替换区域。
 - 普通关闭保留组件实例，不持久化会话；视图关闭／卸载释放资源。默认保留查询、替换文本、选项，关闭会折叠替换区域。
 - 每个 owner 的编辑／阅读 Worker 通道独立；取代忙碌请求、关闭及卸载终止线程，不只忽略回包。同查询、同快照后台刷新保留待定滚动及累计导航方向，不能替换成不滚动意图。
-- 全字匹配切换沿用正则／大小写的聚焦和重算策略，属于编辑／阅读查询身份及替换候选校验的一部分；切换取消旧计算，迟到结果不能发布、写入或定位。常驻控件使用 `aria-pressed`，More 中使用 `menuitemcheckbox`／`aria-checked`；隐藏按钮不关闭选项。
+- 全字匹配切换沿用正则／大小写的重算策略，属于编辑／阅读查询身份及替换候选校验的一部分；切换取消旧计算，迟到结果不能发布、写入或定位。常驻及 More 均为图标按钮，使用 `aria-pressed`；常驻切换聚焦查询，More 切换保留面板及按钮焦点；隐藏按钮不关闭选项。
 
 依据：`src/editor-extension.ts` 的 `syncFloatingEntries()`／`activateFloatingFinder()`／`getFinder()`／`showFinder()`／`registerCommand()`；`src/SearchBox.svelte` 的 `showFloatingEntry()`／`showReplace()`／`toggleReplaceFromCommand()`／`setVisible()`／`matchAgain()`；`tests/floating-entry.test.mjs`、`tests/reading-commands.test.mjs`、`tests/search-box-dom.test.mjs`。新增打开与命令规则经维护者批准；自动回归不等于宿主键盘／焦点验收。
 
@@ -51,6 +51,21 @@
 
 依据：`src/SearchBox.svelte`、`src/finder-position.ts`、`src/reading-search.ts:pauseNavigation()`；`tests/finder-position.test.mjs`、`tests/search-box-dom.test.mjs`。
 
+## 选区范围契约
+
+精确字符、仅编辑模式、查找／替换共用范围及不增加整行扩展设置经维护者批准；以下为该方案的实现规则，自动回归不代表实机验收：
+
+- 独立命令先捕获正文选区再打开 Finder，保留查询；普通打开仍按旧的选区填词设置执行，但已经限定范围时不以当前匹配覆盖查询。
+- CodeMirror 保存非空用户选区候选，插件导航通过 Annotation 标记，不覆盖原候选；明确光标选择清空候选，文档变化清候选。范围只在启用／重新执行独立命令时捕获，普通重新选择不自动改变锁定范围。
+- 同一视图多个非空范围可用；反向选择归一化，重叠合并，相邻范围保持各自边界。跨行严格使用实际字符，不扩行；范围外字符可以作为正则上下文，但完整匹配／修改必须包含在单个范围中。
+- 范围随 CodeMirror changes 映射：边界插入包含在范围内，范围完整替换包含新插入文本；只删除范围保留空锚点，撤销可恢复。删除跨越边界无法无损映射，移除受影响范围，撤销不凭猜测扩大它；其他存活范围保留。空范围显示不可用、匹配为零、不写入。
+- 范围变化参与查询身份和请求代次，取消旧候选／查询／定位；提交前核验 doc／owner／范围，提交后按同一事务映射的新范围重算，不以新范围身份误判自身写入失败。
+- 收起保留范围。关闭清除正文范围并取消任务，留下写入阻断保护；该会话的隐藏替换不得转成全文。明确重新打开普通 Finder 后开启新的全文会话；从未限定范围的隐藏替换保持旧契约。
+- 换文件、切阅读模式、编辑器 State 重建丢失范围字段、窗口迁移使范围失效，编辑查找／替换保持空范围保护，需重选或明确清除。阅读模式仍正常全文查询且没有范围按钮。销毁释放所属编辑器范围装饰，不影响其他 owner。
+- 工具栏默认 More，常驻及 More 均用 `aria-pressed`；隐藏按钮不清范围，也不添加额外标记。选区启用以按钮激活态为准，More 汇总其内部模式；计数旁不增加文字／清除入口。空／失效范围仍保持激活和写入限制，按钮提示说明需重选或关闭限制。正文只保留淡背景，无下划线，不给非操作容器添加 tooltip 标签。
+
+依据：`src/search-scope.ts`、`src/SearchBox.svelte` 的 `activateScope()`／`syncScope()`／`clearScope()`／`replaceInWorker()`、`src/editor-extension.ts`。回归：`tests/search-scope.test.mjs` 和 `tests/search-box-dom.test.mjs` 的 selection/scoped 系列。
+
 ## 导航与替换
 
 - 前后导航循环；过期文档／查询先重算。编辑定位滚动后可强制源码、选中匹配；保存历史不参与等待链。
@@ -59,7 +74,7 @@
 - 单次替换按钮、替换框 Enter 和命令调用 `replaceOnce()`：替换后重算；数量未变且文档／编辑器仍有效时再前进一项，否则定位重算后的当前项。不成功或写入中换文件时不额外前进。
 - 替换先异步计算完整原文的候选；提交前再次校验具体文件、Editor、CodeMirror doc、窗口、查询、替换输入和转义选项。正文同步提交后异步重算，再完成宿主定位，最后才决定额外前进。请求被新操作、关闭／重新打开、查询变化、文档变化或销毁取代后，不再提交旧候选、选区或额外前进；宿主重建编辑器时只后台重算，不复用旧坐标。不能取消已交给宿主的模式切换本身。
 - 全部替换一次提交所有原文变化，不套用单次替换的额外前进规则。
-- 匹配始终基于完整原文，但单次操作只展开目标匹配的模板，全部替换才展开所有模板。写入后定位失败提示“替换已完成”，不把它当作未写入，也不再额外前进。
+- 匹配始终保留完整原文上下文，选区开启时只扫描允许范围内起点并接受完整包含的匹配；单次操作只展开目标匹配的模板，全部替换才展开所有模板。写入后定位失败提示“替换已完成”，不把它当作未写入，也不再额外前进。
 - 隐藏面板仍可通过编辑命令执行替换；安全来自写入前重算，而不是假设隐藏期间结果有效。
 
 依据：`src/SearchBox.svelte` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`prepareReplacement()`／`replaceText()`；`src/editor-extension.ts:registerEvent()`。回归：`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
@@ -70,7 +85,10 @@
 - IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter 和历史上下键不触发快捷操作。输入事件本身仍会更新查询。
 - 查询 textarea 支持多行；不自动纠错／大写、不检查拼写、不允许用户 resize。
 - 隐藏面板同步设 `visibility: hidden` 和 `aria-hidden`，移除 Tab 入口，blur 内部焦点并拒绝迟到聚焦；不承诺统一把焦点送回编辑器。
-- More 触发器支持 Enter／Space；打开后聚焦首个可用菜单项。上下键循环、Home／End 定位；Escape 关闭菜单并回焦触发器，不关闭 Finder；Tab 关闭后回焦触发器再交给默认 Tab 行为。外部 pointerdown 关闭菜单。
+- More 是工具栏延伸的紧凑图标按钮面板，不是文字列表／勾选菜单；同外部按钮几何、激活／禁用／提示样式，横排并在宽度不足时换行，宽高受 owner／可见视口限制。容器用 `role="group"`／`aria-labelledby`，模式用 `aria-pressed`，不用 menu／menuitemcheckbox。
+- More 触发器支持 Enter／Space，打开后聚焦首个可用按钮；方向键循环、Home／End 定位，跳过禁用项。切换模式保留面板和按钮焦点，普通操作执行后收起。Escape 关闭面板并回焦触发器，不关闭 Finder；Tab 原生浏览，焦点离开面板后收起且不抢回焦点。外部 pointerdown 或再次点击 More 收起。
+- More 仅汇总实际放在面板内的开启模式，收起且存在开启模式时右上角显示 5px 主题强调色圆点，不使用模式激活蓝底／边框；常驻／隐藏模式和普通动作不参与。展开时隐藏圆点，收起按当前内部状态恢复；圆点绝对定位、不改几何、无动画、无独立点击区域且 `aria-hidden`。展开用独立内边框反馈／`aria-expanded`，不是新模式开关；读屏说明列出内部开启模式且在展开时保留，容器不添加 tooltip 标签。设置纯展示预览显示相同收起圆点。不增加底部状态栏。
+- 工具栏内外按钮及 More 的额外焦点框采用 `:focus-visible` 的 2px outline，鼠标／触屏焦点不附加蓝色 box-shadow，保留键盘焦点、模式按钮自身激活边框和 More 的展开反馈；不改变输入框聚焦样式及其他 Finder 控件的焦点样式。依据：`src/Toolbar.svelte`、`src/styles/finder-primitives.scss:focus($keyboardOnly)`。
 - 设置分类支持左右键／Home／End；工具栏排序后恢复对应按钮／手柄焦点。拖动有 4px 启动阈值，pointercancel、窗口失焦和 Escape 可取消；切页／隐藏设置清理拖动。
 - 历史行 Enter／Space 复用；复选框 Enter／Space 切换选择并阻止默认滚动。子按钮键盘操作不能触发父行复用；历史操作在 focus-within 及无 hover 设备上显示。
 

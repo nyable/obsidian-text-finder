@@ -4,7 +4,7 @@
 
 ## 范围与入口
 
-- 编辑模式搜索／替换所属视图的完整 Markdown 源码，包括源码中的标记。
+- 编辑模式搜索／替换所属视图的 Markdown 源码（默认全文，可明确限定精确选区），包括源码中的标记。
 - 阅读模式搜索当前笔记的渲染正文，不支持替换；两个模式的匹配数量可以不同。
 - 插件注册命令和设置页，默认通过命令懒创建；“常规”页可开启打开笔记时显示悬浮搜索入口（默认关闭），已有笔记及新分屏各自显示小图标，不抢焦点、不自动搜索。未注册 Ribbon 或笔记右键菜单入口；桌面边缘标签有关闭／恢复菜单，移动端长按不弹该菜单。未定义默认快捷键，用户在 Obsidian 中自行分配。
 
@@ -13,6 +13,7 @@
 | 命令 ID | 能力 | 目标 |
 | --- | --- | --- |
 | `text-finder-show-find` | 打开查找 | 编辑／阅读 |
+| `text-finder-find-in-selection` | 捕获精确选区并打开查找，保留已有查询 | 编辑 |
 | `text-finder-show-find-and-replace` | 打开查找与替换 | 编辑 |
 | `text-finder-hide-find` | 关闭查找 | 当前 Markdown 视图 |
 | `text-finder-reset-position` | 恢复查找框默认位置 | 当前 Markdown 视图的已有 Finder，不创建新实例 |
@@ -43,6 +44,16 @@
 全字边界依据：`src/util/text-helper.ts:isWholeWordMatch()`；上游对照 [VS Code `isValidMatch()`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/model/textModelSearch.ts) 和 [`USUAL_WORD_SEPARATORS`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/core/wordHelper.ts)。这是默认边界规则对照，不表示整个正则引擎／flags 与 VS Code 完全一致。
 
 多行边界细节：CR／LF 在匹配范围外时形成边界；若换行本身属于匹配首尾，不单凭该换行放行，需要继续满足外侧字符／正文首尾边界。回归见 `tests/text-helper.test.mjs` 的多行样例。
+
+## 精确选区查找／替换
+
+- 编辑模式提供“在选定内容中打开查找”命令与工具栏开关，默认关闭，按钮默认位于 More；可配置常驻／更多／隐藏，但没有默认开启或跨行扩大整行设置。
+- 范围为精确 UTF-16 源码字符；跨行不扩行，多选区不包含空隙、不拼接；只接受完整包含的匹配。所有导航及替换入口共用范围。
+- 范围独立于当前选择，导航不重捕获；正文用淡背景、不加下划线，启用以按钮激活态为准，不在计数旁增加状态文字。按钮在 More 中时，收起的 More 用强调色圆点提示内部模式开启，展开隐藏圆点且不使用模式激活配色，隐藏按钮则不另加标记；空／失效范围仍保持限制、选区按钮激活及恢复提示。编辑事务映射范围，生命周期失效及关闭后的隐藏替换均不得默默扩大为全文。
+- 匹配从每个范围起点在原文扫描，前后顾、锚点、全字边界及替换模板仍使用全文上下文；不是在切片上重新匹配。原范围外前缀的非重叠匹配不占用范围内起点，例如 `aaa` 中选后两个字符搜索 `aa` 可以命中。
+- 仅编辑源码／实时预览，阅读保持全文正文查找。范围不保存到设置或历史；同文件双分屏各自独立。
+
+依据：`src/search-scope.ts`、`src/util/text-helper.ts:findTextMatches()`、`src/SearchBox.svelte:findInSelection()`／`scopeRanges()`、`src/match-engine.ts`。回归：`tests/search-scope.test.mjs`、`tests/match-engine.test.mjs`、`tests/search-box-dom.test.mjs`；宿主实际范围绘制／输入选区仍需实测。
 
 ## 阅读模式正文
 
@@ -117,6 +128,6 @@
 
 ## 非能力
 
-没有实现选区内查找／替换，也没有实现拖动调整面板宽度；README TODO 和 `.nya-dragger` 注释不是产品承诺。未见跨 Vault 搜索或独立清空全部历史按钮。
+没有实现阅读模式选区查找、跨行扩大整行或拖动调整面板宽度；`.nya-dragger` 注释不是产品承诺。未见跨 Vault 搜索或独立清空全部历史按钮。
 
-依据：`README-zh_CN.md` 的 TODO、`src/SearchBox.svelte` 的 `.nya-dragger`、`src/editor-extension.ts:registerCommand()`、`src/HistoryList.svelte`。
+依据：`src/SearchBox.svelte` 的 `.nya-dragger`／范围逻辑、`src/editor-extension.ts:registerCommand()`、`src/HistoryList.svelte`。

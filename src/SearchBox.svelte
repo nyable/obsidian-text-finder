@@ -6,11 +6,11 @@
 		Search,
 	} from "lucide-svelte";
 	import type { EditorSearch } from "./editor-extension";
-	import { searchCacheEffect } from "./search-highlight";
+	import { searchCacheEffect, finderSelection, searchScopeField, searchScopeEffect } from "./search-highlight";
 	import type { EditorContext } from "./editor-context";
 	import { i18n } from "./i18n";
 	import { Platform, Menu, type MarkdownView } from "obsidian";
-	import { findTextOffsets, prepareReplacements } from "./util/text-helper";
+	import { findTextOffsets, prepareReplacements, normalizeSearchRanges } from "./util/text-helper";
 	import { HistoryNavigation } from "./history";
 	import { onMount, tick } from "svelte";
 	import { createFinderPosition, type FinderPlacement } from "./finder-position";
@@ -43,6 +43,8 @@
 		escape: boolean;
 		phase: "prepare" | "committed";
 		committing: boolean;
+		scopeEpoch: number;
+		searchKey: string;
 	}
 	let replacementTask: ReplacementTask | null = null;
 	let replacementRetry: ((synchronous: boolean) => void) | null = null;
@@ -69,6 +71,59 @@
 	let searchMode = "source";
 	let statusContext = ownerView?.file;
 	const isReading = () => ownerView.getMode?.() === "preview";
+	let scopeEnabled = false;
+	let scopeBlocked = false;
+	let scopeEmpty = false;
+	let scopeEpoch = 0;
+	let scopeContext: EditorContext | null = null;
+	let scopeWindow: Window | null = null;
+	const scopeState = (context: EditorContext | null) => context && searchScopeField
+		? context.editorView.state.field(searchScopeField, false) : undefined;
+	const clearScope = (block = false) => {
+		const previous = scopeContext;
+		scopeContext = null; scopeEnabled = false; scopeBlocked = block; scopeEmpty = false; scopeEpoch++;
+		if (previous && scopeState(previous)?.ranges != null) {
+			try { previous.editorView.dispatch({ effects: searchScopeEffect.of(null) }); }
+			catch (error) { console.warn("Text Finder: could not clear detached search scope", error); }
+		}
+	};
+	const syncScope = (context: EditorContext | null) => {
+		if (scopeEnabled && (isReading() || !context || context.file !== scopeContext?.file || context.editor !== scopeContext.editor
+			|| context.editorView !== scopeContext.editorView || scopeState(context)?.ranges == null
+			|| scopeWindow !== (ownerView.containerEl?.ownerDocument.defaultView ?? null))) clearScope(true);
+		scopeEmpty = scopeEnabled && !scopeRanges()?.length;
+	};
+	const scopeRanges = (): readonly SearchRange[] | undefined => {
+		if (scopeBlocked) return [];
+		return scopeEnabled ? normalizeSearchRanges(scopeState(scopeContext)?.ranges ?? [], scopeContext!.editorView.state.doc.length) : undefined;
+	};
+	const activateScope = () => {
+		if (disposed || isReading()) return false;
+		const context = getEditorContext();
+		const state = scopeState(context);
+		const ranges = context ? normalizeSearchRanges(state?.candidate ?? [], context.doc.length) : [];
+		if (!context || !state || !ranges.length) {
+			editorSearch.plugin.reportError("search.SelectionRequired", new Error("No valid editor selection"));
+			return false;
+		}
+		cancelEditing(); positionRequest++;
+		clearScope(); scopeContext = context; scopeEnabled = true;
+		scopeWindow = ownerView.containerEl?.ownerDocument.defaultView ?? null;
+		context.editorView.dispatch({ effects: searchScopeEffect.of(ranges) });
+		scopeEmpty = false;
+		cache.index = 0;
+		return true;
+	};
+	export function findInSelection() {
+		if (!activateScope()) return false;
+		setVisible(true);
+		return true;
+	}
+	export function toggleFindInSelection() {
+		if (scopeEnabled || scopeBlocked) { clearScope(); setFindText(cache.search); }
+		else if (activateScope()) setFindText(cache.search);
+	}
+	export function hasSelectionScope() { return scopeEnabled || scopeBlocked; }
 
 	const cache: SearchCache = {
 		search: "",
@@ -98,7 +153,7 @@
 			const text = historyNavigation.reconcile(getSortedHistory());
 			if (text !== undefined) setFindText(text, false);
 		});
-		return () => { disposed = true; edgeMenu?.hide(); positionRequest++; cancelEditing(); unsubscribe(); };
+		return () => { disposed = true; edgeMenu?.hide(); positionRequest++; cancelEditing(); clearScope(); unsubscribe(); };
 	});
 
 	// Continuous navigation counts once; explicit history reuse starts a new use.
@@ -359,10 +414,11 @@
 		return { update: measure, destroy() { observer?.disconnect(); win?.removeEventListener("resize", measure); } };
 	}
 
-	const runToolbarAction = (action: ToolbarAction) => {
-		if (action === "regex") toggleRegexMode();
-		else if (action === "case") toggleMatchCaseMode();
-		else if (action === "wholeWord") toggleWholeWordMode();
+	const runToolbarAction = (action: ToolbarAction, focusQuery = true) => {
+		if (action === "regex") toggleRegexMode(focusQuery);
+		else if (action === "case") toggleMatchCaseMode(focusQuery);
+		else if (action === "wholeWord") toggleWholeWordMode(focusQuery);
+		else if (action === "selection") toggleFindInSelection();
 		else if (action === "previous") toPreviousMatch();
 		else if (action === "next") toNextMatch();
 		else if (action === "history") editorSearch.openHistory();
@@ -412,12 +468,14 @@
 		syncFinderVisibility();
 		const settings = editorSearch.plugin.settings;
 		if (cache.visible) {
+			if (!scopeEnabled) scopeBlocked = false;
 			setFindText(searchText !== undefined ? searchText : cache.search);
 			focusInput(focusTarget, wasDocked || focusTarget === "replace");
 			if (historyIndexOverride !== undefined) historyNavigation.select(cache.search, getSortedHistory());
 			else historyNavigation.reset();
 		} else {
 			cancelEditing();
+			if (scopeEnabled) clearScope(true);
 			readingRequest++;
 			readingPending = false;
 			readingUnsupported = false;
@@ -471,6 +529,7 @@
 
 	export function resetAll() {
 		cancelEditing();
+		clearScope();
 		positionRequest++;
 		historyNavigation.reset();
 		readingRequest++;
@@ -562,28 +621,30 @@
 		} catch (error) { editorSearch.plugin.reportError("search.EditorFailed", error); }
 		finally { setVisible(false); }
 	};
-	export const toggleRegexMode = () => {
+	export const toggleRegexMode = (focusQuery = true) => {
 		cache.options.regexMode = !cache.options.regexMode;
-		searchEl.focus({ preventScroll: true });
+		if (focusQuery) searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
-	export const toggleMatchCaseMode = () => {
+	export const toggleMatchCaseMode = (focusQuery = true) => {
 		cache.options.caseSensitive = !cache.options.caseSensitive;
-		searchEl.focus({ preventScroll: true });
+		if (focusQuery) searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
-	export const toggleWholeWordMode = () => {
+	export const toggleWholeWordMode = (focusQuery = true) => {
 		cache.options.wholeWord = !cache.options.wholeWord;
-		searchEl.focus({ preventScroll: true });
+		if (focusQuery) searchEl.focus({ preventScroll: true });
 		setFindText(cache.search);
 	};
 
-	const queryKey = () => JSON.stringify([cache.search, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord]);
+	const searchKey = () => JSON.stringify([cache.search, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord]);
+	const queryKey = () => JSON.stringify([searchKey(), scopeEpoch, scopeRanges()]);
 
 	export const getEditorContext = () => {
 		const context = editorSearch.getEditorContext(ownerView);
+		syncScope(context);
 		if (!context && !isReading()) {
 			cache.matches = [];
 			cache.index = 0;
@@ -618,6 +679,7 @@
 				&& matchedContext.file === context.file && matchedContext.editorView === context.editorView
 				&& matchedQuery === queryKey();
 			let spec: TransactionSpec = {
+				annotations: finderSelection ? finderSelection.of(true) : undefined,
 				effects: withCache ? [searchCacheEffect.of({
 					doc: context.doc,
 					visible: cache.visible,
@@ -708,8 +770,9 @@
 					else { if (!cache.matches.length) cache.index = 0; emitChange(true, undefined, activeEditor); }
 				};
 				if (!synchronous && editorSearch.getMatchEngine) editingEngine = editorSearch.getMatchEngine(ownerView);
-				const result = !synchronous && editingEngine ? editingEngine.match(content, text, cache.options)
-					: { status: "completed" as const, matches: findTextOffsets(content, text, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord), synchronous: true };
+				const ranges = scopeRanges();
+				const result = !synchronous && editingEngine ? editingEngine.match(content, text, cache.options, ranges)
+					: { status: "completed" as const, matches: findTextOffsets(content, text, cache.options.regexMode, cache.options.caseSensitive, cache.options.wholeWord, ranges), synchronous: true };
 				if (result instanceof Promise) {
 					const computation = { context: activeEditor, key, window: win, scroll, direction };
 					editingComputation = computation; readingPending = true;
@@ -861,6 +924,7 @@
 			cache.options.regexMode,
 			cache.options.caseSensitive,
 			cache.options.wholeWord,
+			scopeRanges(),
 		);
 		cache.matches = replacements.matches;
 		rememberMatches(activeEditor);
@@ -938,7 +1002,7 @@
 		editingEngine = editorSearch.getMatchEngine(ownerView);
 		const task: ReplacementTask = { context, key: queryKey(), window: ownerView.containerEl?.ownerDocument.defaultView ?? null,
 			path: context.file?.path, replace: cache.replace, escape: editorSearch.plugin.settings.useEscapeCharInReplace,
-			phase: "prepare", committing: false };
+			phase: "prepare", committing: false, scopeEpoch, searchKey: searchKey() };
 		replacementTask = task; readingError = undefined; workerError = false; replacementCommittedError = false;
 		const options = { ...cache.options };
 		const replacement = options.regexMode ? adjustReplaceText(inputText) : inputText;
@@ -993,6 +1057,10 @@
 			cache.matches = prepared.matches; rememberMatches(context);
 			result.beforeCount = result.afterCount = prepared.matches.length;
 			const changes = prepared.changes ?? [];
+			const ranges = scopeRanges();
+			if (ranges && changes.some(({ from, to }) => !ranges.some((range) => from >= range.from && to <= range.to))) {
+				failed(new Error("Replacement outside search scope"), false); return result;
+			}
 			if (!changes.length) {
 				replacementTask = null; readingPending = false; result.status = "completed";
 				emitChange(true, undefined, context); return result;
@@ -1014,16 +1082,17 @@
 			task.phase = "committed";
 			const current = getEditorContext();
 			if (!current || current.file !== context.file || current.editor !== context.editor || current.editorView !== context.editorView
-				|| replacementTask !== task || queryKey() !== task.key) {
+				|| replacementTask !== task || scopeEpoch !== task.scopeEpoch || searchKey() !== task.searchKey) {
 				result.navigationFailed = true; replacementTask = null; readingPending = false; return result;
 			}
 			task.context = current;
+			task.key = queryKey();
 			cache.matches = []; readingPending = true;
 			try {
 				emitChange(true, undefined, current);
 				const matched = synchronous ? { status: "completed" as const, matches: findTextOffsets(current.doc.toString(),
-					cache.search, options.regexMode, options.caseSensitive, options.wholeWord), synchronous: true }
-					: editingEngine!.match(current.doc.toString(), cache.search, options);
+					cache.search, options.regexMode, options.caseSensitive, options.wholeWord, scopeRanges()), synchronous: true }
+					: editingEngine!.match(current.doc.toString(), cache.search, options, scopeRanges());
 				const positioned = matched instanceof Promise ? matched.then(finishPosition) : finishPosition(matched);
 				if (positioned instanceof Promise) result.navigationCompletion = positioned.then((success) => {
 					result.navigationFailed = !success; return success;
@@ -1039,12 +1108,12 @@
 			const source = context.doc.toString();
 			let prepared: MatchResult | Promise<MatchResult>;
 			if (synchronous) {
-				const replacements = prepareReplacements(source, cache.search, replacement, options.regexMode, options.caseSensitive, options.wholeWord);
+				const replacements = prepareReplacements(source, cache.search, replacement, options.regexMode, options.caseSensitive, options.wholeWord, scopeRanges());
 				const selectedIndex = index >= 0 && index < replacements.matches.length ? index : 0;
 				const selected = all ? undefined : replacements.one(selectedIndex);
 				prepared = { status: "completed", synchronous: true, matches: replacements.matches,
 					changes: all ? replacements.all() : selected ? [selected] : [] };
-			} else prepared = editingEngine.replace!(source, cache.search, replacement, options, index, all);
+			} else prepared = editingEngine.replace!(source, cache.search, replacement, options, index, all, scopeRanges());
 			if (prepared instanceof Promise) {
 				readingPending = true;
 				return prepared.then(apply).catch((error) => { if (replacementCurrent(task)) failed(error, task.phase === "committed"); return result; });
@@ -1303,6 +1372,7 @@
 			<div class="finder-act">
 				<Toolbar items={searchToolbar} run={runToolbarAction} regexMode={cache.options.regexMode}
 					caseSensitive={cache.options.caseSensitive} wholeWord={cache.options.wholeWord} {historyEnabled} tabindex={commonTabIndex} visible={expanded}
+					selection={scopeEnabled || scopeBlocked} selectionUnavailable={scopeBlocked || scopeEmpty} {readingMode}
 					inlineTarget={isMobile ? mobileInlineTarget : undefined} />
 				{#if !isMobile}
 					<div

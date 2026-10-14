@@ -13,8 +13,9 @@ export function findTextOffsets(
 	enableRegexMode: boolean,
 	enableCaseSensitive: boolean,
 	enableWholeWord = false,
+	ranges?: readonly SearchRange[],
 ): MatchOffset[] {
-	return findTextMatches(source, target, enableRegexMode, enableCaseSensitive, enableWholeWord)
+	return findTextMatches(source, target, enableRegexMode, enableCaseSensitive, enableWholeWord, ranges)
 		.map((match, index) => ({
 			from: match.index,
 			to: match.index + match[0].length,
@@ -39,6 +40,7 @@ function findTextMatches(
 	enableRegexMode: boolean,
 	enableCaseSensitive: boolean,
 	enableWholeWord: boolean,
+	ranges?: readonly SearchRange[],
 ): RegExpExecArray[] {
 	if (source === "" || target === "") {
 		return [];
@@ -53,13 +55,21 @@ function findTextMatches(
 		const flags = "g" + (enableRegexMode ? "m" : "")
 			+ (enableCaseSensitive ? "" : "i");
 		const regex = new RegExp(pattern, flags);
-		let match;
-		while ((match = regex.exec(source)) !== null) {
-			// Preserve the existing exclusion of zero-width matches.
-			if (match[0] === "") {
-				regex.lastIndex++;
-			} else if (!enableWholeWord || isWholeWordMatch(source, match.index, match.index + match[0].length)) {
-				matches.push(match);
+		// Scan each range in the original document: lookarounds, anchors, word
+		// boundaries and replacement templates retain their full-document context.
+		for (const range of normalizeSearchRanges(ranges ?? [{ from: 0, to: source.length }], source.length)) {
+			regex.lastIndex = range.from;
+			let match;
+			while ((match = regex.exec(source)) !== null && match.index < range.to) {
+				// Preserve the existing exclusion of zero-width matches.
+				if (match[0] === "") {
+					regex.lastIndex++;
+				} else if (match.index + match[0].length > range.to) {
+					// A crossing alternative must not consume a later, contained match.
+					regex.lastIndex = match.index + 1;
+				} else if (!enableWholeWord || isWholeWordMatch(source, match.index, match.index + match[0].length)) {
+					matches.push(match);
+				}
 			}
 		}
 	} catch (error) {
@@ -67,6 +77,20 @@ function findTextMatches(
 		return [];
 	}
 	return matches;
+}
+
+/** Invalid scopes fail closed; adjacent selections remain separate boundaries. */
+export function normalizeSearchRanges(ranges: readonly SearchRange[], length: number): SearchRange[] {
+	const sorted = ranges.filter((range) => Number.isSafeInteger(range.from) && Number.isSafeInteger(range.to)
+		&& range.from >= 0 && range.to > range.from && range.to <= length)
+		.map((range) => ({ from: range.from, to: range.to })).sort((a, b) => a.from - b.from || a.to - b.to);
+	const result: SearchRange[] = [];
+	for (const range of sorted) {
+		const previous = result[result.length - 1];
+		if (previous && range.from < previous.to) previous.to = Math.max(previous.to, range.to);
+		else result.push(range);
+	}
+	return result;
 }
 
 export interface ReplacementChange {
@@ -83,8 +107,9 @@ export function findReplacementChanges(
 	enableRegexMode: boolean,
 	enableCaseSensitive: boolean,
 	enableWholeWord = false,
+	ranges?: readonly SearchRange[],
 ): ReplacementChange[] {
-	return prepareReplacements(source, target, replacement, enableRegexMode, enableCaseSensitive, enableWholeWord).all();
+	return prepareReplacements(source, target, replacement, enableRegexMode, enableCaseSensitive, enableWholeWord, ranges).all();
 }
 
 /** Match once against the complete original text, expand only requested inserts. */
@@ -92,8 +117,9 @@ export function prepareReplacements(
 	source: string, target: string, replacement: string,
 	enableRegexMode: boolean, enableCaseSensitive: boolean,
 	enableWholeWord = false,
+	ranges?: readonly SearchRange[],
 ) {
-	const matches = findTextMatches(source, target, enableRegexMode, enableCaseSensitive, enableWholeWord);
+	const matches = findTextMatches(source, target, enableRegexMode, enableCaseSensitive, enableWholeWord, ranges);
 	const change = (match: RegExpExecArray): ReplacementChange => ({
 		from: match.index,
 		to: match.index + match[0].length,

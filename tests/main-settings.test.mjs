@@ -475,6 +475,8 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	root.querySelector('[data-action="regex"] .nya-toolbar-default button').click(); await tick();
 	const writes = p.writes.length; await p.flushSettings(); const saved = p.writes.length;
 	const trigger = preview().querySelector('[data-preview-action="more"]');
+	assert.equal(trigger.getAttribute("data-has-active"), "true"); assert.equal(trigger.classList.contains("nya-btn--active"), false);
+	assert.ok(trigger.querySelector('.nya-toolbar-indicator'));
 	trigger.click(); await tick();
 	trigger.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true })); await tick();
 	assert.equal(preview().querySelector('[role="menu"]'), null);
@@ -495,6 +497,9 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	assert.deepEqual(actions, ["case", "wholeWord", "next", "previous", "more"]);
 	assert.ok(p.writes.length >= writes);
 	assert.equal(listeners.size, 0, "presentation does not register pointer listeners");
+	setPlacement(root, 'regex', 'inline'); await tick();
+	assert.equal(preview().querySelector('[data-preview-action="more"]').getAttribute("data-has-active"), "false", "inline active default is not aggregated into More");
+	assert.equal(preview().querySelector('[data-preview-action="more"] .nya-toolbar-indicator'), null);
 	tab.hide(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
 	tab.display(); assert.equal(listeners.size, 0);
 	root.querySelector('#nya-settings-tab-find').click(); assert.equal(preview(), null); assert.equal(listeners.size, 0);
@@ -507,7 +512,7 @@ test("toolbar blocks separate identity/reorder from configuration and omit expla
 	const tab = tabs.at(-1); tab.display(); tab.containerEl.querySelector('#nya-settings-tab-toolbar').click();
 	const root = tab.containerEl;
 	assert.equal(root.querySelectorAll('.nya-settings-panel p').length, 0);
-	const blocks = [...root.querySelectorAll('.nya-toolbar-row')]; assert.equal(blocks.length, 8);
+	const blocks = [...root.querySelectorAll('.nya-toolbar-row')]; assert.equal(blocks.length, 9);
 	for (const block of blocks) {
 		const header = block.querySelector('.nya-toolbar-row-controls'), options = block.querySelector('.nya-toolbar-row-options');
 		assert.ok(header.querySelector('.nya-toolbar-name'));

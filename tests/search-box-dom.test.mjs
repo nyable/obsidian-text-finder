@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
+import * as stateModule from "@codemirror/state";
+import * as viewModule from "@codemirror/view";
 import { build } from "esbuild";
 import { compile } from "svelte/compiler";
 import { compileString } from "sass";
@@ -29,8 +31,9 @@ const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 const root = fileURLToPath(new URL("../", import.meta.url));
 const componentStyles = [];
 const bundle = await build({
-	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export {tick} from 'svelte'; export {Platform, Menu} from 'obsidian';`, resolveDir: root },
+	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export * from './src/search-scope'; export {tick} from 'svelte'; export {Platform, Menu} from 'obsidian';`, resolveDir: root },
 	bundle: true, write: false, format: "cjs", platform: "browser",
+	external: ["@codemirror/state", "@codemirror/view"],
 	plugins: [matchWorkerPlugin(), {
 		name: "search-box-dom",
 		setup(build) {
@@ -38,9 +41,9 @@ const bundle = await build({
 			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
 				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false}; export class Menu { static shown = []; items = []; addItem(fn) { const item = {setTitle(title){this.title = title;return this},setIcon(){return this},onClick(fn){this.run = fn;return this}}; fn(item);this.items.push(item);return this } showAtMouseEvent(){Menu.shown.push(this)} hide(){} }` };
 				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
-				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value};` };
+				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value}; export * from './src/search-scope';`, resolveDir: root };
 				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as GripVertical, Component as PanelRightClose, Component as RotateCcw, Component as Search, Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
+				return { contents: icon + `\nexport {Component as TextSelect, Component as GripVertical, Component as PanelRightClose, Component as RotateCcw, Component as Search, Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
 			});
 			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
 				const source = readFileSync(filename, "utf8")
@@ -65,8 +68,9 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 const module = { exports: {} };
-new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
-const { SearchBox, MatchEngine, tick, Platform, Menu } = module.exports;
+new Function("module", "exports", "require", bundle.outputFiles[0].text)(module, module.exports,
+	(name) => name === "@codemirror/state" ? stateModule : viewModule);
+const { SearchBox, MatchEngine, tick, Platform, Menu, searchScopeField, searchScopeEffect, finderSelection } = module.exports;
 
 function mount(t, matcher, settings = {}, open = true) {
 	const target = document.createElement("div");
@@ -81,8 +85,9 @@ function mount(t, matcher, settings = {}, open = true) {
 		getValue: () => editor.cm.state.doc.toString(), offsetToPos: (offset) => offset,
 		scrollIntoView: (range) => scrolls.push(range),
 		cm: {
-			state: EditorState.create({ doc: "cat cat" }),
-			dispatch(spec) { specs.push(spec); this.state = this.state.update({ changes: spec.changes, selection: spec.selection }).state; },
+			state: EditorState.create({ doc: "cat cat", extensions: [searchScopeField] }),
+			dispatch(spec) { specs.push(spec); this.state = this.state.update({ changes: spec.changes, selection: spec.selection,
+				annotations: spec.annotations, effects: spec.effects instanceof stateModule.StateEffect ? spec.effects : undefined }).state; },
 		},
 	};
 	view.editor = editor;
@@ -93,17 +98,17 @@ function mount(t, matcher, settings = {}, open = true) {
 		saveSettings: () => { saves++; return pending; },
 	};
 	attachHistory(plugin);
-	const component = new SearchBox({ target, props: {
-		cid: "a", ownerView: view,
-		editorSearch: { plugin, ...(matcher ? { getMatchEngine: () => matcher } : {}), getEditorContext: (owner) => {
+	const editorSearch = { plugin, ...(matcher ? { getMatchEngine: () => matcher } : {}), getEditorContext: (owner) => {
 			assert.equal(owner, view);
 			return { view, editor, editorView: editor.cm, file: view.file, doc: editor.cm.state.doc };
-		} },
+		} };
+	const component = new SearchBox({ target, props: {
+		cid: "a", ownerView: view, editorSearch,
 	} });
 	t.after(() => { component.$destroy(); target.remove(); resolve(); });
 	if (open) component.setVisible(true, "cat");
 	scrolls.length = 0;
-	return { component, target, scrolls, specs, plugin, view, resolve, saves: () => saves };
+	return { component, target, scrolls, specs, plugin, view, editorSearch, resolve, saves: () => saves };
 }
 
 const deferred = () => {
@@ -112,6 +117,140 @@ const deferred = () => {
 	return { promise, resolve, reject };
 };
 const settlePosition = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); await tick(); };
+
+function selectScope(h, ranges, source) {
+	const cm = h.view.editor.cm;
+	if (source !== undefined) cm.state = EditorState.create({ doc: source, extensions: [searchScopeField,
+		EditorState.allowMultipleSelections.of(true)] });
+	cm.dispatch({ selection: stateModule.EditorSelection.create(ranges.map(({ from, to }) => stateModule.EditorSelection.range(from, to))) });
+}
+
+test("selection command preserves query, locks exact multiline characters and navigation cannot shrink scope", async (t) => {
+	const h = mount(t); await tick();
+	selectScope(h, [{ from: 6, to: 13 }], "cat A cat\ncat B cat");
+	assert.equal(h.component.findInSelection(), true); await tick();
+	assert.equal(h.component.getSearchCache().search, "cat");
+	assert.deepEqual(h.component.getSearchCache().matches.map(({ from, to }) => [from, to]), [[6, 9], [10, 13]]);
+	h.component.toNextMatch(); h.component.toNextMatch(); await settlePosition();
+	assert.deepEqual(h.view.editor.cm.state.field(searchScopeField).ranges, [{ from: 6, to: 13 }]);
+	assert.equal(h.target.querySelector('.nya-scope-status'), null);
+	assert.ok(h.target.querySelector('[aria-label="search.tip.More"] .nya-toolbar-indicator'));
+	h.component.getSearchCache().replace = "dog";
+	h.component.replaceAllMatchedText("dog");
+	assert.equal(h.view.editor.getValue(), "cat A dog\ndog B cat");
+});
+
+test("toolbar captures original selection after navigation and hiding its action adds no counter marker", async (t) => {
+	const h = mount(t, undefined, {}, false); await tick();
+	selectScope(h, [{ from: 4, to: 7 }]);
+	h.component.setVisible(true, "cat"); await settlePosition();
+	assert.equal(h.view.editor.cm.state.selection.main.from, 0);
+	h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
+	const toggle = h.target.querySelector('[data-overflow-action="selection"]');
+	assert.equal(toggle.getAttribute("aria-label"), "search.tip.FindInSelection"); toggle.click(); await tick();
+	assert.equal(toggle.getAttribute("aria-pressed"), "true");
+	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 4, to: 7, index: 0 }]);
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "selection" ? { ...item, placement: "hidden" } : item);
+	h.component.refreshToolbar(); await tick();
+	assert.equal(h.target.querySelector('.nya-scope-status'), null);
+	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]'), null);
+	assert.equal(h.component.hasSelectionScope(), true);
+	h.component.toggleFindInSelection(); await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.target.querySelector('.nya-scope-status'), null);
+});
+
+test("selection scope tracks edits and length-changing replacement, empty scope blocks all writes and undo restores anchors", async (t) => {
+	const h = mount(t); await tick(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+	h.view.editor.cm.dispatch({ changes: { from: 0, insert: "prefix " } }); h.component.matchAgain(false);
+	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 11, to: 14, index: 0 }]);
+	h.component.replaceAllMatchedText("cat!");
+	assert.equal(h.view.editor.getValue(), "prefix cat cat!");
+	assert.deepEqual(h.view.editor.cm.state.field(searchScopeField).ranges, [{ from: 11, to: 15 }]);
+	const before = h.view.editor.cm.state, removed = before.update({ changes: { from: 11, to: 15 } });
+	h.view.editor.cm.state = removed.state; h.component.matchAgain(false); await tick();
+	h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
+	assert.equal(h.target.querySelector('[data-overflow-action="selection"]').getAttribute("aria-pressed"), "true");
+	assert.equal(h.target.querySelector('[data-overflow-action="selection"]').getAttribute("aria-label"), "search.tip.FindInSelectionUnavailable");
+	assert.equal(h.component.getSearchCache().matches.length, 0);
+	h.component.replaceAllMatchedText("dog"); assert.equal(h.view.editor.getValue(), "prefix cat ");
+	h.view.editor.cm.dispatch({ changes: removed.changes.invert(before.doc) }); h.component.matchAgain(false);
+	assert.equal(h.component.getSearchCache().matches.length, 1);
+});
+
+test("multiple nonempty selections exclude intervening text from replace all", async (t) => {
+	const h = mount(t); await tick();
+	selectScope(h, [{ from: 0, to: 3 }, { from: 8, to: 11 }], "cat cat cat");
+	h.component.findInSelection(); h.component.replaceAllMatchedText("dog!");
+	assert.equal(h.view.editor.getValue(), "dog! cat dog!");
+	assert.deepEqual(h.view.editor.cm.state.field(searchScopeField).ranges, [{ from: 0, to: 4 }, { from: 9, to: 13 }]);
+});
+
+test("selection scope survives docking but close blocks hidden replacement until an explicit new session", async (t) => {
+	const h = mount(t); await tick(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+	h.component.dockFinder(); await tick(); assert.equal(h.component.hasSelectionScope(), true);
+	h.component.expandFinder(); h.component.setVisible(false);
+	assert.equal(h.view.editor.cm.state.field(searchScopeField).ranges, null);
+	h.component.replaceAllMatchedText("dog"); assert.equal(h.view.editor.getValue(), "cat cat");
+	h.component.setVisible(true); h.component.replaceAllMatchedText("dog");
+	assert.equal(h.view.editor.getValue(), "dog dog");
+});
+
+for (const reason of ["file", "editor", "reading", "window"]) {
+	test(`selection scope invalidation (${reason}) never silently replaces entire file`, async (t) => {
+		const h = mount(t); await tick(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+		if (reason === "file") h.view.file = { path: "new.md" };
+		if (reason === "editor") h.view.editor.cm.state = EditorState.create({ doc: "cat cat" });
+		if (reason === "reading") h.view.getMode = () => "preview";
+		if (reason === "window") {
+			const other = new JSDOM('<html><body></body></html>'); t.after(() => other.window.close());
+			other.window.document.body.append(other.window.document.adoptNode(h.target));
+		}
+		// A replacement call alone must discover invalidation without an event.
+		h.component.replaceAllMatchedText("dog"); assert.equal(h.view.editor.getValue(), "cat cat");
+	});
+}
+
+test("no selection and reading mode cannot enable scope and produce no document writes", async (t) => {
+	const h = mount(t); await tick(); let errors = [];
+	h.plugin.reportError = (key) => errors.push(key);
+	assert.equal(h.component.findInSelection(), false); assert.deepEqual(errors, ["search.SelectionRequired"]);
+	selectScope(h, [{ from: 4, to: 7 }]); h.view.getMode = () => "preview";
+	assert.equal(h.component.findInSelection(), false); assert.equal(h.component.hasSelectionScope(), false);
+});
+
+test("mobile scoped finder uses only the inline toggle to indicate and clear the scope", async (t) => {
+	Platform.isMobile = true; document.body.classList.add("is-mobile");
+	t.after(() => { Platform.isMobile = false; document.body.classList.remove("is-mobile"); });
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "selection" ? { ...item, placement: "inline" } : item);
+	h.component.refreshToolbar(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection(); await tick();
+	const toggle = h.target.querySelector('[data-toolbar-action="selection"]');
+	assert.equal(toggle.getAttribute("aria-pressed"), "true");
+	assert.equal(h.target.querySelector('.nya-scope-status'), null);
+	assert.equal(h.target.querySelector('.nya-float-tip [role="button"], .nya-float-tip button'), null);
+	toggle.click(); await tick();
+	assert.equal(toggle.getAttribute("aria-pressed"), "false");
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.component.setVisible(false); await tick();
+	assert.equal(h.target.querySelector('.nya-scope-status')?.tabIndex ?? -1, -1);
+});
+
+test("production Worker honors scope for single/all replacement and mapped post-commit results", async (t) => {
+	for (const all of [false, true]) {
+		const host = installWorkerHost({ URL: {} }), engine = new MatchEngine(() => host.win);
+		t.after(async () => { engine.destroy(); await host.dispose(); });
+		const h = mount(t, engine, {}, false); await tick();
+		selectScope(h, [{ from: 4, to: 11 }], "cat cat cat cat");
+		h.component.getSearchCache().search = "cat";
+		h.component.findInSelection(); h.component.getSearchCache().replace = "cat!";
+		const result = await (all ? h.component.replaceAllMatchedText("cat!") : h.component.replaceOnce());
+		await result.navigationCompletion; await tick();
+		assert.equal(h.view.editor.getValue(), all ? "cat cat! cat! cat" : "cat cat! cat cat");
+		assert.equal(result.changeCount, all ? 2 : 1);
+		assert.equal(h.component.getSearchCache().matches.length, 2);
+	}
+});
 
 test("automatic floating entry and background refreshes never search, scroll or take focus", async (t) => {
 	const matcher = delayedMatcher(), h = mount(t, matcher, {}, false); await tick();
@@ -456,9 +595,9 @@ test("edge collapse closes More and keeps its hidden controls out of focus", asy
 	const h = mount(t); await tick();
 	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "regex" ? { ...item, placement: "more" } : item);
 	h.component.refreshToolbar(); await tick(); h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
-	assert.ok(h.target.querySelector('[role="menu"]'));
+	assert.ok(h.target.querySelector('.nya-toolbar-menu'));
 	h.component.dockFinder(); await tick();
-	assert.equal(h.target.querySelector('[role="menu"]'), null);
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
 	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]').tabIndex, -1);
 	assert.equal(h.target.querySelector(".nya-panel-tools"), null);
 	const handle = h.target.querySelector(".nya-dragger"); assert.ok(document.getElementById(handle.getAttribute("aria-labelledby")));
@@ -479,7 +618,7 @@ test("More follows moved finder within owner boundaries and flips above near the
 	h.target.getBoundingClientRect = () => ({ left: 0, top: 0, right: 600, bottom: 400 });
 	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "regex" ? { ...item, placement: "more" } : item);
 	h.component.refreshToolbar(); await tick(); h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
-	const menu = h.target.querySelector('[role="menu"]'), trigger = h.target.querySelector('[aria-label="search.tip.More"]');
+	const menu = h.target.querySelector('.nya-toolbar-menu'), trigger = h.target.querySelector('[aria-label="search.tip.More"]');
 	trigger.getBoundingClientRect = () => ({ top: 330 });
 	menu.getBoundingClientRect = () => {
 		const [x = 0, y = 0] = (menu.style.translate || "0px 0px").split(" ").map(parseFloat);
@@ -487,7 +626,7 @@ test("More follows moved finder within owner boundaries and flips above near the
 	};
 	h.target.querySelector(".nya-finder").dispatchEvent(new window.Event("nya-finder-position"));
 	assert.equal(menu.style.translate, "-88px -136px"); assert.equal(menu.style.maxHeight, "384px");
-	h.component.dockFinder(); await tick(); assert.equal(h.target.querySelector('[role="menu"]'), null);
+	h.component.dockFinder(); await tick(); assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
 });
 
 test("finder placement handle supports keyboard movement/reset, owner isolation and closes cleanly", async (t) => {
@@ -832,18 +971,18 @@ test("whole word toolbar toggle filters counts and synchronous replacement again
 	assert.equal(h.specs.filter((spec) => Array.isArray(spec.changes)).length, 1);
 });
 
-test("whole word is a checked More action and hiding it does not reset the query option", async (t) => {
+test("whole word uses a pressed More button and hiding it does not reset the query option", async (t) => {
 	const h = mount(t); await tick();
 	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "wholeWord" ? { ...item, placement: "more" } : item);
 	h.component.refreshToolbar(); await tick();
 	const more = h.target.querySelector('[aria-label="search.tip.More"]');
 	more.click(); await tick();
-	let option = h.target.querySelector('[role="menuitemcheckbox"]');
-	assert.equal(option.textContent.trim(), "search.tip.MatchWholeWord"); assert.equal(option.getAttribute("aria-checked"), "false");
+	const option = h.target.querySelector('[data-overflow-action="wholeWord"]');
+	assert.equal(option.getAttribute("aria-label"), "search.tip.MatchWholeWord"); assert.equal(option.getAttribute("aria-pressed"), "false");
 	option.click(); await tick();
 	assert.equal(h.component.getSearchCache().options.wholeWord, true);
-	more.click(); await tick(); option = h.target.querySelector('[role="menuitemcheckbox"]');
-	assert.equal(option.getAttribute("aria-checked"), "true");
+	assert.equal(option.getAttribute("aria-pressed"), "true");
+	assert.ok(h.target.querySelector('.nya-toolbar-menu'));
 	h.plugin.settings.searchToolbar = h.plugin.settings.searchToolbar.map((item) => item.id === "wholeWord" ? { ...item, placement: "hidden" } : item);
 	h.component.refreshToolbar(); await tick();
 	assert.equal(h.target.querySelector('[aria-label="search.tip.MatchWholeWord"]'), null);
@@ -888,15 +1027,15 @@ test("finder initializes global default options once and keeps manual choices ac
 function delayedMatcher() {
 	const requests = [];
 	return { requests, cancel() { this.cancels = (this.cancels ?? 0) + 1; }, destroy() {},
-		match(source, query, options) { const pending = deferred(); requests.push({ source, query, options, ...pending }); return pending.promise; } };
+		match(source, query, options, ranges) { const pending = deferred(); requests.push({ source, query, options, ranges, ...pending }); return pending.promise; } };
 }
 const matchedCats = { status: "completed", synchronous: false, matches: [{ from: 0, to: 3, index: 0 }, { from: 4, to: 7, index: 1 }] };
 
 function replacementMatcher() {
 	const matcher = delayedMatcher();
 	matcher.replacements = [];
-	matcher.replace = (source, query, replacement, options, index, all) => {
-		const pending = deferred(); matcher.replacements.push({ source, query, replacement, options, index, all, ...pending }); return pending.promise;
+	matcher.replace = (source, query, replacement, options, index, all, ranges) => {
+		const pending = deferred(); matcher.replacements.push({ source, query, replacement, options, index, all, ranges, ...pending }); return pending.promise;
 	};
 	return matcher;
 }
@@ -908,6 +1047,45 @@ async function mountReplacement(t) {
 	h.component.getSearchCache().replace = "cat!";
 	return { ...h, matcher };
 }
+
+for (const action of ["reselect", "clear", "close", "edit"]) {
+	test(`pending scoped replacement cannot commit after ${action}`, async (t) => {
+		const h = await mountReplacement(t); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+		const pending = h.component.replaceOnce();
+		assert.deepEqual(h.matcher.replacements[0].ranges, [{ from: 4, to: 7 }]);
+		if (action === "reselect") { selectScope(h, [{ from: 0, to: 3 }]); h.component.findInSelection(); }
+		if (action === "clear") h.component.toggleFindInSelection();
+		if (action === "close") h.component.setVisible(false);
+		if (action === "edit") h.view.editor.cm.dispatch({ changes: { from: 0, insert: "x" } });
+		h.matcher.replacements[0].resolve({ ...matchedCats, matches: [{ from: 4, to: 7, index: 0 }], changes: [{ from: 4, to: 7, insert: "dog" }] });
+		assert.equal((await pending).changed, false);
+		assert.equal(h.view.editor.getValue(), action === "edit" ? "xcat cat" : "cat cat");
+	});
+}
+
+test("pending scoped query cannot publish after the same range is captured again", async (t) => {
+	const matcher = delayedMatcher(), h = mount(t, matcher, {}, false); await tick();
+	h.component.getSearchCache().search = "cat"; selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+	const old = matcher.requests[0]; h.component.findInSelection();
+	old.resolve(matchedCats); await settlePosition(); assert.deepEqual(h.component.getSearchCache().matches, []);
+	matcher.requests[1].resolve({ ...matchedCats, matches: [{ from: 4, to: 7, index: 0 }] }); await settlePosition();
+	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 4, to: 7, index: 0 }]);
+});
+
+test("scoped replacement rejects out-of-range candidates even from a custom executor", async (t) => {
+	const h = await mountReplacement(t); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+	const pending = h.component.replaceOnce(); h.matcher.replacements[0].resolve(candidates("dog"));
+	const result = await pending; assert.equal(result.changed, false); assert.equal(result.status, "failed");
+	assert.equal(h.view.editor.getValue(), "cat cat");
+});
+
+test("same-file owners retain independent scopes and destroying one releases only its scope", async (t) => {
+	const a = mount(t), b = mount(t); await tick(); b.view.file = a.view.file;
+	selectScope(a, [{ from: 0, to: 3 }]); selectScope(b, [{ from: 4, to: 7 }]);
+	a.component.findInSelection(); b.component.findInSelection(); a.component.$destroy();
+	assert.equal(a.view.editor.cm.state.field(searchScopeField).ranges, null);
+	b.component.replaceAllMatchedText("dog"); assert.equal(b.view.editor.getValue(), "cat dog");
+});
 
 test("async replacement commits once, tolerates own editor events, then waits for rematch and positioning before advance", async (t) => {
 	const h = await mountReplacement(t), mode = deferred(); h.view.setState = () => mode.promise;
@@ -1623,13 +1801,14 @@ test("hiding Finder closes More without restoring focus into hidden controls", a
 	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => ({ ...item, placement: "more" }));
 	h.component.refreshToolbar(); await tick();
 	h.target.querySelector('[aria-label="search.tip.More"]').click(); await tick();
-	assert.ok(h.target.querySelector('[role="menu"]'));
-	const menu = h.target.querySelector('[role="menu"]');
-	assert.equal(menu.hasAttribute('aria-label'), false, 'menu container does not create a hover tooltip');
+	assert.ok(h.target.querySelector('.nya-toolbar-menu'));
+	const menu = h.target.querySelector('.nya-toolbar-menu');
+	assert.equal(menu.getAttribute('role'), 'group');
+	assert.equal(menu.hasAttribute('aria-label'), false, 'panel container does not create a hover tooltip');
 	assert.equal(h.target.ownerDocument.getElementById(menu.getAttribute('aria-labelledby')), h.target.querySelector('[aria-label="search.tip.More"]'));
 	assert.ok(h.target.contains(document.activeElement));
 	h.component.setVisible(false); await tick();
-	assert.equal(h.target.querySelector('[role="menu"]'), null);
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
 	assert.ok(!h.target.contains(document.activeElement));
 	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]').tabIndex, -1);
 });
@@ -1705,11 +1884,11 @@ test("history reuse navigates from its new sorted position after usage reorders"
 	assert.equal(h.component.getSearchCache().search, "dog");
 });
 
-test("default toolbar keeps order, button geometry and active styling without More", async (t) => {
+test("default toolbar keeps inline order and geometry with selection in More", async (t) => {
 	const h = mount(t); await tick();
 	assert.deepEqual([...h.target.querySelectorAll('.finder-act [role="button"]')].map((el) => el.getAttribute("aria-label")),
-		["search.tip.UseRegularExpression", "search.tip.MatchCase", "search.tip.MatchWholeWord", "search.tip.PreviousMatch", "search.tip.NextMatch", "search.tip.Close"]);
-	assert.equal(h.target.querySelector('[aria-label="search.tip.More"]'), null);
+		["search.tip.UseRegularExpression", "search.tip.MatchCase", "search.tip.MatchWholeWord", "search.tip.PreviousMatch", "search.tip.NextMatch", "search.tip.More", "search.tip.Close"]);
+	assert.ok(h.target.querySelector('[aria-label="search.tip.More"]'));
 	const button = h.target.querySelector('[aria-label="search.tip.UseRegularExpression"]');
 	const style = window.getComputedStyle(button);
 	assert.equal(style.width, "24px"); assert.equal(style.height, "24px"); assert.equal(style.margin, "2px"); assert.equal(style.padding, "4px");
@@ -1737,14 +1916,208 @@ test("configured toolbars update immediately, More toggles preserve state and Es
 	h.component.refreshToolbar(); await tick();
 	assert.equal(h.target.querySelector('[aria-label="search.tip.PreviousMatch"]'), null);
 	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
-	let regex = h.target.querySelector('[role="menuitemcheckbox"]'); assert.equal(regex.getAttribute("aria-checked"), "false");
+	const regex = h.target.querySelector('[data-overflow-action="regex"]'); assert.equal(regex.getAttribute("aria-pressed"), "false");
 	regex.click(); await tick(); assert.equal(h.component.getSearchCache().options.regexMode, true);
-	more.click(); await tick(); regex = h.target.querySelector('[role="menuitemcheckbox"]'); assert.equal(regex.getAttribute("aria-checked"), "true");
+	assert.equal(regex.getAttribute("aria-pressed"), "true"); assert.equal(document.activeElement, regex);
 	regex.dispatchEvent(new window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await tick();
-	assert.equal(h.target.querySelector('[role="menu"]'), null); assert.equal(h.component.isVisible(), true);
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), null); assert.equal(h.component.isVisible(), true);
 	h.plugin.settings.enableHistory = false; h.component.refreshToolbar(); more.click(); await tick();
-	assert.equal(h.target.querySelector('[role="menuitem"]').disabled, true);
-	document.body.dispatchEvent(new window.Event("pointerdown", { bubbles: true })); await tick(); assert.equal(h.target.querySelector('[role="menu"]'), null);
+	assert.equal(h.target.querySelector('[data-overflow-action="history"]').getAttribute("aria-disabled"), "true");
+	document.body.dispatchEvent(new window.Event("pointerdown", { bubbles: true })); await tick(); assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
+});
+
+test("More is a compact icon button group with the same geometry and states as inline actions", async (t) => {
+	const h = mount(t); await tick();
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) =>
+		["regex", "case", "wholeWord"].includes(item.id) ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	const panel = h.target.querySelector('.nya-toolbar-menu');
+	assert.equal(panel.getAttribute("role"), "group");
+	assert.equal(panel.getAttribute("aria-label"), null); assert.equal(panel.getAttribute("title"), null);
+	assert.equal(document.getElementById(panel.getAttribute("aria-labelledby")), more);
+	assert.equal(document.getElementById(more.getAttribute("aria-controls")), panel);
+	assert.equal(more.hasAttribute("aria-haspopup"), false);
+	assert.equal(panel.querySelector('[role="menuitem"], [role="menuitemcheckbox"], .nya-menu-check'), null);
+	const panelStyle = window.getComputedStyle(panel);
+	assert.equal(panelStyle.display, "flex"); assert.equal(panelStyle.flexWrap, "wrap");
+	assert.equal(panel.style.minWidth, "");
+	const inline = h.target.querySelector('[data-toolbar-action="next"]'), reference = window.getComputedStyle(inline);
+	for (const button of panel.querySelectorAll('[role="button"]')) {
+		assert.equal(button.textContent.trim(), "", "icon buttons have no visible menu text");
+		assert.ok(button.getAttribute("aria-label")); assert.equal(button.hasAttribute("title"), false);
+		for (const property of ["width", "height", "padding", "margin"]) assert.equal(window.getComputedStyle(button)[property], reference[property]);
+	}
+	const regex = panel.querySelector('[data-overflow-action="regex"]');
+	let queryFocus = 0;
+	t.mock.method(h.target.querySelector('textarea'), 'focus', () => { queryFocus++; });
+	regex.click(); await tick();
+	assert.equal(regex.getAttribute("aria-pressed"), "true"); assert.ok(regex.classList.contains("nya-btn--active"));
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), panel); assert.equal(document.activeElement, regex);
+	panel.querySelector('[data-overflow-action="case"]').click(); await tick();
+	assert.equal(h.component.getSearchCache().options.caseSensitive, true);
+	assert.equal(queryFocus, 0, "mode toggles must not briefly focus the query or summon a mobile keyboard");
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), panel);
+	more.click(); await tick(); assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
+});
+
+test("More indicates only its own enabled modes with a collapsed dot, never a mode activation style", async (t) => {
+	const h = mount(t); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]');
+	h.component.toggleRegexMode(); await tick();
+	assert.equal(more.classList.contains("nya-btn--active"), false, "inline activation is not aggregated");
+	assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
+	more.click(); await tick();
+	assert.ok(more.classList.contains("nya-btn--open")); assert.equal(more.classList.contains("nya-btn--active"), false);
+	selectScope(h, [{ from: 4, to: 7 }]);
+	h.target.querySelector('[data-overflow-action="selection"]').click(); await tick();
+	assert.equal(more.classList.contains("nya-btn--active"), false);
+	assert.equal(more.querySelector('.nya-toolbar-indicator'), null, "expanded buttons already expose their state");
+	const description = document.getElementById(more.getAttribute("aria-describedby"));
+	assert.ok(description); assert.equal(description.className.includes("nya-toolbar-help"), true);
+	assert.equal(more.getAttribute("aria-pressed"), null, "aggregate state is not a separate mode toggle");
+	more.click(); await tick();
+	assert.equal(more.classList.contains("nya-btn--open"), false);
+	assert.equal(more.classList.contains("nya-btn--active"), false);
+	const dot = more.querySelector('.nya-toolbar-indicator'); assert.ok(dot);
+	assert.equal(dot.getAttribute("aria-hidden"), "true"); assert.equal(dot.hasAttribute("tabindex"), false);
+	const css = window.getComputedStyle(dot);
+	assert.equal(css.position, "absolute"); assert.equal(css.width, "5px"); assert.equal(css.height, "5px");
+	assert.equal(css.pointerEvents, "none");
+	more.click(); await tick(); assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
+	assert.equal(document.getElementById(more.getAttribute("aria-describedby")), description, "accessible description survives expansion");
+	const selection = h.target.querySelector('[data-overflow-action="selection"]'); selection.click(); await tick();
+	assert.equal(selection.getAttribute("aria-pressed"), "false");
+	more.click(); await tick(); assert.equal(more.querySelector('.nya-toolbar-indicator'), null, "all modes disabled while open");
+	h.component.findInSelection(); await tick(); assert.ok(more.querySelector('.nya-toolbar-indicator'));
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) =>
+		item.id === "selection" ? { ...item, placement: "hidden" } : item.id === "history" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick();
+	assert.equal(more.classList.contains("nya-btn--active"), false, "hidden modes and available history are not aggregated");
+	assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
+	assert.equal(more.hasAttribute("aria-describedby"), false);
+	assert.equal(h.component.hasSelectionScope(), true);
+});
+
+test("More keyboard navigation skips disabled actions and Escape returns focus without closing Finder", async (t) => {
+	const h = mount(t, undefined, { enableHistory: false }); await tick();
+	h.plugin.settings.searchToolbar = ["regex", "history", "case", "selection"].map((id) => ({ id, placement: "more" }));
+	h.component.refreshToolbar(); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]');
+	const key = (node, value) => node.dispatchEvent(new window.KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true }));
+	key(more, "Enter"); await tick();
+	const regex = h.target.querySelector('[data-overflow-action="regex"]'), caseButton = h.target.querySelector('[data-overflow-action="case"]');
+	const selection = h.target.querySelector('[data-overflow-action="selection"]'), history = h.target.querySelector('[data-overflow-action="history"]');
+	assert.equal(document.activeElement, regex); assert.equal(history.tabIndex, -1);
+	key(regex, "ArrowRight"); assert.equal(document.activeElement, caseButton);
+	key(caseButton, " "); await tick(); assert.equal(caseButton.getAttribute("aria-pressed"), "true");
+	assert.equal(document.activeElement, caseButton);
+	key(caseButton, "End"); assert.equal(document.activeElement, selection);
+	key(selection, "Home"); assert.equal(document.activeElement, regex);
+	key(regex, "ArrowLeft"); assert.equal(document.activeElement, selection);
+	key(selection, "Escape"); await tick();
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), null); assert.equal(document.activeElement, more);
+	assert.equal(h.component.isVisible(), true);
+});
+
+test("More allows native Tab focus traversal and closes after focus leaves the panel", async (t) => {
+	const h = mount(t); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	const selection = h.target.querySelector('[data-overflow-action="selection"]');
+	const event = new window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+	selection.dispatchEvent(event); assert.equal(event.defaultPrevented, false);
+	h.target.querySelector("textarea").focus(); await tick();
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
+	assert.equal(document.activeElement, h.target.querySelector("textarea"));
+});
+
+test("More ordinary actions close the panel and disabled actions do not execute", async (t) => {
+	const h = mount(t, undefined, { enableHistory: false }); await tick();
+	h.plugin.settings.searchToolbar = [{ id: "next", placement: "more" }, { id: "history", placement: "more" }];
+	h.component.refreshToolbar(); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	const panel = h.target.querySelector('.nya-toolbar-menu');
+	panel.querySelector('[data-overflow-action="history"]').click(); await tick();
+	assert.equal(h.target.querySelector('.nya-toolbar-menu'), panel); assert.equal(h.component.getSearchCache().index, 0);
+	panel.querySelector('[data-overflow-action="next"]').click(); await tick();
+	assert.equal(h.component.getSearchCache().index, 1); assert.equal(h.target.querySelector('.nya-toolbar-menu'), null);
+	assert.equal(more.classList.contains("nya-btn--active"), false);
+});
+
+test("reading mode removes selection from More without leaking its aggregate activation", async (t) => {
+	const h = mount(t); await tick(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection(); await tick();
+	const reading = new ReadingSearch(h.view, () => true, () => h.component.matchAgain(false));
+	h.editorSearch.getReadingSearch = () => reading; h.editorSearch.clearReadingSearch = () => reading.clear();
+	t.after(() => reading.destroy());
+	h.plugin.settings.searchToolbar = toolbarSource.defaultToolbar("search").map((item) => item.id === "wholeWord" ? { ...item, placement: "more" } : item);
+	h.component.refreshToolbar(); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]');
+	assert.ok(more.querySelector('.nya-toolbar-indicator'));
+	h.view.getMode = () => "preview"; h.component.matchAgain(false); await tick();
+	assert.equal(more.classList.contains("nya-btn--active"), false);
+	assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
+	more.click(); await tick(); assert.equal(h.target.querySelector('[data-overflow-action="selection"]'), null);
+	assert.ok(h.target.querySelector('[data-overflow-action="wholeWord"]'));
+});
+
+test("More panel placement listeners are released on dismissal and destruction", async (t) => {
+	const resize = new Set(), position = new Set();
+	const add = window.addEventListener.bind(window), remove = window.removeEventListener.bind(window);
+	t.mock.method(window, 'addEventListener', (type, handler, ...rest) => { if (type === 'resize') resize.add(handler); return add(type, handler, ...rest); });
+	t.mock.method(window, 'removeEventListener', (type, handler, ...rest) => { if (type === 'resize') resize.delete(handler); return remove(type, handler, ...rest); });
+	const h = mount(t); await tick();
+	const finder = h.target.querySelector('.nya-finder'), before = resize.size;
+	const addPosition = finder.addEventListener.bind(finder), removePosition = finder.removeEventListener.bind(finder);
+	t.mock.method(finder, 'addEventListener', (type, handler, ...rest) => { if (type === 'nya-finder-position') position.add(handler); return addPosition(type, handler, ...rest); });
+	t.mock.method(finder, 'removeEventListener', (type, handler, ...rest) => { if (type === 'nya-finder-position') position.delete(handler); return removePosition(type, handler, ...rest); });
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	assert.equal(resize.size, before + 1); assert.equal(position.size, 1);
+	more.click(); await tick(); assert.equal(resize.size, before); assert.equal(position.size, 0);
+	more.click(); await tick(); h.component.$destroy();
+	assert.equal(resize.size, 0); assert.equal(position.size, 0);
+});
+
+test("failed selection activation keeps More open but not active, and invalid scope stays pressed until cleared", async (t) => {
+	const h = mount(t); await tick();
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	const selection = h.target.querySelector('[data-overflow-action="selection"]'); selection.click(); await tick();
+	assert.equal(selection.getAttribute("aria-pressed"), "false"); assert.equal(more.classList.contains("nya-btn--active"), false);
+	assert.equal(document.activeElement, selection);
+	selectScope(h, [{ from: 4, to: 7 }]); selection.click(); await tick();
+	h.view.file = { path: "different.md" }; h.component.matchAgain(false); await tick();
+	assert.equal(selection.getAttribute("aria-pressed"), "true");
+	assert.equal(selection.getAttribute("aria-label"), "search.tip.FindInSelectionUnavailable");
+	assert.equal(more.classList.contains("nya-btn--active"), false);
+	assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
+	more.click(); await tick(); assert.ok(more.querySelector('.nya-toolbar-indicator'), "invalid restricted scope is still indicated when collapsed");
+	more.click(); await tick();
+	h.component.replaceAllMatchedText("dog"); assert.equal(h.view.editor.getValue(), "cat cat");
+	const reopened = h.target.querySelector('[data-overflow-action="selection"]'); reopened.click(); await tick();
+	assert.equal(reopened.getAttribute("aria-pressed"), "false"); assert.equal(more.classList.contains("nya-btn--active"), false);
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.target.querySelector('.nya-scope-status'), null);
+});
+
+test("scope styling is background-only and does not override match colors", () => {
+	const styles = compileString(readFileSync(new URL('../src/styles/index.scss', import.meta.url), 'utf8')).css;
+	const scopeRules = styles.match(/\.nya-text-finder-scope[^{}]*\{[^}]*\}/g);
+	assert.ok(scopeRules?.length);
+	assert.ok(scopeRules.every((rule) => !/box-shadow|text-decoration|border-bottom/.test(rule)));
+	assert.ok(scopeRules.some((rule) => rule.includes(':not(.nya-text-finder-match)') && rule.includes('var(--background-modifier-hover)')));
+});
+
+test("toolbar focus rings use focus-visible without changing mode activation or expanded feedback", () => {
+	const styles = componentStyles.find((css) => css.includes('.nya-toolbar-indicator'));
+	assert.ok(styles);
+	const rules = Array.from(styles.matchAll(/([^{}]+)\{([^{}]*)\}/g), ([, selector, body]) => ({ selector, body }));
+	const focus = rules.filter(({ selector }) => selector.includes('.nya-focus') && selector.includes(':focus'));
+	assert.ok(focus.some(({ selector, body }) => selector.includes(':focus-visible') && /outline:\s*2px solid var\(--nya-focus-border-color\)/.test(body)));
+	assert.ok(focus.some(({ selector, body }) => selector.includes(':focus:not(:focus-visible)') && /outline:\s*none/.test(body)));
+	assert.ok(focus.every(({ body }) => !body.includes('box-shadow')), 'no pointer-focus blue shadow');
+	assert.ok(rules.some(({ selector, body }) => selector.includes('.nya-btn--active') && /background-color:\s*rgba\(36, 137, 219, 0.51\)/.test(body)));
+	assert.ok(rules.some(({ selector, body }) => selector.includes('.nya-btn--open') && body.includes('inset 0 0 0 1px var(--text-muted)')));
+	const indicator = rules.find(({ selector }) => selector.includes('.nya-toolbar-indicator'));
+	assert.ok(indicator.body.includes('var(--interactive-accent)')); assert.ok(!/transition|animation/.test(indicator.body));
 });
 
 test("render waiting uses a compact count marker and delayed external status, cleared on completion", async (t) => {

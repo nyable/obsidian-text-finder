@@ -14,7 +14,7 @@ type SettingsPage = "general" | "find" | "replace" | "history" | "toolbar";
 type ToggleKey = { [K in keyof PluginSettings]: PluginSettings[K] extends boolean ? K : never }[keyof PluginSettings];
 const pages: SettingsPage[] = ["general", "find", "replace", "history", "toolbar"];
 const actionIcons: Record<ToolbarAction, string> = {
-	regex: "regex", case: "case-sensitive", wholeWord: "whole-word", previous: "arrow-up", next: "arrow-down",
+	regex: "regex", case: "case-sensitive", wholeWord: "whole-word", selection: "text-select", previous: "arrow-up", next: "arrow-down",
 	history: "history", replace: "replace", replaceAll: "replace-all",
 };
 

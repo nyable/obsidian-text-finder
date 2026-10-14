@@ -16,12 +16,8 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Supports regular expressions
 -   Supports case sensitivity
 -   Supports whole-word matching
+-   Find/replace within exact editor selections, including multiple selections
 -   Input history
-
-## To Do
-
--   [ ] Search/Replace in Selection
-
 
 ## ScreenShot
 
@@ -69,6 +65,18 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 - Chinese text is not automatically segmented: `中文` does not match part of `中文内容`. Full-width punctuation and NBSP are not default separators.
 - Punctuation at the start/end of the match can itself satisfy that boundary: `C++` also matches `C++17`. Regex checks use the actual complete match without changing captures or replacement templates.
 - Reading search checks the continuous rendered text, not individual DOM nodes; its results can differ from Markdown source search. Native-find fallback keeps Obsidian's own semantics.
+
+## Find in selection
+
+- Select editor text and run **Open find in selection**, or enable **Find in selection** in the finder's More menu. The dedicated command retains the query; normal Open Find still follows the selection-as-query preference. Appearance settings can place the action inline, in More or hide it. There is no default-enabled or expand-to-whole-lines setting.
+- Scopes use exact Markdown source characters, even across lines. Multiple nonempty selections are searched separately, without including gaps or concatenating text. Counts, navigation and every replacement entry point use the same scope.
+- The selection button's active state indicates the mode; a subtle editor background marks the range without an underline or extra text beside the count. When the action is in More, a small accent dot appears on the collapsed More button and hides when expanded; hidden actions do not add a separate marker. Navigation never shrinks the scope. Select again and rerun the dedicated command to update it, or turn the scope action off to return to full-file search. Empty/invalid scopes remain restricted and pressed, with a tooltip explaining how to reselect or turn the restriction off.
+- Scopes follow edits, including insertions/replacements at their edges. Deleting exactly a scope keeps collapsed anchors so undo can restore it. Edits crossing a scope boundary invalidate that range instead of guessing a wider boundary. Empty/invalid scopes cannot replace text.
+- Collapsing the panel retains the scope; closing ends it and blocks hidden replacement from silently becoming a full-file edit. Explicitly reopening ordinary Find starts a full-file session. File/mode changes, editor rebuilds and window migration invalidate the scope; reselect or explicitly clear it. Scopes are view-local and never saved.
+- Regex scans the original document from each scope's start, accepting only fully contained matches. Lookarounds, line anchors, whole-word boundaries and prefix/suffix replacement templates retain full-document context: selecting `bar` in `foobar` allows `(?<=foo)bar`, but not `^bar`. This is not a promise of identical VS Code regex semantics.
+- Editing mode only (Markdown source selections in Source/Live Preview). Reading mode keeps full-body search.
+
+More opens a compact panel of icon buttons matching the inline toolbar. Mode toggles keep it open for consecutive adjustments; other actions close it. A 5px theme-accent dot at the top right of collapsed More indicates enabled modes inside, without a mode-style blue background or border. Expanding hides the dot and retains only subtle expanded-border feedback; collapsing restores the dot only if needed. The dot takes no layout space, has no animation or separate click target, and the accessible mode description remains available while expanded. Toolbar focus rings use `:focus-visible` for keyboard navigation rather than a persistent pointer-focus blue shadow; mode activation styling is unchanged. Click outside, click More again or press Escape to dismiss; Escape does not also close the finder. Arrow keys and Home/End browse enabled buttons; Tab retains native focus traversal.
 
 ## Move or collapse the finder
 

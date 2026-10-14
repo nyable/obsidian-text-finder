@@ -14,6 +14,37 @@ const { MatchEngine } = module.exports;
 const helper = loadSource("../src/util/text-helper.ts");
 const options = { regexMode: true, caseSensitive: false };
 
+test("selection ranges share exact Worker and fallback semantics for find and replacement", async (t) => {
+	const host = installWorkerHost({ URL: {} }), worker = new MatchEngine(() => host.win), fallback = new MatchEngine(() => ({}));
+	t.after(async () => { worker.destroy(); fallback.destroy(); await host.dispose(); });
+	for (const [source, query, ranges] of [
+		["cat A cat\ncat B cat", "cat", [{ from: 6, to: 13 }]],
+		["aaa", "aa", [{ from: 1, to: 3 }]],
+		["foobar", "(?<=foo)bar", [{ from: 3, to: 6 }]],
+		["foobar", "^bar", [{ from: 3, to: 6 }]],
+		["cat cat cat", "cat", [{ from: 0, to: 3 }, { from: 8, to: 11 }]],
+		["cat", "cat", []],
+	]) for (const wholeWord of [false, true]) {
+		const opts = { ...options, wholeWord }, prepared = helper.prepareReplacements(source, query, "$&:$`:$'", true, false, wholeWord, ranges);
+		for (const engine of [worker, fallback]) {
+			assert.deepEqual((await engine.match(source, query, opts, ranges)).matches, prepared.matches);
+			for (const all of [false, true]) {
+				const result = await engine.replace(source, query, "$&:$`:$'", opts, 0, all, ranges);
+				assert.deepEqual(result.matches, prepared.matches);
+				assert.deepEqual(result.changes, all ? prepared.all() : prepared.one(0) ? [prepared.one(0)] : []);
+			}
+		}
+	}
+});
+
+test("Worker protocol refuses coordinates outside the captured range", async () => {
+	const h = fakeWindow(), engine = new MatchEngine(() => h.win);
+	const pending = engine.match("cat cat", "cat", options, [{ from: 4, to: 7 }]), worker = h.workers[0];
+	worker.emit("message", { data: { type: "ready" } });
+	worker.emit("message", { data: { type: "result", id: worker.requests[0].id, offsets: new Float64Array([0, 3]).buffer } });
+	assert.equal((await pending).status, "failed"); engine.destroy();
+});
+
 test("whole word shares match and replacement semantics across Worker and startup fallback", async (t) => {
 	t.mock.method(console, "log", () => {});
 	const host = installWorkerHost({ URL: {} }), fallbackWindow = {}, worker = new MatchEngine(() => host.win), fallback = new MatchEngine(() => fallbackWindow);

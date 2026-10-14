@@ -4,6 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
+import { scopeSource } from "./search-scope-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 
@@ -48,7 +49,7 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		svelte: { onMount() {}, tick: () => Promise.resolve() }, "./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 		"./toolbar": toolbarSource,
 		"./i18n": { i18n: { t: (key) => key } },
-		"./search-highlight": { searchCacheEffect: { of: (cache) => cache } },
+		"./search-highlight": { ...scopeSource, searchCacheEffect: { of: (cache) => cache } },
 		"./util/text-helper": helper,
 		"./util/obsidian-internal": loadSource("../src/util/obsidian-internal.ts"),
 		"./constants": loadSource("../src/constants.ts"),

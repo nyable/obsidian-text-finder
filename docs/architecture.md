@@ -46,6 +46,8 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 编辑链路：输入／操作 → `setFindText()` → 原文匹配 → 校验 owner／文档／查询 → CodeMirror effect／选择／滚动。文档变化立即清旧高亮，重算后再提交新结果。依据：`src/SearchBox.svelte` 的上下文方法、`src/search-highlight.ts:textMatchMarker`。
 
+选区范围：`src/search-scope.ts:searchScopeField` 保存锁定范围及用户选择候选，`finderSelection` Annotation 排除导航产生的选择，`searchScopeEffect` 明确设置／清除范围；范围通过 changes 映射，`searchScopeDecoration` 绘制独立装饰。`SearchBox` 管理范围 owner／窗口、代次和失效写入保护；`queryKey()` 包含范围及代次。范围不放进 `SearchOptions`、历史或持久化设置。`MatchRequest.ranges` 为纯数字快照，undefined 表示全文，空数组表示禁止匹配；Worker／同步 helper 共用范围扫描，Worker 解码及提交前都检查完整包含。自身提交后更新任务的范围查询身份，仍校验纯查询身份和范围代次，防止重入修改被误接受。
+
 查找执行：`tools/match-worker-build.mjs` 将 `src/match-worker.ts` 和原始 `text-helper.ts` 打包为自包含源码字符串，嵌入 `main.js`，运行时通过 Blob URL 在所属 Window 创建 Worker；无需额外安装 Worker 文件。`MatchEngine` 每个 owner／模式独立，空闲线程复用，忙碌取代时 terminate。输入传全文／查询／选项，回包传请求 ID 和可转移 Float64 坐标，不增加 32-bit 偏移上限。真实宿主对象不传给 Worker：编辑在完成时检查具体 Editor／CodeMirror doc／文件／窗口，阅读检查请求／renderer／全文就绪／DOM index／Document，并消费待定 MutationRecords。
 
 `MatchEngine` 初始化 ready 前不发送查询，初始化失败才自动同步降级；执行中故障不重放。没有有效查询执行超时。关闭／卸载及窗口 pagehide／beforeunload 移除监听、计时器、Worker 和 URL。阅读 DOM 索引和端点仍同步。替换复用同一通道和 helper；Worker 返回完整匹配坐标及目标 changes，主线程验证候选数量／坐标／插入类型，再校验实际不可变 doc 身份，单事务提交。单次只展开目标模板，全部才展开全部，无额外正则重验证。
@@ -110,7 +112,7 @@ interface PluginSettings {
 - `normalizeHistory()` 逐项校验旧字符串、旧 timestamp 对象和混合记录；精确重复文本合并最早创建、最近使用、最大计数。旧记录中已经裁掉的空白无法恢复。
 - `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
-- `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。
+- `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。新增 `selection` 动作默认 `more`，旧完整默认布局迁移到新默认位置，自定义布局只在末尾补缺，不重排已有配置；只有动作布局持久化，实际范围不保存。
 - 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。
 - `wholeWord` 属于每视图 `SearchOptions`，不持久化当前手动值；仅持久化 `defaultWholeWord`。编辑 `queryKey()` 和阅读 `Request.key` 均包含它，Worker 请求复制完整选项，查找／替换／同步重试最终复用 `text-helper.ts:isWholeWordMatch()`。阅读在全文逻辑索引上判定，不以文本节点切分；切换只重算匹配而复用有效索引。`normalizeToolbar()` 将精确旧默认以及上一版末尾追加全字的默认布局迁移到新默认顺序；其他布局仍保留合法顺序／placement 并补齐缺失动作。无历史自定义标记，无法区分人为设置成精确旧默认与历史默认，两者均按默认迁移。
 - `createFinderPosition()` 使用独立 CSS `translate` 保留原有 transform／top／right 和公开定位接口，只在会话中保存 owner 相对位置。观察 owner／面板尺寸、所属 Window／VisualViewport 变化；拖动监听在结束、取消、隐藏、收起、销毁时清理，安全区探针和 Observer 在销毁时释放。移动不触发查找／保存；`nya-finder-position` 事件让 More／状态提示重新定位。

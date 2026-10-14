@@ -1,7 +1,7 @@
 import type TextFinderPlugin from "./main";
 import type { EditorView } from "@codemirror/view";
 import type { EditorContext } from "./editor-context";
-import { CLS, textMatchMarker } from "./search-highlight";
+import { CLS, textMatchMarker, searchScopeField, searchScopeDecoration } from "./search-highlight";
 import {
 	Editor,
 	MarkdownView,
@@ -29,6 +29,7 @@ export const CMD = {
 	REPLACE: "text-finder-replace",
 	REPLACE_ALL: "text-finder-replace-all",
 	RESET_POSITION: "text-finder-reset-position",
+	FIND_IN_SELECTION: "text-finder-find-in-selection",
 };
 
 export class EditorSearch {
@@ -319,11 +320,13 @@ export class EditorSearch {
 	private showFinder(view: MarkdownView) {
 		if (!this.activateFloatingFinder(view)) return;
 		const finder = this.getFinder(view);
-		finder.setVisible(true, finder.isDocked() ? undefined : this.selectionText(view));
+		finder.setVisible(true, finder.isDocked() || finder.hasSelectionScope?.() ? undefined : this.selectionText(view));
 	}
 
 	private registerCommand() {
 		const { plugin } = this;
+		plugin.addCommand({ id: CMD.FIND_IN_SELECTION, name: i18n.t("commands.FindInSelection.name"),
+			editorCallback: (editor, ctx) => { this.getCommandFinder(editor, ctx)?.findInSelection(); } });
 		plugin.addCommand({ id: CMD.RESET_POSITION, name: i18n.t("search.tip.ResetFinderPosition"),
 			checkCallback: (checking) => {
 				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -359,7 +362,7 @@ export class EditorSearch {
 				const defaultSearchText = useSelectionAsSearch
 					? editor.getSelection()
 					: "";
-				finder.showReplace(defaultSearchText);
+				finder.showReplace(finder.hasSelectionScope?.() ? undefined : defaultSearchText);
 			},
 		});
 		plugin.addCommand({
@@ -449,6 +452,6 @@ export function editorExtensionProvider(plugin: TextFinderPlugin) {
 		if (plugin.isUnloaded() || plugin.editorSearch) return;
 		plugin.editorSearch = new EditorSearch(plugin);
 
-		plugin.registerEditorExtension([textMatchMarker]);
+		plugin.registerEditorExtension([textMatchMarker, searchScopeField, searchScopeDecoration]);
 	});
 }

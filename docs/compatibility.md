@@ -49,6 +49,7 @@
 - 定位私有接口返回失败、Highlight 异常等进入错误状态，不能报告成功导航。用户可重试或主动降级。
 - 离屏节点的 CSS 祖先／兄弟依赖可能与挂载后不同；索引规则不模拟任意 CSS 可见性。伪元素、公式、图表、嵌入及第三方动态输出边界见 [features](product/features.md#阅读模式正文)。
 - 首次全文 DOM 索引仍同步，大文档可能阻塞。查找、替换候选及提交后重算优先 Worker 隔离，关闭／取消可终止；同步兼容、候选传输／解码、事务及绘制仍可能阻塞，渲染等待超时不能中断这些主线程工作。
+- 选区查找仅支持编辑器源码坐标（源码／实时预览），不把 DOM 选择转换成阅读正文范围。CodeMirror StateField／事务负责范围连续性；编辑器重建、文件／模式／窗口变化失效时不借用其他 owner 或猜测坐标。Worker 仍携带完整原文用于正则上下文，小选区不保证只花费选区长度的计算／传输时间。自动测试覆盖范围及异步写入安全，不证明 Obsidian 实际选区事件、主题范围绘制、模式重建或移动选词通过。
 - 高亮注册表按 Document 合并视图所有权；正常关闭一个视图不清另一个视图。注册表异常清理是失败保护，不能承诺损坏宿主 API 下的完整多视图绘制。
 
 依据：`src/editor-extension.ts:showFinder()`／`openNativeSearch()`；`src/reading-search.ts` 的 `ready()`／`run()`／`scroll()`／`removeHighlights()`。内部机制见 [architecture](architecture.md#阅读索引与高亮机制)。

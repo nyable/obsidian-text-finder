@@ -1,5 +1,6 @@
 import { RangeSetBuilder, StateEffect, StateField, type Text } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
+export { finderSelection, searchScopeEffect, searchScopeField, searchScopeDecoration } from "./search-scope";
 
 export const CLS = {
 	FINDER: "nya-finder",

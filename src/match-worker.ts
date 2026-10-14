@@ -10,8 +10,8 @@ const scope = globalThis as unknown as {
 scope.onmessage = ({ data }) => {
 	try {
 		const prepared = data.operation ? prepareReplacements(data.source, data.query, data.replacement ?? "",
-			data.options.regexMode, data.options.caseSensitive, data.options.wholeWord) : null;
-		const matches = prepared?.matches ?? findTextOffsets(data.source, data.query, data.options.regexMode, data.options.caseSensitive, data.options.wholeWord);
+			data.options.regexMode, data.options.caseSensitive, data.options.wholeWord, data.ranges) : null;
+		const matches = prepared?.matches ?? findTextOffsets(data.source, data.query, data.options.regexMode, data.options.caseSensitive, data.options.wholeWord, data.ranges);
 		const index = typeof data.index === "number" && Number.isInteger(data.index) && data.index >= 0 && data.index < matches.length ? data.index : 0;
 		const selected = prepared && data.operation === "replaceOne" ? prepared.one(index) : undefined;
 		const changes = prepared ? data.operation === "replaceAll" ? prepared.all() : selected ? [selected] : [] : undefined;

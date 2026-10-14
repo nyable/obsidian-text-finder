@@ -3,10 +3,12 @@ import test from "node:test";
 import * as stateModule from "@codemirror/state";
 import * as viewModule from "@codemirror/view";
 import { loadSource } from "./source-loader.mjs";
+import { scopeSource } from "./search-scope-source.mjs";
 
 const { searchCacheEffect, textMatchMarker, CLS } = loadSource("../src/search-highlight.ts", {
 	"@codemirror/state": stateModule,
 	"@codemirror/view": viewModule,
+	"./search-scope": scopeSource,
 });
 const { EditorState } = stateModule;
 const create = (doc = "cat cat") => EditorState.create({ doc, extensions: [textMatchMarker] });

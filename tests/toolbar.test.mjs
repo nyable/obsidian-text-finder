@@ -31,15 +31,15 @@ test("toolbar normalization validates placements, removes duplicate/foreign acti
 		{ id: "replace", placement: "inline" }, { id: "case", placement: "invalid" }, { id: "unknown", placement: "more" }];
 	const result = normalizeToolbar(raw, "search");
 	assert.deepEqual(result.slice(0, 2), [{ id: "next", placement: "more" }, { id: "case", placement: "inline" }]);
-	assert.deepEqual(result.map((i) => i.id), ["next", "case", "regex", "wholeWord", "previous", "history"]);
+	assert.deepEqual(result.map((i) => i.id), ["next", "case", "regex", "wholeWord", "previous", "selection", "history"]);
 	assert.deepEqual(normalizeToolbar(result, "search"), result);
 	assert.deepEqual(normalizeToolbar(null, "replace"), defaultToolbar("replace"));
 });
 
 test("toolbar moves use insertion boundaries and do not mutate the original", () => {
 	const items = defaultToolbar("search");
-	assert.deepEqual(moveToolbarItem(items, 0, 3).map((i) => i.id), ["case", "wholeWord", "regex", "previous", "next", "history"]);
-	assert.deepEqual(moveToolbarItem(items, 4, 0).map((i) => i.id), ["next", "regex", "case", "wholeWord", "previous", "history"]);
+	assert.deepEqual(moveToolbarItem(items, 0, 3).map((i) => i.id), ["case", "wholeWord", "regex", "previous", "next", "selection", "history"]);
+	assert.deepEqual(moveToolbarItem(items, 4, 0).map((i) => i.id), ["next", "regex", "case", "wholeWord", "previous", "selection", "history"]);
 	assert.equal(moveToolbarItem(items, 0, 1), items);
 	assert.equal(moveToolbarItem(items, -1, 0), items);
 	assert.equal(items[0].id, "regex");
@@ -60,13 +60,13 @@ test("old toolbar settings append whole word without changing existing order or 
 	const searchToolbar = [{ id: "next", placement: "more" }, { id: "case", placement: "hidden" },
 		{ id: "regex", placement: "inline" }, { id: "history", placement: "hidden" }, { id: "previous", placement: "more" }];
 	const { settings } = settingsSource.normalizeSettings({ searchToolbar });
-	assert.deepEqual(settings.searchToolbar, [...searchToolbar, { id: "wholeWord", placement: "inline" }]);
+	assert.deepEqual(settings.searchToolbar, [...searchToolbar, { id: "wholeWord", placement: "inline" }, { id: "selection", placement: "more" }]);
 	assert.equal(settings.defaultWholeWord, false);
 	assert.equal(settingsSource.normalizeSettings(settings).changed, false);
 });
 
 test("exact legacy default and previously appended default group all three match options", () => {
-	const defaults = defaultToolbar("search"), legacy = defaults.filter((item) => item.id !== "wholeWord");
+	const defaults = defaultToolbar("search"), legacy = defaults.filter((item) => item.id !== "wholeWord" && item.id !== "selection");
 	for (const searchToolbar of [legacy, [...legacy, { id: "wholeWord", placement: "inline" }]]) {
 		const raw = structuredClone(searchToolbar);
 		assert.deepEqual(normalizeToolbar(raw, "search"), defaults);
@@ -76,9 +76,9 @@ test("exact legacy default and previously appended default group all three match
 		assert.equal(settingsSource.normalizeSettings(settings).changed, false);
 	}
 	const customized = [...legacy, { id: "wholeWord", placement: "more" }];
-	assert.deepEqual(normalizeToolbar(customized, "search"), customized);
+	assert.deepEqual(normalizeToolbar(customized, "search"), [...customized, { id: "selection", placement: "more" }]);
 	const reordered = [...legacy.slice(1), legacy[0], { id: "wholeWord", placement: "inline" }];
-	assert.deepEqual(normalizeToolbar(reordered, "search"), reordered);
+	assert.deepEqual(normalizeToolbar(reordered, "search"), [...reordered, { id: "selection", placement: "more" }]);
 });
 
 test("finder dock side validates and persists only left/right", () => {
