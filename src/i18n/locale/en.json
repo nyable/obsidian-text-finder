@@ -114,7 +114,7 @@
     },
     "ClearAfterHidden": {
       "name": "Clear search and replacement text",
-      "desc": "Clear both inputs when closing the finder. Regex, match-case and whole-word options are retained."
+      "desc": "Clear the search and replacement text when closing the finder. Match options are retained."
     },
     "FinderDockSide": {
       "name": "Finder collapse edge",
@@ -131,11 +131,11 @@
     },
     "EnableInputHotkeys": {
       "name": "Enable input box hotkey",
-      "desc": "Add a hotkey (Enter) to the input box. Search: Go to the next matching item.Replace: Replace once."
+      "desc": "Press Enter in the search box to jump to the next match, or in the replace box to replace once."
     },
     "SourceModeWhenSearch": {
       "name": "Force source code mode during search",
-      "desc": "Force the use of source code mode during the search process (some search results cannot be directly displayed in live preview, such as images and hyperlinks)."
+      "desc": "Use source mode while searching, so content that cannot be shown directly in Live Preview can still be located."
     },
     "MoveCursorToMatch": {
       "name": "Move the cursor to the matching item",
@@ -143,11 +143,11 @@
     },
     "UseSelectionAsSearch": {
       "name": "Use selected text as search text",
-      "desc": "Use the selected text as the search text."
+      "desc": "Use the currently selected text as the query when opening Find."
     },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
-      "desc": "In regular expression mode, escape characters for line feed (LF) and horizontal tab (HT) can be used in the replacement input box."
+      "desc": "In regex mode, the replacement box supports \\n and \\t for a line feed and a tab."
     },
     "EnableHistory": {
       "name": "Enable Search History",

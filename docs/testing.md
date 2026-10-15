@@ -41,7 +41,7 @@ git diff --check
 - 输入法组合输入期间的 Enter／NumpadEnter 与上下键不触发导航、替换或历史操作。
 - 单次替换的按钮、Enter 与命令入口一致性，以及隐藏面板焦点和重新打开后的选中状态。
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
-- 统一关闭入口、清空两种输入、隐藏 Escape、模式异常与保留正则／大小写／全字匹配偏好。
+- 统一关闭入口、清空查找和替换文本、隐藏 Escape、模式异常与保留匹配选项偏好。
 - 临时移动与贴边：`finder-position.test.mjs` 覆盖 3px 直接启动、Pointer Capture／取消释放、绘制帧合并与无逐事件布局读取、左右候选确认／撤回／替换阻止、满宽避让、标记二维停留／吸附和资源释放；`search-box-dom.test.mjs` 覆盖装饰条无 tooltip 标签、箭头不承担拖动、30px／40px 标记单击／拖动区分、80% 反馈和原查询／高亮／焦点安全。`mobile-toolbar.test.mjs` 继续覆盖常驻溢出回流／More 原位。模拟不证明宿主实际跟手、触屏或安全区。
 - 移动行高／手柄：真实组件的 `real mobile branch uses equal row heights, centered top grip and original collapse arrow` 覆盖 40px 基础外高、Grid 中央手柄及无提示标签；`mobile inputs override host padding and line height without hiding multi-line content` 用模拟宿主 textarea 样式检查 border-box 30px／20px 行高／4px padding 可容纳单行及保留多行输入；`mobile center grip drags directly and cancels without making counters or close draggable` 检查直接拖动／取消／计数关闭隔离和顶部栏高度 footprint。jsdom 不测真实 scrollHeight／字体排版或系统边缘手势，不可宣称实机空输入滚动已消失。
 - 默认悬浮入口：`floating-entry.test.mjs` 覆盖默认懒创建、启用后已有笔记／同文件双分屏、新文件／视图、关闭后普通激活不重现、关闭设置不隐藏及销毁清理。真实 `search-box-dom.test.mjs` 覆盖被动入口／后台刷新／位置恢复不匹配不抢焦点、点击展开不滚动、原生委托、替换 UI 命令展开／输入保留／聚焦和迟到焦点失效；`reading-commands.test.mjs` 覆盖小图标切换不是关闭、选区不覆盖及阅读降级。`main-settings.test.mjs`／`toolbar.test.mjs` 覆盖五分类、设置归属和布尔迁移。

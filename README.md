@@ -50,7 +50,7 @@ Search or replace the current Markdown file **in editing mode**, or search its r
 -   Assign shortcuts to Text Finder commands in Obsidian's hotkey settings.
 -   Run “Open search in current file”, enter a query, and use the previous/next buttons or Enter to navigate matches.
 -   In editing mode, use “Open search & replace in current file” for replacements. Press Escape or the close button to hide the finder.
--   All closing commands use the same behavior. Queries and regex/match-case/whole-word options are retained by default; “Clear search and replacement text” clears both inputs, not the options. Escape has no finder effect while it is hidden.
+-   All closing commands use the same behavior. The query, the replacement text and the match options are retained by default; “Clear search and replacement text” clears the query and replacement text, not the options. Escape has no finder effect while it is hidden.
 
 ## General settings and floating search entry
 

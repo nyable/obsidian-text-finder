@@ -29,7 +29,7 @@
     - 偏好缺失、非布尔或读取抛错时不写模式；恢复的是全局偏好，不是保存的打开前视图状态。
     - 模式恢复失败仍隐藏面板；Promise 拒绝被处理并提示。面板已经隐藏时关闭无副作用；Escape 仅在可见、未被消费、无修饰键且非组合输入时生效。
 2. 开启 `clearAfterHidden` 后，关闭应同时清空查询和替换输入；关闭仍不等于重置所有查询选项。
-    - 默认保留两种输入和正则／大小写／全字匹配选项；开启清空后也保留选项，不把关闭当作重置会话偏好。
+    - 默认保留查找和替换文本及匹配选项；开启清空后也保留选项，不把关闭当作重置会话偏好。
 
 依据：`src/SearchBox.svelte` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/editor-extension.ts` 的 `registerFinderEvent()` 和 HideFind／ToggleFind 命令；`src/util/obsidian-internal.ts:getLivePreviewPreference()`。上述约束经维护者明确确认，不来自源码推断。
 
