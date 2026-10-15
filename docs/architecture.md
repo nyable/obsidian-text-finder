@@ -25,6 +25,8 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 依据：`src/main.ts:onload()`、`src/editor-extension.ts` 的资源 Map／`getFinder()`／`getReadingSearch()`／`openHistory()`、`src/HistoryModal.ts`、组件导入与模板。
 
+笔记菜单由 `EditorSearch` 管理：公开 `file-menu`（限定 more-options／leaf）及 `editor-menu`；阅读按 MarkdownView 注册正文 `contextmenu`，能力检测内部 `Menu.forEvent()` 合并宿主事件菜单，`readingMenus` 随模式／布局／卸载清理。`populatedMenus` WeakMap 去重，`openMenus` 在 onHide 释放且卸载隐藏，不全局 patch Menu。菜单回调保存 owner／文档身份，编辑保存 doc 与 ranges；阅读保存 DOM 数字边界、source／renderer、`ReadingSelectionTracker.stamp()` 修订标记。新 `findInCapturedSelection()` 与原选区命令共享 activateScope，`findSelectedText()` 明确清范围后填查询，不增加持久化或命令 ID。原生阅读填词仅通过 owner 控件 DOM，并保留既有原生打开策略。
+
 ## 状态归属与数据流
 
 没有 `svelte/store` Store；`$:` 响应式语句、组件局部状态及框架无关控制器订阅承担状态更新。

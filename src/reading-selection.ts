@@ -24,6 +24,12 @@ export class ReadingSelectionTracker {
 	private version: unknown;
 	private renderer: unknown;
 	private observer: MutationObserver | null = null;
+	private revision = {};
+	/** Menu snapshots must reject edits even when text later returns to the same value. */
+	stamp() {
+		if (this.observer?.takeRecords().length) { this.candidate = null; this.revision = {}; }
+		return this.revision;
+	}
 	connect(root: HTMLElement, identity: unknown, version?: unknown, renderer?: unknown) {
 		if (root === this.root && root.ownerDocument === this.doc && identity === this.identity && version === this.version && renderer === this.renderer) return;
 		this.destroy(); this.root = root; this.doc = root.ownerDocument; this.identity = identity;
@@ -42,7 +48,7 @@ export class ReadingSelectionTracker {
 		const observer = this.doc.defaultView && new this.doc.defaultView.MutationObserver((records) => {
 			// A not-yet-locked candidate cannot be mapped through arbitrary DOM edits.
 			// Reject it rather than applying old element child offsets to new content.
-			if (records.length) this.candidate = null;
+			if (records.length) { this.candidate = null; this.revision = {}; }
 		});
 		observer?.observe(root, { childList: true, subtree: true, characterData: true });
 		this.observer = observer ?? null;
@@ -54,8 +60,8 @@ export class ReadingSelectionTracker {
 	}
 	get(root: HTMLElement, identity: unknown, version?: unknown, renderer?: unknown) {
 		this.connect(root, identity, version, renderer);
-		if (this.observer?.takeRecords().length) this.candidate = null;
+		this.stamp();
 		return captureReadingSelection(root) ?? this.candidate;
 	}
-	destroy() { this.cleanup?.(); this.cleanup = undefined; this.observer = null; this.doc = undefined; this.root = undefined; this.candidate = null; }
+	destroy() { this.cleanup?.(); this.cleanup = undefined; this.observer = null; this.doc = undefined; this.root = undefined; this.candidate = null; this.revision = {}; }
 }

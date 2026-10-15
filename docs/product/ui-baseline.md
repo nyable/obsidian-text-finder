@@ -4,6 +4,8 @@
 
 ## 样式来源与兼容接口
 
+笔记菜单使用宿主 Menu／MenuItem 的原生样式，不新增 CSS、容器 aria-label 或重复 title 提示。右上角一个带 Text Finder 前缀的查找项（find 分组），正文选择两个带前缀的操作（selection 分组）；阅读纯正文另保留 clipboard 分组的复制选中文字，链接继续复用宿主原项。实际排序、菜单合并、边缘提示及移动长按菜单须实机验收；`tests/finder-menus.test.mjs` 只能证明项目语义和事件路由。
+
 - 全局变量、编辑高亮、阅读 `::highlight`、设置样式来自 `src/styles/index.scss`，构建为 `dist/styles.css`。
 - Svelte 组件有自己的 scoped CSS／SCSS；`esbuild.config.mjs` 使用 `css: "injected"`，组件样式不全部存在于全局样式产物中。
 - `ToolbarPreview.svelte` 是设置页新增的展示组件；它与真实 Finder／Toolbar 通过 `src/styles/finder-primitives.scss` 共享面板、输入、按钮、计数和焦点样式，容器定位与窄宽布局独立。

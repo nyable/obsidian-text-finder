@@ -8,6 +8,7 @@
 	import type { EditorSearch } from "./editor-extension";
 	import { searchCacheEffect, finderSelection, searchScopeField, searchScopeEffect } from "./search-highlight";
 	import type { EditorContext } from "./editor-context";
+	import type { ReadingSelection } from "./reading-selection";
 	import { i18n } from "./i18n";
 	import { Platform, Menu, type MarkdownView } from "obsidian";
 	import { findTextOffsets, prepareReplacements, normalizeSearchRanges } from "./util/text-helper";
@@ -105,14 +106,15 @@
 		if (readingScope) return [];
 		return scopeEnabled ? normalizeSearchRanges(scopeState(scopeContext)?.ranges ?? [], scopeContext!.editorView.state.doc.length) : undefined;
 	};
-	const activateScope = () => {
+	const activateScope = (selection?: readonly SearchRange[] | readonly ReadingSelection[]) => {
 		if (disposed) return false;
 		if (isReading()) {
-			const selection = editorSearch.getReadingSelection?.(ownerView);
-			if (!selection || !editorSearch.canSearchReading(ownerView)) {
+			const readingSelection = selection as readonly ReadingSelection[] | undefined
+				?? editorSearch.getReadingSelection?.(ownerView);
+			if (!readingSelection || !editorSearch.canSearchReading(ownerView)) {
 				editorSearch.plugin.reportError("search.SelectionRequired", new Error("No supported reading selection")); return false;
 			}
-			if (!editorSearch.getReadingSearch(ownerView).setScope(selection)) {
+			if (!editorSearch.getReadingSearch(ownerView).setScope(readingSelection)) {
 				editorSearch.plugin.reportError("search.SelectionRequired", new Error("Reading selection could not be mapped")); return false;
 			}
 			if (scopeContext && scopeState(scopeContext)?.ranges != null) {
@@ -125,7 +127,7 @@
 		}
 		const context = getEditorContext();
 		const state = scopeState(context);
-		const ranges = context ? normalizeSearchRanges(state?.candidate ?? [], context.doc.length) : [];
+		const ranges = context ? normalizeSearchRanges((selection as readonly SearchRange[] | undefined) ?? state?.candidate ?? [], context.doc.length) : [];
 		if (!context || !state || !ranges.length) {
 			editorSearch.plugin.reportError("search.SelectionRequired", new Error("No valid editor selection"));
 			return false;
@@ -142,6 +144,16 @@
 		if (!activateScope()) return false;
 		setVisible(true);
 		return true;
+	}
+	/** Caller validates the owner/document snapshot before passing menu boundaries. */
+	export function findInCapturedSelection(selection: readonly SearchRange[] | readonly ReadingSelection[]) {
+		if (!activateScope(selection)) return false;
+		setVisible(true); return true;
+	}
+	export function findSelectedText(text: string) {
+		if (disposed || !text) return false;
+		clearScope(); cache.index = 0;
+		setVisible(true, text); return true;
 	}
 	export function toggleFindInSelection() {
 		if (scopeEnabled || scopeBlocked) { clearScope(); setFindText(cache.search); }

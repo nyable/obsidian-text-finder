@@ -22,6 +22,8 @@
 
 ## API 边界与保护
 
+菜单入口：公开 file-menu 的 `source`／leaf 在本机 Obsidian 1.14.4 源码中可确认 more-options 与所属视图，editor-menu 依赖公开事件（SDK 标记 since 1.1.0），不据此提高 Manifest 或宣称最低版本全功能支持。阅读右键没有对应的公开正文事件，使用能力检测内部 `Menu.forEvent()`，缺失时不创建第二菜单或接管默认行为；异常记录告警。原生阅读选中文字查询的 `.document-search-input input` 是 DOM 形状桥接，缺失提示，不向全局活动窗口猜测控件。`tests/menu-host-check.mjs` 对指定 ASAR 提取真实 Menu.forEvent 验证同事件复用及一次延后显示，并静态检查 pane 来源／leaf／输入形状；不执行 GUI，不能证明触摸选词菜单、复制权限或宿主版本兼容。分屏、弹窗、链接、移动端和第三方菜单实际合并仍待实机验收。
+
 | 依赖 | 用途 | 保护／限制 | 源码 |
 | --- | --- | --- | --- |
 | Obsidian Plugin／Workspace／MarkdownView／Editor／Modal／Setting | 加载、命令、视图、编辑、设置、存储、原生查找 | 按 owner 路由、检查视图仍打开；宿主行为需实测 | `src/main.ts`、`src/editor-extension.ts`、`src/settings-tab.ts`、`src/HistoryModal.ts` |

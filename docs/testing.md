@@ -15,6 +15,10 @@ git diff --check
 
 ## 主要覆盖
 
+- 笔记菜单：`finder-menus.test.mjs` 覆盖 more-options 来源过滤／所属视图／去重、普通设置与范围／收起保留、选择快照、丢焦、正文／renderer／file／Document 过期拒绝、阅读原生偏好与 owner 填词、复制／链接保留及卸载监听清理；真实组件测试覆盖明确填词清旧范围／失效保护、贴边展开，以及捕获范围不被后来的选择替换。可选 `node tests/menu-host-check.mjs /path/to/obsidian.asar` 只读提取真实事件菜单方法，不启动宿主、不写 Vault，不等于 GUI 或移动端验收。
+
+菜单实机验收：编辑／阅读右上角“更多选项”各有一个打开入口，文件管理器／链接文件菜单不误加；正文选择右键两个操作含义清晰，无选择／Finder 输入选择不误加。检查选区填词设置、已有范围、原生阅读偏好开关、菜单丢焦、重复文本、多范围、同文件双分屏、弹窗和菜单打开后换文件；阅读链接复制／打开与纯正文复制保留，不出现双菜单。移动端需另外验证长按选词及系统菜单，不将桌面模拟测试当作触屏通过。
+
 - 阅读范围／换行：`reading-scope.test.mjs` 覆盖实际重复文本位置、跨行内元素／元素端点、折叠空白内收、排除端点拒绝、多范围间隙、全文正则上下文、空查询、虚拟同节点保留与替换节点失效、file/source/renderer 变化、主题重索引、API 暂失和 Worker 错误不扩大范围、候选丢焦／反选、break 来源／纯换行导航及独立覆盖层。`reading-commands.test.mjs` 覆盖显式阅读命令不走原生全文；`search-box-dom.test.mjs` 覆盖真实 Finder 的范围启用、More 激活／失效、查询保留和关闭清理。几何、宿主渲染器与 Highlight 多为替身，不能替代下述实机检查。
 
 - 选区外观：`scope-outline.test.mjs` 验证矩形并集外轮廓、语法／高亮片段去内缝、跨行阶梯／bidi 空隙、多范围隔离、折行模拟重测、owner 创建／滚动基准、样式监听迁移清理、预览 ResizeObserver 清理及真实 CodeMirror mark／layer 生命周期。`appearance.test.mjs` 验证设置严格迁移、默认关闭、alpha／粗细跨 Document 注入及恢复继承；`main-settings.test.mjs` 验证独立分组、草稿局部预览／应用、开关／粗细持久化、单次分组恢复不改其他组和旧控件拒绝保存。几何多为替身，不证明真实宿主轮廓绘制。

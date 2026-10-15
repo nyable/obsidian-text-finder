@@ -3,6 +3,15 @@
     "name": "Text Finder"
   },
   "search": {
+	"menu": {
+		"OpenFind": "Text Finder：打开查找",
+		"FindSelectedText": "Text Finder：以选中内容查找",
+		"FindInSelection": "Text Finder：在选区中查找",
+		"CopySelection": "复制选中文字",
+		"CopyFailed": "无法复制选中文字。",
+		"SelectionChanged": "笔记或选区上下文已变化，请重新选择文字并打开菜单。",
+		"NativeQueryUnavailable": "已打开原生查找，但无法自动填入选中文字。"
+	},
 	"SelectionRequired": "请先在当前笔记中选择可搜索的正文，再启用选区查找；阅读模式下请等待正文渲染完成。",
 	"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
 	"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",

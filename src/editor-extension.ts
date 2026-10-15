@@ -6,6 +6,7 @@ import {
 	Editor,
 	MarkdownView,
 	Notice,
+	Menu,
 	WorkspaceLeaf,
 	type MarkdownFileInfo,
 } from "obsidian";
@@ -15,7 +16,7 @@ import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
 import { ReadingSearch } from "./reading-search";
 import { MatchEngine } from "./match-engine";
-import { ReadingSelectionTracker } from "./reading-selection";
+import { captureReadingSelection, ReadingSelectionTracker } from "./reading-selection";
 
 export { CLS, searchCacheEffect } from "./search-highlight";
 
@@ -46,6 +47,9 @@ export class EditorSearch {
 	private historyModals = new Set<HistoryModal>();
 	private entryFiles = new WeakMap<MarkdownView, string>();
 	private readingSelections = new Map<MarkdownView, ReadingSelectionTracker>();
+	private readingMenus = new Map<MarkdownView, { root: HTMLElement; cleanup: () => void }>();
+	private populatedMenus = new WeakMap<Menu, Set<string>>();
+	private openMenus = new Set<Menu>();
 	private syncReadingSelections() {
 		if (this.disposed) return;
 		const open = new Set<MarkdownView>();
@@ -57,8 +61,95 @@ export class EditorSearch {
 			let tracker = this.readingSelections.get(view);
 			if (!tracker) { tracker = new ReadingSelectionTracker(); this.readingSelections.set(view, tracker); }
 			tracker.connect(root, view.file, view.getViewData?.(), view.previewMode);
+			this.connectReadingMenu(view, root);
 		});
 		this.readingSelections.forEach((tracker, view) => { if (!open.has(view)) { tracker.destroy(); this.readingSelections.delete(view); } });
+		this.readingMenus.forEach((entry, view) => { if (!open.has(view)) { entry.cleanup(); this.readingMenus.delete(view); } });
+	}
+	private connectReadingMenu(view: MarkdownView, root: HTMLElement) {
+		const old = this.readingMenus.get(view);
+		if (old?.root === root) return;
+		old?.cleanup();
+		const listener = (event: MouseEvent) => {
+			// Private, shape-checked bridge: join the host's event menu, never
+			// replace it or stop propagation (links still contribute their items).
+			const forEvent = (Menu as unknown as { forEvent?: (event: MouseEvent) => Menu } | undefined)?.forEvent;
+			if (typeof forEvent !== "function" || view.getMode() !== "preview" || !this.isViewOpen(view)) return;
+			const target = event.target as Node | null;
+			const element = target?.nodeType === 1 ? target as Element : target?.parentElement;
+			const renderer = (view.previewMode as unknown as { renderer?: { previewEl: HTMLElement; lastText: string | null } }).renderer;
+			const body = renderer?.previewEl;
+			const excluded = "input, textarea, button, select, [contenteditable=true], .internal-embed, .markdown-embed, .metadata-container, .frontmatter, .mod-header, .mod-footer, script, style, svg, canvas, iframe, mjx-container, .mermaid, .math, .block-language-dataview, .block-language-dataviewjs, [hidden], [aria-hidden=true]";
+			if (!renderer || !body || typeof body.contains !== "function" || !target || !body.contains(target) || element?.closest(excluded)) return;
+			const link = element?.closest("a.internal-link, a.external-link");
+			// Known host link handlers use the shared event menu. For unrelated
+			// consumed events, leave another control/plugin's menu alone.
+			if (event.defaultPrevented && !link) return;
+			const selection = captureReadingSelection(body);
+			if (!selection) return;
+			if (selection.some((range) => [range.start.node, range.end.node].some((node) =>
+				(node.nodeType === 1 ? node as Element : node.parentElement)?.closest(excluded)))) return;
+			const text = body.ownerDocument.defaultView?.getSelection()?.toString();
+			if (!text) return;
+			const tracker = this.readingSelections.get(view), stamp = tracker?.stamp();
+			const source = view.getViewData?.(), rendered = renderer.lastText;
+			const current = this.menuOwner(view);
+			const valid = () => current() && (view.previewMode as unknown as { renderer?: unknown }).renderer === renderer && view.getViewData?.() === source
+				&& renderer.lastText === rendered && tracker?.stamp() === stamp
+				&& selection.every((r) => body.contains(r.start.node) && body.contains(r.end.node));
+			let menu: Menu;
+			try { menu = forEvent.call(Menu, event); }
+			catch (error) { console.warn("Text Finder: reading context-menu bridge unavailable", error); return; }
+			if (!menu || typeof menu.addItem !== "function" || typeof menu.onHide !== "function") return;
+			this.selectionMenu(menu, view, text, valid, () => this.getFinder(view).findInCapturedSelection(selection));
+			// Joining an event menu suppresses the browser's default menu. Plain
+			// body text has no host link menu, so retain a selection-copy action.
+			if (!link && this.markMenu(menu, "copy"))
+				menu.addItem((item) => item.setTitle(i18n.t("search.menu.CopySelection")).setIcon("copy").setSection("clipboard")
+					.onClick(async () => {
+						if (this.disposed) return;
+						try {
+							const clipboard = body.ownerDocument.defaultView?.navigator.clipboard;
+							if (!clipboard) throw new Error("Clipboard unavailable");
+							await clipboard.writeText(text);
+						} catch { if (!this.disposed) new Notice(i18n.t("search.menu.CopyFailed")); }
+					}));
+		};
+		root.addEventListener("contextmenu", listener);
+		this.readingMenus.set(view, { root, cleanup: () => root.removeEventListener("contextmenu", listener) });
+	}
+	private menuOwner(view: MarkdownView) {
+		const file = view.file, mode = view.getMode(), doc = view.containerEl?.ownerDocument;
+		return () => this.isViewOpen(view) && view.file === file && view.getMode() === mode && view.containerEl?.ownerDocument === doc;
+	}
+	private markMenu(menu: Menu, key: string) {
+		let keys = this.populatedMenus.get(menu);
+		if (!keys) { keys = new Set(); this.populatedMenus.set(menu, keys); this.openMenus.add(menu);
+			menu.onHide(() => this.openMenus.delete(menu)); }
+		if (keys.has(key)) return false;
+		keys.add(key); return true;
+	}
+	private selectionMenu(menu: Menu, view: MarkdownView, text: string, valid: () => boolean, scope: () => unknown) {
+		if (!this.markMenu(menu, "selection")) return;
+		const run = (action: () => unknown) => {
+			if (!valid()) { if (!this.disposed) new Notice(i18n.t("search.menu.SelectionChanged")); return; }
+			action();
+		};
+		menu.addItem((item) => item.setTitle(i18n.t("search.menu.FindSelectedText")).setIcon("search").setSection("selection")
+			.onClick(() => run(() => this.showSelectedText(view, text))));
+		menu.addItem((item) => item.setTitle(i18n.t("search.menu.FindInSelection")).setIcon("text-select").setSection("selection")
+			.onClick(() => run(scope)));
+	}
+	private showSelectedText(view: MarkdownView, text: string) {
+		if (this.activateFloatingFinder(view)) this.getFinder(view).findSelectedText(text);
+		else {
+			// Shape-checked DOM bridge: showSearch has opened the owner native
+			// control. Do not use activeWindow or borrow another pane's input.
+			const input = view.previewMode.containerEl.querySelector<HTMLInputElement>(".document-search-input input");
+			const win = input?.ownerDocument.defaultView;
+			if (input && win) { input.value = text; input.dispatchEvent(new win.Event("input", { bubbles: true })); input.select(); }
+			else new Notice(i18n.t("search.menu.NativeQueryUnavailable"));
+		}
 	}
 	getReadingSelection(view: MarkdownView) {
 		this.syncReadingSelections();
@@ -222,6 +313,8 @@ export class EditorSearch {
 	 */
 	destoryAll() {
 		this.disposed = true;
+		this.readingMenus.forEach((entry) => entry.cleanup()); this.readingMenus.clear();
+		this.openMenus.forEach((menu) => menu.hide()); this.openMenus.clear();
 		this.readingSelections.forEach((tracker) => tracker.destroy()); this.readingSelections.clear();
 		this.matchEngines.forEach((engine) => engine.destroy());
 		this.matchEngines.clear();
@@ -262,6 +355,25 @@ export class EditorSearch {
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
 		workspace.onLayoutReady?.(() => this.syncReadingSelections());
+		this.plugin.registerEvent(workspace.on("file-menu", (menu, file, source, leaf) => {
+			const view = leaf?.view;
+			if (source !== "more-options" || !(view instanceof MarkdownView) || view.file !== file || !this.isViewOpen(view)) return;
+			if (!this.markMenu(menu, "open")) return;
+			const valid = this.menuOwner(view);
+			menu.addItem((item) => item.setTitle(i18n.t("search.menu.OpenFind")).setIcon("search").setSection("find")
+				.onClick(() => { if (valid()) this.showFinder(view); }));
+		}));
+		this.plugin.registerEvent(workspace.on("editor-menu", (menu, editor, info) => {
+			const view = info instanceof MarkdownView ? info : this.findViewForEditor(editor);
+			if (!view || view.editor !== editor || (info.file && info.file !== view.file)) return;
+			const context = this.getEditorContext(view), text = editor.getSelection();
+			if (!context || !text) return;
+			const ranges = context.editorView.state.selection.ranges.filter((r) => !r.empty).map(({ from, to }) => ({ from, to }));
+			if (!ranges.length) return;
+			const current = this.menuOwner(view);
+			const valid = () => { const next = this.getEditorContext(view); return current() && next?.editorView === context.editorView && next.doc === context.doc; };
+			this.selectionMenu(menu, view, text, valid, () => this.getFinder(view).findInCapturedSelection(ranges));
+		}));
 
 		this.plugin.registerEvent(
 			workspace.on(

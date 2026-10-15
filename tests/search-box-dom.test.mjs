@@ -242,8 +242,37 @@ test('real Finder enables reading scope, keeps query and More state, blocks inva
 	node.data = 'cat dog cat'; h.component.matchAgain(false); await tick();
 	assert.equal(h.component.getSearchCache().matches.length, 0); assert.equal(button.getAttribute('aria-label'), 'search.tip.FindInSelectionUnavailable');
 	button.click(); await tick(); assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.component.findInCapturedSelection([{ start: { node, offset: 0 }, end: { node, offset: 3 } }]), true);
+	assert.equal(reading.getScopeRanges().length, 1);
+	h.component.findSelectedText('cat'); await tick();
+	assert.equal(reading.getScopeRanges(), undefined); assert.equal(h.component.hasSelectionScope(), false);
+	assert.equal(h.component.getSearchCache().matches.length, 2);
 	h.component.setVisible(false); assert.equal(reading.getScopeRanges(), undefined);
 	assert.equal(h.view.editor.getValue(), 'cat cat');
+});
+
+test('menu selected-text action clears active and blocked scope and seeds query even from a docked Finder', async (t) => {
+	const h = mount(t, undefined, {}, false); await tick();
+	selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection();
+	h.component.getSearchCache().search = 'dog';
+	assert.equal(h.component.findSelectedText('cat'), true); await tick();
+	assert.equal(h.component.hasSelectionScope(), false);
+	assert.equal(h.view.editor.cm.state.field(searchScopeField).ranges, null);
+	assert.equal(h.component.getSearchCache().search, 'cat'); assert.equal(h.component.getSearchCache().matches.length, 2);
+	selectScope(h, [{ from: 0, to: 3 }]); h.component.findInSelection(); h.component.setVisible(false);
+	assert.equal(h.component.findSelectedText('cat'), true); await tick();
+	assert.equal(h.component.hasSelectionScope(), false); assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.component.dockFinder(); await tick(); h.component.findSelectedText('cat'); await tick();
+	assert.equal(h.component.isDocked(), false); assert.equal(h.component.getSearchCache().search, 'cat');
+});
+
+test('captured menu scope uses its exact snapshot rather than the selection left after menu focus', async (t) => {
+	const h = mount(t); await tick(); h.component.setFindText('cat', false);
+	selectScope(h, [{ from: 0, to: 3 }]);
+	assert.equal(h.component.findInCapturedSelection([{ from: 4, to: 7 }]), true); await tick();
+	assert.equal(h.component.getSearchCache().search, 'cat');
+	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 4, to: 7, index: 0 }]);
+	assert.deepEqual(h.view.editor.cm.state.field(searchScopeField).ranges, [{ from: 4, to: 7 }]);
 });
 
 test("mobile scoped finder uses only the inline toggle to indicate and clear the scope", async (t) => {
