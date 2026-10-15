@@ -91,14 +91,14 @@ function plugin(data) {
 }
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
-test("finder automatic edge setting defaults off and refreshes views; reset needs no panel button", async () => {
+test("finder automatic edge setting defaults off and refreshes views without a global reset button", async () => {
 	const p = plugin(null); await p.onload(); let refreshes = 0;
-	let resets = 0; p.editorSearch = { refreshToolbars: () => refreshes++, resetFinderPositions: () => resets++, destoryAll() {} };
+	p.editorSearch = { refreshToolbars: () => refreshes++, destoryAll() {} };
 	const tab = tabs.at(-1); tab.display();
 	assert.equal(p.settings.finderAutoDock, false);
 	fields.get("settings.FinderAutoDock.name").change(true); await p.flushSettings();
 	assert.equal(p.settings.finderAutoDock, true); assert.equal(p.writes.at(-1).finderAutoDock, true); assert.equal(refreshes, 1);
-	tab.containerEl.querySelector('[data-name="search.tip.ResetFinderPosition"] button').click(); assert.equal(resets, 1);
+	assert.equal(tab.containerEl.querySelector('[data-name="search.tip.ResetFinderPosition"]'), null);
 	p.onunload();
 });
 
@@ -198,6 +198,20 @@ test("actual plugin migrates all entries, saves once and loads normalized data u
 	p.data = p.writes[0];
 	await p.loadSettings();
 	assert.equal(p.writes.length, 1);
+});
+
+test("actual plugin saves retired reading preference migration once and preserves all other data", async () => {
+	for (const value of [true, false]) {
+		const expected = { ...settingsSource.defaultSettings(), useSelectionAsSearch: false,
+			searchHistory: [{ text: " cat\n\t ", createdAt: 5, lastUsedAt: 6, count: 2 }] };
+		const p = plugin({ ...expected, useObsidianSearchInRead: value });
+		await p.loadSettings();
+		assert.deepEqual(p.settings, expected);
+		assert.deepEqual(p.writes, [expected]);
+		p.data = p.writes[0]; await p.loadSettings();
+		assert.equal(p.writes.length, 1);
+		p.onunload();
+	}
 });
 
 test("actual plugin tolerates null history without aborting load", async () => {
@@ -307,16 +321,16 @@ test("settings toggles and sort changes save through the queue and notify subscr
 	unsubscribe();
 });
 
-test("five settings tabs isolate General, include reading preference in Find and support keyboard navigation", async () => {
+test("five settings tabs omit retired controls and support keyboard navigation", async () => {
 	const p = plugin(null); await p.onload();
 	const tab = tabs.at(-1); tab.display();
 	const root = tab.containerEl;
 	assert.equal(root.querySelectorAll('[role="tab"]').length, 5);
 	const names = () => [...root.querySelectorAll('[data-name]')].map((el) => el.dataset.name);
 	assert.equal(root.querySelector('[role="tab"][aria-selected="true"]').id, "nya-settings-tab-general");
-	assert.deepEqual(names(), ["settings.ShowFloatingFinderOnOpen.name", "settings.FinderAutoDock.name", "search.tip.ResetFinderPosition"]);
+	assert.deepEqual(names(), ["settings.ShowFloatingFinderOnOpen.name", "settings.FinderAutoDock.name"]);
 	root.querySelector('#nya-settings-tab-general').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
-	assert.ok(names().includes("settings.UseObsidianSearchInRead.name"));
+	assert.deepEqual(names(), ["settings.ClearAfterHidden.name", "settings.EnableInputHotkeys.name", "settings.UseSelectionAsSearch.name", "settings.SourceModeWhenSearch.name", "settings.MoveCursorToMatch.name"]);
 	assert.ok(!names().includes("settings.FinderAutoDock.name"));
 	assert.ok(!names().includes("settings.EnableHistory.name"));
 	root.querySelector('#nya-settings-tab-find').dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));

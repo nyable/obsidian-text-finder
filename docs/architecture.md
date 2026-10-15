@@ -104,7 +104,6 @@ interface PluginSettings {
   sourceModeWhenSearch: boolean;
   moveCursorToMatch: boolean;
   useSelectionAsSearch: boolean;
-  useObsidianSearchInRead: boolean;
   useEscapeCharInReplace: boolean;
   enableHistory: boolean;
   historyMaxCount: number; // integer，1–200
@@ -131,6 +130,7 @@ interface PluginSettings {
 
 - `normalizeHistory()` 逐项校验旧字符串、旧 timestamp 对象和混合记录；精确重复文本合并最早创建、最近使用、最大计数。旧记录中已经裁掉的空白无法恢复。
 - `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
+- 退役字段 `useObsidianSearchInRead` 不再出现在类型、默认值或布尔白名单中，旧 true／false 均移除，触发既有 changed／串行保存路径；不修改其他合法设置及精确历史。阅读路由不再读取旧值，不兼容降级及错误状态的原生入口保留。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/reading-commands.test.mjs`。常规页跨视图恢复按钮及仅供其调用的 `resetFinderPositions()` 移除，单视图恢复命令 ID、组件恢复方法与键盘／右键路径保留。
 - `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
 - `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。新增 `selection` 动作默认 `more`，旧完整默认布局迁移到新默认位置，自定义布局只在末尾补缺，不重排已有配置；只有动作布局持久化，实际范围不保存。
 - 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。

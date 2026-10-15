@@ -28,10 +28,19 @@ test("history shrink never indexes a missing entry and reset starts with the new
 	assert.equal(nav.move(-1, "A", rows), "typed");
 });
 
-test("new installations default to reading plugin search while explicit native preferences survive normalization", () => {
-	assert.equal(s.defaultSettings().useObsidianSearchInRead, false);
-	assert.equal(s.normalizeSettings({ useObsidianSearchInRead: true }).settings.useObsidianSearchInRead, true);
-	assert.equal(s.normalizeSettings({ useObsidianSearchInRead: false }).settings.useObsidianSearchInRead, false);
+test("retired native reading preference is removed without changing other settings or exact history", () => {
+	assert.equal(Object.hasOwn(s.defaultSettings(), "useObsidianSearchInRead"), false);
+	for (const value of [true, false, "true"]) {
+		const expected = { ...s.defaultSettings(), useSelectionAsSearch: false, finderAutoDock: true,
+			searchHistory: [item(" cat\n\t ")] };
+		const raw = { ...expected, useObsidianSearchInRead: value };
+		const result = s.normalizeSettings(raw);
+		assert.equal(result.changed, true);
+		assert.equal(Object.hasOwn(result.settings, "useObsidianSearchInRead"), false);
+		assert.deepEqual(result.settings, expected);
+		assert.equal(s.normalizeSettings(result.settings).changed, false);
+		assert.equal(raw.useObsidianSearchInRead, value, "migration does not mutate input");
+	}
 });
 function controller(overrides = {}) {
 	const settings = { ...s.defaultSettings(), ...overrides };

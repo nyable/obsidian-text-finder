@@ -283,7 +283,6 @@ export class EditorSearch {
 	}
 	clearReadingSearch(view: MarkdownView) { this.readingSearches.get(view)?.clear(); }
 	refreshToolbars() { this.finderViews.forEach((finder) => finder.refreshToolbar()); }
-	resetFinderPositions() { this.finderViews.forEach((finder) => finder.resetFinderPosition()); }
 	openHistory() {
 		if (this.disposed) return;
 		const modal = new HistoryModal(this.plugin.app, this.plugin, () => this.historyModals.delete(modal));
@@ -445,10 +444,9 @@ export class EditorSearch {
 	/** Shared by explicit find commands and clicks on automatic entries. */
 	activateFloatingFinder(view: MarkdownView): boolean {
 		if (!this.isViewOpen(view)) return false;
-		const native = this.plugin.settings.useObsidianSearchInRead;
-		if (view.getMode() === "preview" && (native || !this.canSearchReading(view))) {
+		if (view.getMode() === "preview" && !this.canSearchReading(view)) {
 			this.finderViews.get(view)?.setVisible(false);
-			if (!native) new Notice(i18n.t("search.ReadingUnsupported"));
+			new Notice(i18n.t("search.ReadingUnsupported"));
 			view.showSearch();
 			return false;
 		}

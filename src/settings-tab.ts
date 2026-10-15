@@ -171,15 +171,12 @@ export class SettingTab extends PluginSettingTab {
 		if (this.page === "general") {
 			this.toggle(root, "showFloatingFinderOnOpen", "ShowFloatingFinderOnOpen");
 			this.toggle(root, "finderAutoDock", "FinderAutoDock");
-			new Setting(root).setName(i18n.t("search.tip.ResetFinderPosition"))
-				.addButton((button) => button.setButtonText(i18n.t("search.tip.ResetFinderPosition")).onClick(() => this.plugin.editorSearch?.resetFinderPositions()));
 		} else if (this.page === "find") {
 			this.toggle(root, "clearAfterHidden", "ClearAfterHidden");
 			this.toggle(root, "enableInputHotkeys", "EnableInputHotkeys");
 			this.toggle(root, "useSelectionAsSearch", "UseSelectionAsSearch");
 			this.toggle(root, "sourceModeWhenSearch", "SourceModeWhenSearch");
 			this.toggle(root, "moveCursorToMatch", "MoveCursorToMatch");
-			this.toggle(root, "useObsidianSearchInRead", "UseObsidianSearchInRead");
 		} else if (this.page === "replace") {
 			this.toggle(root, "useEscapeCharInReplace", "UseEscapeCharInReplace");
 		} else if (this.page === "history") {

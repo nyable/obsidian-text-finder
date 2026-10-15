@@ -45,7 +45,7 @@ function environment() {
 	};
 	let open = true;
 	const plugin = {
-		settings: { useObsidianSearchInRead: false, useSelectionAsSearch: true },
+		settings: { useSelectionAsSearch: true },
 		app: { workspace: {
 			getActiveViewOfType: () => view,
 			iterateAllLeaves: (callback) => { if (open) callback({ view }); },
@@ -105,24 +105,23 @@ test("reading selection comes from the owning preview document and ignores outsi
 	h.search.destoryAll();
 });
 
-test("native preference is preserved and unsupported environments notify before falling back", () => {
+test("retired native preference is ignored and unsupported environments still notify before falling back", () => {
 	const h = environment();
 	h.plugin.settings.useObsidianSearchInRead = true;
 	h.commands.get("text-finder-show-find").checkCallback(false);
-	assert.deepEqual(h.calls, [["native"]]);
+	assert.deepEqual(h.calls, [["visible", true, undefined]]);
 	assert.equal(h.notices.length, 0);
-	h.plugin.settings.useObsidianSearchInRead = false;
 	delete h.dom.window.Highlight;
 	h.commands.get("text-finder-show-find").checkCallback(false);
 	assert.deepEqual(h.calls.at(-1), ["native"]);
-	assert.equal(h.created(), 0);
+	assert.equal(h.created(), 1);
 	assert.deepEqual(h.notices, ["search.ReadingUnsupported"]);
 	h.search.destoryAll();
 });
 
 test("ToggleFind uses the same native fallback and closes an already-open plugin Finder", () => {
 	const h = environment();
-	h.plugin.settings.useObsidianSearchInRead = true;
+	delete h.dom.window.Highlight;
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
 	assert.deepEqual(h.calls, [["native"]]);
 	h.search.finderViews.set(h.view, { isVisible: () => true, isDocked: () => false, closeFinder: () => h.calls.push(["close"]) });
@@ -145,18 +144,18 @@ test("find commands expand a compact Finder instead of closing it or replacing i
 		command.checkCallback(false);
 	}
 	assert.deepEqual(h.calls, [["visible", true, undefined], ["visible", true, undefined]]);
-	h.plugin.settings.useObsidianSearchInRead = true;
+	delete h.dom.window.Highlight;
 	h.commands.get("text-finder-toggle-find").checkCallback(false);
 	assert.deepEqual(h.calls.slice(-2), [["visible", false], ["native"]]);
 	h.search.destoryAll();
 });
 
-test("automatic entry activation shares native preference, unsupported fallback and owner validity", () => {
+test("automatic entry activation ignores retired preference and keeps unsupported fallback and owner validity", () => {
 	const h = environment();
 	assert.equal(h.search.activateFloatingFinder(h.view), true); assert.equal(h.calls.length, 0);
 	h.plugin.settings.useObsidianSearchInRead = true;
-	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.deepEqual(h.calls, [["native"]]);
-	h.plugin.settings.useObsidianSearchInRead = false; delete h.dom.window.Highlight;
+	assert.equal(h.search.activateFloatingFinder(h.view), true); assert.equal(h.calls.length, 0);
+	delete h.dom.window.Highlight;
 	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.equal(h.notices.length, 1);
 	h.close(); const count = h.calls.length;
 	assert.equal(h.search.activateFloatingFinder(h.view), false); assert.equal(h.calls.length, count);
@@ -197,7 +196,7 @@ test('reading selection command is available without creating Finder during chec
 	const finder = h.search.getFinder(h.view); finder.findInSelection = () => { scoped++; };
 	const command = h.commands.get('text-finder-find-in-selection'), before = h.created();
 	assert.equal(command.checkCallback(true), true); assert.equal(h.created(), before);
-	h.plugin.settings.useObsidianSearchInRead = true;
+	delete h.dom.window.Highlight;
 	command.checkCallback(false); assert.equal(scoped, 1); assert.equal(h.calls.length, 0);
 	h.search.destoryAll();
 });

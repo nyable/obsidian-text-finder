@@ -9,7 +9,6 @@ export interface PluginSettings {
 	sourceModeWhenSearch: boolean;
 	moveCursorToMatch: boolean;
 	useSelectionAsSearch: boolean;
-	useObsidianSearchInRead: boolean;
 	useEscapeCharInReplace: boolean;
 	enableHistory: boolean;
 	historyMaxCount: number;
@@ -30,7 +29,7 @@ export interface PluginSettings {
 export function defaultSettings(): PluginSettings {
 	return {
 		clearAfterHidden: false, enableInputHotkeys: true, sourceModeWhenSearch: true,
-		moveCursorToMatch: true, useSelectionAsSearch: true, useObsidianSearchInRead: false,
+		moveCursorToMatch: true, useSelectionAsSearch: true,
 		useEscapeCharInReplace: true, enableHistory: true, historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT, searchHistory: [],
 		searchToolbar: defaultToolbar("search"), replaceToolbar: defaultToolbar("replace"),
@@ -49,7 +48,7 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 		? raw as Record<string, unknown> : {};
 	for (const key of [
 		"clearAfterHidden", "enableInputHotkeys", "sourceModeWhenSearch", "moveCursorToMatch",
-		"useSelectionAsSearch", "useObsidianSearchInRead", "useEscapeCharInReplace", "enableHistory",
+		"useSelectionAsSearch", "useEscapeCharInReplace", "enableHistory",
 		"defaultRegexMode", "defaultCaseSensitive", "defaultWholeWord", "finderAutoDock", "showFloatingFinderOnOpen",
 	] as const) {
 		if (typeof input[key] === "boolean") settings[key] = input[key];

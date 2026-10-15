@@ -145,10 +145,6 @@
       "name": "Use selected text as search text",
       "desc": "Use the selected text as the search text."
     },
-    "UseObsidianSearchInRead": {
-      "name": "Using Obsidian's native search in reading",
-      "desc": "When enabled, Open search uses Obsidian's native find in reading mode. Disable for plugin search with match case, whole word and regex; unsupported environments are notified and fall back to native find. Existing preferences are preserved."
-    },
     "UseEscapeCharInReplace": {
       "name": "Support escape characters in replacement input box",
       "desc": "In regular expression mode, escape characters for line feed (LF) and horizontal tab (HT) can be used in the replacement input box."

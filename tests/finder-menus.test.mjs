@@ -36,7 +36,7 @@ function environment(t, { bridge = true } = {}) {
 		views.push(v); return v;
 	}
 	const a = view(), b = view(); let active = b;
-	const plugin = { settings: { useSelectionAsSearch: true, useObsidianSearchInRead: false }, app: { workspace: {
+	const plugin = { settings: { useSelectionAsSearch: true }, app: { workspace: {
 		on: (key, fn) => events.set(key, fn), iterateAllLeaves: (fn) => views.forEach((view) => fn({ view })), getActiveViewOfType: () => active,
 	} }, registerEvent() {}, addCommand() {} };
 	const { EditorSearch } = loadSource('../src/editor-extension.ts', {
@@ -170,12 +170,24 @@ for (const change of ['text', 'renderer', 'source', 'file']) test(`reading menu 
 	m.items[0].click(); m.items[1].click(); assert.equal(h.calls.length, 0); assert.equal(h.notices.length, 2);
 });
 
-test('reading menu follows native preference, fills only the owner input, while range action stays plugin-only', (t) => {
-	const h = environment(t); h.a.mode = 'preview'; h.selectReading(); const m = h.readingMenu().menu;
+test('reading menu ignores retired native preference for ordinary and explicit selected-text search', (t) => {
+	const h = environment(t); h.a.mode = 'preview'; h.selectReading();
 	h.plugin.settings.useObsidianSearchInRead = true;
+	h.pane().items[0].click(); assert.deepEqual(h.calls.at(-1), [h.a, 'visible', true, 'cat']);
+	const m = h.readingMenu().menu;
+	m.items[0].click(); assert.deepEqual(h.calls.at(-1), [h.a, 'text', 'cat']);
+	m.items[1].click(); assert.equal(h.calls.at(-1)[1], 'scope');
+	assert.equal(h.a.previewMode.containerEl.querySelector('input'), null);
+	assert.equal(h.notices.length, 0);
+});
+
+test('unsupported reading menu fills only the owner native input, while range action stays plugin-only', (t) => {
+	const h = environment(t); h.a.mode = 'preview'; h.selectReading(); const m = h.readingMenu().menu;
+	h.search.canSearchReading = () => false;
 	m.items[0].click(); assert.deepEqual(h.calls, [[h.a, 'native']]);
 	assert.equal(h.a.previewMode.containerEl.querySelector('input').value, 'cat');
 	assert.equal(h.b.previewMode.containerEl.querySelector('input'), null);
+	assert.deepEqual(h.notices, ['search.ReadingUnsupported']);
 	// Native input creation mutates the body; a fresh menu is needed for the next intent.
 	h.selectReading(); h.readingMenu().menu.items[1].click(); assert.equal(h.calls.at(-1)[1], 'scope');
 });
