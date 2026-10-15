@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies, readingSelectionSource } from "./reading-source.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
 import { scopeSource } from "./search-scope-source.mjs";
@@ -9,6 +10,7 @@ import { scopeSource } from "./search-scope-source.mjs";
 const helper = loadSource("../src/util/text-helper.ts");
 const readingText = loadSource("../src/reading-text.ts");
 const readingSearch = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": readingText, "./util/text-helper": helper,
 });
 class MarkdownView {}
@@ -65,6 +67,7 @@ function environment() {
 	};
 	attachHistory(plugin);
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": {}, obsidian: { MarkdownView },
@@ -344,13 +347,15 @@ for (const id of ["text-finder-replace", "text-finder-replace-all"]) {
 	});
 }
 
-test("selection command routes the supplied editor to its owner and leaves query seeding to the component", () => {
-	const h = environment(); h.activate(h.b); let calls = 0;
+test("selection command resolves the active Markdown owner and leaves query seeding to the component", () => {
+	const h = environment(); h.activate(h.a); let calls = 0;
 	h.fa.findInSelection = () => calls++;
 	const command = h.commands.get("text-finder-find-in-selection");
 	assert.equal(command.hotkeys, undefined);
-	command.editorCallback(h.a.editor, { file: h.a.file }); assert.equal(calls, 1);
-	h.close(h.a); command.editorCallback(h.a.editor, h.a); assert.equal(calls, 1);
+	assert.equal(command.editorCallback, undefined, 'editorCallback would override checkCallback and hide the command in reading mode');
+	assert.equal(command.checkCallback(true), true); assert.equal(calls, 0);
+	command.checkCallback(false); assert.equal(calls, 1);
+	h.close(h.a); command.checkCallback(false); assert.equal(calls, 1);
 });
 
 for (const id of ["text-finder-next-match", "text-finder-previous-match"]) {
@@ -381,6 +386,7 @@ test("creating a Finder passes its explicit owner even if another view is active
 	const h = environment();
 	const created = [];
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
 		"./SearchBox.svelte": { default: class {

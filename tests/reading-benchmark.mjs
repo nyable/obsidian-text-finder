@@ -3,8 +3,10 @@
 import { performance } from "node:perf_hooks";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies } from "./reading-source.mjs";
 
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": loadSource("../src/reading-text.ts"),
 	"./util/text-helper": loadSource("../src/util/text-helper.ts"),
 });

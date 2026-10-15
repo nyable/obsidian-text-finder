@@ -74,6 +74,12 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 ## 阅读索引与高亮机制
 
+阅读范围及换行扩展：`reading-selection.ts` 的 owner tracker 在 Finder 懒创建之前捕获节点＋数字边界；`ReadingTextIndex.points` 保存元素子节点边界，span 反向映射文本端点，折叠空白向内收紧。索引 `breaks` 区分 hard／text／block／barrier 并记录前后锚点，保留既有逻辑字符串，不把保护边界或末尾合成字符当独立可导航换行。
+
+`ReadingSearch.setScope()` 仅接受就绪正文，范围快照绑定 file／renderer／Document／source／节点数字映射，`getScopeRanges()` 区分 undefined 全文与 [] 失效；范围代次进入请求 key 并传现有 MatchExecutor。重索引验证映射，虚拟移出同节点不失效，节点替换不猜测恢复。空查询有范围时仍走展示；错误清理 preserveScope 防止重试扩大范围。纯换行 ReadingMatch 用 break 锚点和 sections 导航，文字匹配端点保留原实现。
+
+`reading-overlay.ts` 在 owner body 建独立 fixed portal，避免污染 renderer Observer／索引；仅挂载节点创建临时 Range／测矩形，复用 `normalizeScopeRects()`／`paddedScopeOutlines()`，不强连段落未知空隙。scroll／ResizeObserver／font loadingdone／viewport／外观变更经 owner rAF 合并测量，disconnect 取消帧与监听。注册表增加低优先级 `nya-reading-scope`，仍按 Document／owner 汇总，不覆盖另一分屏。新状态不持久化，Worker 数据协议不变。
+
 - 公共 preview API 无法枚举虚拟化移出的分块，适配器集中使用私有 `previewMode.renderer` 的 sections、渲染状态、`onRendered`、`showSection`、`applyScrollSection` 和 `updateVirtualDisplay`。能力与降级边界见 [compatibility](compatibility.md)。
 - 就绪要求 renderer 文本与 lastText／当前视图数据一致、解析和渲染结束、所有分块已渲染。索引读取包含离屏节点的完整分块 DOM，排除页眉／页脚；不额外重渲染整篇 Markdown，避免重复触发第三方处理器。
 - `ReadingTextIndex` 保存逻辑文本及文本 span 到节点内偏移的映射。实体已由 DOM 解码，逻辑偏移为 UTF-16，**不是 Markdown 源码偏移**；空白及边界规则见 [阅读模式正文](product/features.md#阅读模式正文)。

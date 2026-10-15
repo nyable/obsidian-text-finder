@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies, readingSelectionSource } from "./reading-source.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
 
 const helper = loadSource("../src/util/text-helper.ts");
 const readingSource = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": loadSource("../src/reading-text.ts"), "./util/text-helper": helper,
 });
 class MarkdownView {}
@@ -52,6 +54,7 @@ function environment() {
 		registerEvent() {}, addCommand: (command) => commands.set(command.id, command),
 	};
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": readingSource,
 		obsidian: { MarkdownView, Notice: class { constructor(text) { notices.push(text); } } },
@@ -181,11 +184,21 @@ for (const [id, action] of [
 
 test("reading replace and replace-all command callbacks never resolve an editable Finder", () => {
 	const h = environment();
-	for (const id of ["text-finder-replace", "text-finder-replace-all", "text-finder-show-find-and-replace", "text-finder-toggle-replace", "text-finder-find-in-selection"]) {
+	for (const id of ["text-finder-replace", "text-finder-replace-all", "text-finder-show-find-and-replace", "text-finder-toggle-replace"]) {
 		h.commands.get(id).editorCallback(h.view.editor, h.view);
 	}
 	assert.equal(h.created(), 0);
 	assert.equal(h.calls.length, 0);
+	h.search.destoryAll();
+});
+
+test('reading selection command is available without creating Finder during checks and never invokes native full search', () => {
+	const h = environment(); let scoped = 0;
+	const finder = h.search.getFinder(h.view); finder.findInSelection = () => { scoped++; };
+	const command = h.commands.get('text-finder-find-in-selection'), before = h.created();
+	assert.equal(command.checkCallback(true), true); assert.equal(h.created(), before);
+	h.plugin.settings.useObsidianSearchInRead = true;
+	command.checkCallback(false); assert.equal(scoped, 1); assert.equal(h.calls.length, 0);
 	h.search.destoryAll();
 });
 
@@ -269,9 +282,10 @@ test("hidden, modified and consumed Escape events never close Finder", () => {
 test("late layout callbacks do not initialize unloaded plugins and initialization is idempotent", () => {
 	let callback; let unloaded = false; let commands = 0; let extensions = 0;
 	const plugin = { editorSearch: null, isUnloaded: () => unloaded,
-		app: { workspace: { onLayoutReady: (fn) => { callback = fn; }, on() {} } },
+		app: { workspace: { onLayoutReady: (fn) => { callback = fn; }, on() {}, iterateAllLeaves() {} } },
 		registerEvent() {}, addCommand() { commands++; }, registerEditorExtension() { extensions++; } };
 	const { editorExtensionProvider } = loadSource("../src/editor-extension.ts", {
+		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},

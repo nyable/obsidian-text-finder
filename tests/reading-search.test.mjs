@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies } from "./reading-source.mjs";
 
 const textSource = loadSource("../src/reading-text.ts");
 const helper = loadSource("../src/util/text-helper.ts");
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": textSource, "./util/text-helper": helper,
 });
 const options = { regexMode: false, caseSensitive: false };

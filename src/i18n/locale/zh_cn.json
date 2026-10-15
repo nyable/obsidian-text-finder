@@ -3,7 +3,7 @@
     "name": "Text Finder"
   },
   "search": {
-	"SelectionRequired": "请先在当前笔记的编辑器中选择文字，再启用选区查找。",
+	"SelectionRequired": "请先在当前笔记中选择可搜索的正文，再启用选区查找；阅读模式下请等待正文渲染完成。",
 	"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
 	"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",
 	"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",

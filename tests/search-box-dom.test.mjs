@@ -13,15 +13,18 @@ import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { attachHistory, toolbarSource } from "./history-source.mjs";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies, readingSelectionSource } from "./reading-source.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
 import { matchWorkerPlugin } from "../tools/match-worker-build.mjs";
 import { installWorkerHost } from "./match-worker-host.mjs";
 
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": loadSource("../src/reading-text.ts"),
 	"./util/text-helper": loadSource("../src/util/text-helper.ts"),
 });
 const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+	"./reading-selection": readingSelectionSource,
 	"./match-engine": matchEngineSource,
 	"./search-highlight": {}, "./SearchBox.svelte": {}, obsidian: { MarkdownView: class {} },
 	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
@@ -217,6 +220,30 @@ test("no selection and reading mode cannot enable scope and produce no document 
 	assert.equal(h.component.findInSelection(), false); assert.deepEqual(errors, ["search.SelectionRequired"]);
 	selectScope(h, [{ from: 4, to: 7 }]); h.view.getMode = () => "preview";
 	assert.equal(h.component.findInSelection(), false); assert.equal(h.component.hasSelectionScope(), false);
+});
+
+test('real Finder enables reading scope, keeps query and More state, blocks invalid ranges and clears on close', async (t) => {
+	const h = mount(t, undefined, {}, false); await tick();
+	const root = document.createElement('div'), section = document.createElement('div'); section.innerHTML = '<p>cat cat cat</p>';
+	root.append(section); h.target.append(root); h.view.getMode = () => 'preview';
+	window.CSS ??= {}; window.CSS.highlights = new Map(); window.Highlight = class extends Set { priority = 0; };
+	h.view.previewMode = { containerEl: root, renderer: { sections: [{ el: section, rendered: true }], text: 'source', lastText: 'source',
+		parsing: false, rendered: null, previewEl: root, showSection() {}, applyScrollSection() { return true; }, updateVirtualDisplay() {}, onRendered() {} } };
+	const reading = new ReadingSearch(h.view, () => true, () => h.component.matchAgain(false)); t.after(() => reading.destroy());
+	h.editorSearch.getReadingSearch = () => reading; h.editorSearch.clearReadingSearch = () => reading.clear();
+	h.editorSearch.canSearchReading = () => true;
+	const node = section.querySelector('p').firstChild;
+	h.editorSearch.getReadingSelection = () => [{ start: { node, offset: 4 }, end: { node, offset: 7 } }];
+	h.component.getSearchCache().search = 'cat';
+	assert.equal(h.component.findInSelection(), true); await tick();
+	assert.equal(h.component.getSearchCache().search, 'cat'); assert.equal(h.component.getSearchCache().matches.length, 1);
+	const more = h.target.querySelector('[aria-label="search.tip.More"]'); more.click(); await tick();
+	const button = h.target.querySelector('[data-overflow-action="selection"]'); assert.equal(button.getAttribute('aria-pressed'), 'true');
+	node.data = 'cat dog cat'; h.component.matchAgain(false); await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 0); assert.equal(button.getAttribute('aria-label'), 'search.tip.FindInSelectionUnavailable');
+	button.click(); await tick(); assert.equal(h.component.getSearchCache().matches.length, 2);
+	h.component.setVisible(false); assert.equal(reading.getScopeRanges(), undefined);
+	assert.equal(h.view.editor.getValue(), 'cat cat');
 });
 
 test("mobile scoped finder uses only the inline toggle to indicate and clear the scope", async (t) => {
@@ -2044,7 +2071,7 @@ test("More ordinary actions close the panel and disabled actions do not execute"
 	assert.equal(more.classList.contains("nya-btn--active"), false);
 });
 
-test("reading mode removes selection from More without leaking its aggregate activation", async (t) => {
+test("reading mode keeps invalid source scope visible in More until the user explicitly clears it", async (t) => {
 	const h = mount(t); await tick(); selectScope(h, [{ from: 4, to: 7 }]); h.component.findInSelection(); await tick();
 	const reading = new ReadingSearch(h.view, () => true, () => h.component.matchAgain(false));
 	h.editorSearch.getReadingSearch = () => reading; h.editorSearch.clearReadingSearch = () => reading.clear();
@@ -2055,8 +2082,11 @@ test("reading mode removes selection from More without leaking its aggregate act
 	assert.ok(more.querySelector('.nya-toolbar-indicator'));
 	h.view.getMode = () => "preview"; h.component.matchAgain(false); await tick();
 	assert.equal(more.classList.contains("nya-btn--active"), false);
-	assert.equal(more.querySelector('.nya-toolbar-indicator'), null);
-	more.click(); await tick(); assert.equal(h.target.querySelector('[data-overflow-action="selection"]'), null);
+	assert.ok(more.querySelector('.nya-toolbar-indicator'));
+	more.click(); await tick();
+	const scope = h.target.querySelector('[data-overflow-action="selection"]');
+	assert.equal(scope.getAttribute('aria-pressed'), 'true');
+	assert.equal(scope.getAttribute('aria-label'), 'search.tip.FindInSelectionUnavailable');
 	assert.ok(h.target.querySelector('[data-overflow-action="wholeWord"]'));
 });
 

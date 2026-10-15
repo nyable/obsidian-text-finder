@@ -1,7 +1,9 @@
 import type { MarkdownView, TFile } from "obsidian";
-import { indexReadingText, readingMatchEndpoints, endpointRange, type ReadingEndpoint, type ReadingTextIndex } from "./reading-text";
-import { findTextOffsets } from "./util/text-helper";
+import { indexReadingText, readingMatchEndpoints, endpointRange, readingPointOffset, readingBreaks, pointRange, type ReadingBreak, type ReadingEndpoint, type ReadingTextIndex } from "./reading-text";
+import { findTextOffsets, normalizeSearchRanges } from "./util/text-helper";
 import type { MatchExecutor, MatchResult } from "./match-protocol";
+import type { ReadingSelection } from "./reading-selection";
+import { ReadingOverlay } from "./reading-overlay";
 
 /** Private bridge: public preview APIs cannot enumerate detached sections.
  * Shape checked against Obsidian 1.14.4; runtime failures must also fail closed. */
@@ -25,7 +27,7 @@ interface HighlightWindow {
 	CSS?: { highlights?: Map<string, HighlightValue> };
 	Highlight?: new () => HighlightValue;
 }
-interface ReadingMatch { match: MatchOffset; endpoints: ReadingEndpoint[]; sections: PreviewSection[]; }
+interface ReadingMatch { match: MatchOffset; endpoints: ReadingEndpoint[]; breaks: ReadingBreak[]; sections: PreviewSection[]; }
 interface Request {
 	renderer: PreviewRenderer;
 	file: TFile | null;
@@ -43,7 +45,8 @@ interface Request {
 
 const ALL = "nya-reading-matches";
 const CURRENT = "nya-reading-current";
-const documents = new WeakMap<Document, Map<ReadingSearch, { all: Range[]; current: Range[] }>>();
+const SCOPE = "nya-reading-scope";
+const documents = new WeakMap<Document, Map<ReadingSearch, { all: Range[]; current: Range[]; scope: Range[] }>>();
 const highlightWindow = (doc: Document) => doc.defaultView as unknown as HighlightWindow | null;
 
 function rendererFor(view: MarkdownView): PreviewRenderer | null {
@@ -64,6 +67,7 @@ export interface ReadingResult {
 	unsupported: boolean;
 	error?: "failed" | "timeout";
 	workerError?: boolean;
+	scopeInvalid?: boolean;
 }
 
 export class ReadingSearch {
@@ -93,11 +97,53 @@ export class ReadingSearch {
 	private computation: { request: Request; index: ReadingTextIndex; doc: Document; newDocument: boolean } | null = null;
 	private cachedNewDocument = false;
 	private synchronousRetry = false;
+	private paintFrame: number | null = null;
+	private scope: { ranges: SearchRange[]; index: ReadingTextIndex; renderer: PreviewRenderer; file: TFile | null; doc: Document; source: string } | null = null;
+	private scopeInvalid = false;
+	private scopeEpoch = 0;
+	private overlay: ReadingOverlay | null = null;
 
 	constructor(private view: MarkdownView, private isOpen: () => boolean, private changed: () => void,
 		private waitTimeoutMs = 5000, private matcher?: MatchExecutor) {}
 
 	retrySynchronously() { this.synchronousRetry = true; }
+	setScope(selection: readonly ReadingSelection[]): boolean {
+		try {
+			const r = rendererFor(this.view);
+			if (!r || !this.ready(r) || !ReadingSearch.supported(this.view) || !this.isOpen() || this.view.getMode() !== "preview") return false;
+			const index = indexReadingText(this.roots(r));
+			const ranges: SearchRange[] = [];
+			for (const range of selection) {
+				if (!r.previewEl.contains(range.start.node) || !r.previewEl.contains(range.end.node)) return false;
+				const from = readingPointOffset(index, range.start, "start"), to = readingPointOffset(index, range.end, "end");
+				if (from === null || to === null || from >= to) return false;
+				ranges.push({ from, to });
+			}
+			if (!ranges.length) return false;
+			this.matcher?.cancel(); this.computation = null; this.request = null; this.cancelWait();
+			this.scope = { ranges: normalizeSearchRanges(ranges, index.text.length), index, renderer: r, file: this.view.file,
+				doc: r.previewEl.ownerDocument, source: r.lastText! };
+			this.scopeInvalid = false; this.scopeEpoch++; this.queryKey = ""; this.dirty = true;
+			return true;
+		} catch { return false; }
+	}
+	clearScope() { this.matcher?.cancel(); this.computation = null; this.request = null; this.cancelWait();
+		this.scope = null; this.scopeInvalid = false; this.scopeEpoch++; this.queryKey = ""; this.removeHighlights(); }
+	getScopeRanges(): readonly SearchRange[] | undefined { return this.scopeInvalid ? [] : this.scope?.ranges; }
+	isScopeInvalid() { return this.scopeInvalid; }
+	blockScope() { this.clearScope(); this.scopeInvalid = true; this.scopeEpoch++; }
+	private roots(r: PreviewRenderer) { return r.sections.filter((s) => s !== r.header && s !== r.footer
+		&& !s.el.matches(".mod-header, .mod-footer")).map((s) => s.el); }
+	private validateScope(index: ReadingTextIndex, r: PreviewRenderer) {
+		const scope = this.scope; if (!scope) return;
+		const same = scope.renderer === r && scope.file === this.view.file && scope.doc === r.previewEl.ownerDocument
+			&& scope.source === r.lastText && scope.index.text === index.text && scope.index.spans.length === index.spans.length
+			&& scope.index.spans.every((s, i) => { const n = index.spans[i]; return s.node === n.node && s.from === n.from && s.to === n.to && s.start === n.start && s.end === n.end; })
+			&& scope.index.breaks.length === index.breaks.length && scope.index.breaks.every((b, i) => { const n = index.breaks[i];
+				return b.from === n.from && b.kind === n.kind && b.before.node === n.before.node && b.before.offset === n.before.offset
+					&& b.after?.node === n.after?.node && b.after?.offset === n.after?.offset && b.element === n.element; });
+		if (!same) { this.scope = null; this.scopeInvalid = true; this.scopeEpoch++; this.queryKey = ""; }
+	}
 	/** Keep a pending match/render request, but relinquish its navigation intent. */
 	pauseNavigation() { if (this.request) { this.request.scroll = false; this.request.direction = 0; } }
 
@@ -130,10 +176,11 @@ export class ReadingSearch {
 				this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return;
 			}
 			if (!r || !ReadingSearch.supported(this.view)) {
-				this.clear(); done({ matches: [], index: 0, pending: false, unsupported: true }); return;
+				if (this.scope) { this.scope = null; this.scopeInvalid = true; this.scopeEpoch++; }
+				this.clear(true); done({ matches: [], index: 0, pending: false, unsupported: true, scopeInvalid: this.scopeInvalid }); return;
 			}
-			if (!text) { this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return; }
-			const key = JSON.stringify([text, options.regexMode, options.caseSensitive, options.wholeWord]);
+			if (!text && !this.scope && !this.scopeInvalid) { this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false }); return; }
+			const key = JSON.stringify([text, options.regexMode, options.caseSensitive, options.wholeWord, this.scopeEpoch]);
 			let request = this.request;
 			if (!request || request.key !== key || request.renderer !== r || request.file !== this.view.file) {
 				if (this.computation) this.matcher?.cancel();
@@ -192,9 +239,8 @@ export class ReadingSearch {
 			if (newDocument) this.cachedNewDocument = true;
 			if (this.dirty || newDocument || this.sections !== r.sections || this.source !== r.lastText) {
 				this.renderer = r; this.file = request.file; this.sections = r.sections; this.source = r.lastText;
-				const roots = r.sections.filter((s) => s !== r.header && s !== r.footer
-					&& !s.el.matches(".mod-header, .mod-footer")).map((s) => s.el);
-				this.textIndex = indexReadingText(roots);
+				this.textIndex = indexReadingText(this.roots(r));
+				this.validateScope(this.textIndex, r);
 				const rootSections = new Map(r.sections.map((s) => [s.el, s]));
 				this.nodeSections = new WeakMap();
 				for (const span of this.textIndex.spans) {
@@ -202,12 +248,18 @@ export class ReadingSearch {
 					while (el && !rootSections.has(el)) el = el.parentElement;
 					if (el) this.nodeSections.set(span.node, rootSections.get(el)!);
 				}
+				for (const br of this.textIndex.breaks) {
+					let node: Node | null = br.element ?? br.before.node;
+					while (node && !rootSections.has(node as HTMLElement)) node = node.parentNode;
+					if (node) this.nodeSections.set(br.element ?? br.before.node, rootSections.get(node as HTMLElement)!);
+				}
 				this.dirty = false; this.queryKey = "";
 			}
 			if (request.key !== this.queryKey) {
 				const textIndex = this.textIndex!;
-				const result = this.matcher && !this.synchronousRetry ? this.matcher.match(textIndex.text, request.text, request.options)
-					: { status: "completed" as const, matches: findTextOffsets(textIndex.text, request.text, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord), synchronous: true };
+				const ranges = this.getScopeRanges();
+				const result = this.matcher && !this.synchronousRetry ? this.matcher.match(textIndex.text, request.text, request.options, ranges)
+					: { status: "completed" as const, matches: findTextOffsets(textIndex.text, request.text, request.options.regexMode, request.options.caseSensitive, request.options.wholeWord, ranges), synchronous: true };
 				this.synchronousRetry = false;
 				if (result instanceof Promise) {
 					const computation = { request, index: textIndex, doc: this.doc!, newDocument };
@@ -237,7 +289,7 @@ export class ReadingSearch {
 			// Navigation can move sections. Construct live ranges only after it completes.
 			this.paint();
 			request.index = index; request.scroll = false; request.direction = 0;
-			request.done({ matches: this.matchOffsets, index, pending: false, unsupported: false });
+			request.done({ matches: this.matchOffsets, index, pending: false, unsupported: false, scopeInvalid: this.scopeInvalid });
 		} catch { if (this.request === request) this.fail("failed", request.done); }
 	}
 
@@ -245,9 +297,14 @@ export class ReadingSearch {
 		if (result.status === "cancelled") return false;
 		if (result.status === "failed") { this.fail("failed", request.done, true); return false; }
 		this.results = result.matches.map((match) => {
+			const ranges = this.getScopeRanges();
+			if (ranges && !ranges.some((r) => r.from <= match.from && r.to >= match.to)) return null;
 			const endpoints = readingMatchEndpoints(this.textIndex!, match.from, match.to);
-			const sections = [...new Set(endpoints.map(({ node }) => this.nodeSections.get(node)).filter((s): s is PreviewSection => !!s))];
-			return sections.length ? { match, endpoints, sections } : null;
+			const breaks = readingBreaks(this.textIndex!, match.from, match.to);
+			const sections = [...new Set([...endpoints.map(({ node }) => this.nodeSections.get(node)),
+				...breaks.flatMap((br) => [this.nodeSections.get(br.element ?? br.before.node),
+					br.after ? this.nodeSections.get(br.after.node) : undefined])].filter((s): s is PreviewSection => !!s))];
+			return sections.length ? { match, endpoints, breaks, sections } : null;
 		}).filter((result): result is ReadingMatch => result !== null);
 		this.queryKey = request.key;
 		this.matchOffsets = this.results.map(({ match }, index) => ({ ...match, index }));
@@ -307,12 +364,21 @@ export class ReadingSearch {
 			catch { if (this.request) this.fail("failed", this.request.done); }
 		});
 	}
+	private scheduleGeometry() {
+		this.overlay?.hide();
+		const win = this.doc?.defaultView;
+		if (!win || this.paintFrame !== null) return;
+		const paint = () => { this.paintFrame = null; this.schedulePaint(); };
+		if (typeof win.requestAnimationFrame === "function") this.paintFrame = win.requestAnimationFrame(paint);
+		else this.schedulePaint();
+	}
 
 	private paint() {
 		const r = this.renderer;
 		if (!r || !this.doc) return;
 		const all: Range[] = [];
 		const current: Range[] = [];
+		const scope: Range[] = [];
 		for (const section of r.sections) {
 			if (!r.previewEl.contains(section.el)) continue;
 			for (const { endpoint, index } of this.sectionEndpoints.get(section) ?? []) {
@@ -321,22 +387,28 @@ export class ReadingSearch {
 				all.push(range); if (index === this.currentIndex) current.push(range);
 			}
 		}
+		for (const r of this.getScopeRanges() ?? []) for (const endpoint of readingMatchEndpoints(this.textIndex!, r.from, r.to))
+			if (this.renderer!.previewEl.contains(endpoint.node)) scope.push(endpointRange(endpoint));
 		let owners = documents.get(this.doc);
 		if (!owners) { owners = new Map(); documents.set(this.doc, owners); }
-		owners.set(this, { all, current });
+		owners.set(this, { all, current, scope });
 		this.updateRegistry(this.doc);
+		this.overlay ??= new ReadingOverlay(r.previewEl, () => this.scheduleGeometry());
+		this.overlay.paint(this.textIndex!, this.getScopeRanges() ?? [], this.matchOffsets, this.currentIndex);
 	}
 	private updateRegistry(doc: Document) {
 		const win = highlightWindow(doc);
 		if (!win?.CSS?.highlights || !win.Highlight) return;
 		const owners = documents.get(doc);
-		if (!owners?.size) { win.CSS.highlights.delete(ALL); win.CSS.highlights.delete(CURRENT); return; }
-		const all = new win.Highlight(); const current = new win.Highlight();
+		if (!owners?.size) { win.CSS.highlights.delete(ALL); win.CSS.highlights.delete(CURRENT); win.CSS.highlights.delete(SCOPE); return; }
+		const all = new win.Highlight(); const current = new win.Highlight(); const scope = new win.Highlight();
 		owners.forEach((entry) => {
 			entry.all.forEach((range) => all.add(range)); entry.current.forEach((range) => current.add(range));
+			entry.scope.forEach((range) => scope.add(range));
 		});
 		all.priority = 0; current.priority = 1;
 		win.CSS.highlights.set(ALL, all); win.CSS.highlights.set(CURRENT, current);
+		scope.priority = -1; win.CSS.highlights.set(SCOPE, scope);
 	}
 
 	private scroll(index: number, request: Request) {
@@ -355,7 +427,10 @@ export class ReadingSearch {
 		}
 		if (!this.current(request)) return;
 		const endpoint = result.endpoints[0];
-		const target = endpoint.node.parentElement;
+		const point = result.breaks[0]?.before;
+		const node: Node | undefined = endpoint?.node ?? point?.node;
+		if (!node) throw new Error("Reading match has no navigation anchor");
+		const target = node.nodeType === 1 ? node as HTMLElement : node.parentElement;
 		for (let el = target; el && el !== r.previewEl; el = el.parentElement) {
 			if (el.matches("li.is-collapsed, .callout.is-collapsed, details:not([open])")) {
 				if (el.tagName === "DETAILS") el.setAttribute("open", "");
@@ -363,8 +438,8 @@ export class ReadingSearch {
 			}
 		}
 		if (!this.current(request)) return;
-		if (!r.previewEl.contains(endpoint.node)) throw new Error("Reading target is not mounted");
-		const range = endpointRange(endpoint);
+		if (!r.previewEl.contains(node)) throw new Error("Reading target is not mounted");
+		const range = endpoint ? endpointRange(endpoint) : pointRange(point!);
 		const rect = typeof range.getBoundingClientRect === "function" ? range.getBoundingClientRect() : null;
 		if (rect && rect.height > 0) {
 			r.previewEl.scrollTop += rect.top - r.previewEl.getBoundingClientRect().top - (r.previewEl.clientHeight - rect.height) / 2;
@@ -373,16 +448,17 @@ export class ReadingSearch {
 	}
 
 	private fail(error: "failed" | "timeout", done: (result: ReadingResult) => void, workerError = false) {
-		this.clear(); done({ matches: [], index: 0, pending: false, unsupported: false, error, workerError });
+		this.clear(true); done({ matches: [], index: 0, pending: false, unsupported: false, error, workerError, scopeInvalid: this.scopeInvalid });
 	}
 	private removeHighlights() {
+		this.overlay?.destroy(); this.overlay = null;
 		if (!this.doc) return;
 		documents.get(this.doc)?.delete(this);
 		try { this.updateRegistry(this.doc); }
 		catch {
 			// A broken registry must not prevent observer/timer cleanup.
 			try { const registry = highlightWindow(this.doc)?.CSS?.highlights;
-				registry?.delete(ALL); registry?.delete(CURRENT); } catch { /* unavailable host */ }
+				registry?.delete(ALL); registry?.delete(CURRENT); registry?.delete(SCOPE); } catch { /* unavailable host */ }
 		}
 	}
 	private cancelWait() {
@@ -390,12 +466,15 @@ export class ReadingSearch {
 		this.waitTimer = null;
 	}
 	private disconnect() {
+		if (this.paintFrame !== null) this.doc?.defaultView?.cancelAnimationFrame(this.paintFrame);
+		this.paintFrame = null;
 		this.observer?.disconnect(); this.observer = null;
 		if (this.timer !== null) this.doc?.defaultView?.clearTimeout(this.timer);
 		this.timer = null; this.cancelWait();
 		this.watchedRenderer = null; this.watchedSections = null;
 	}
-	clear() {
+	clear(preserveScope = false) {
+		if (!preserveScope) { this.scope = null; this.scopeInvalid = false; this.scopeEpoch++; }
 		this.matcher?.cancel(); this.computation = null; this.cachedNewDocument = false;
 		this.lifecycle++; this.request = null; this.paintScheduled = false;
 		this.removeHighlights(); this.disconnect(); this.dirty = true;

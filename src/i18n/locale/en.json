@@ -3,7 +3,7 @@
     "name": "Text Finder"
   },
   "search": {
-	"SelectionRequired": "Select text in this note's editor before enabling Find in selection.",
+	"SelectionRequired": "Select searchable text in this note before enabling Find in selection. Wait for reading view to finish rendering, if needed.",
 	"WorkerCompatibility": "Worker unavailable. Using synchronous compatibility mode; complex regular expressions may block the interface.",
 	"WorkerFailed": "Search execution failed. Retry in a Worker, or explicitly retry synchronously (complex regex may block the interface).",
 	"MatchPending": "Searching… Close or cancel to stop the Worker.",

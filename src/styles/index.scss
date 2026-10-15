@@ -42,6 +42,11 @@ body {
 	&[data-direction="rtl"]::before { transform: scaleX(-1); }
 }
 
+.nya-reading-overlay {
+	position: fixed; overflow: hidden; pointer-events: none; user-select: none; z-index: 1;
+}
+::highlight(nya-reading-scope) { background-color: var(--nya-scope-background); }
+
 ::highlight(nya-reading-matches) {
 	background-color: var(--nya-match-bgColor);
 	color: var(--nya-match-color);

@@ -15,6 +15,7 @@ import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
 import { ReadingSearch } from "./reading-search";
 import { MatchEngine } from "./match-engine";
+import { ReadingSelectionTracker } from "./reading-selection";
 
 export { CLS, searchCacheEffect } from "./search-highlight";
 
@@ -44,6 +45,25 @@ export class EditorSearch {
 	private disposed = false;
 	private historyModals = new Set<HistoryModal>();
 	private entryFiles = new WeakMap<MarkdownView, string>();
+	private readingSelections = new Map<MarkdownView, ReadingSelectionTracker>();
+	private syncReadingSelections() {
+		if (this.disposed) return;
+		const open = new Set<MarkdownView>();
+		this.plugin.app.workspace.iterateAllLeaves((leaf) => {
+			if (!(leaf.view instanceof MarkdownView) || leaf.view.getMode() !== "preview") return;
+			const view = leaf.view, root = view.previewMode?.containerEl;
+			if (!root) return;
+			open.add(view);
+			let tracker = this.readingSelections.get(view);
+			if (!tracker) { tracker = new ReadingSelectionTracker(); this.readingSelections.set(view, tracker); }
+			tracker.connect(root, view.file, view.getViewData?.(), view.previewMode);
+		});
+		this.readingSelections.forEach((tracker, view) => { if (!open.has(view)) { tracker.destroy(); this.readingSelections.delete(view); } });
+	}
+	getReadingSelection(view: MarkdownView) {
+		this.syncReadingSelections();
+		return this.readingSelections.get(view)?.get(view.previewMode.containerEl, view.file, view.getViewData?.(), view.previewMode) ?? null;
+	}
 
 	constructor(plugin: TextFinderPlugin) {
 		this.plugin = plugin;
@@ -116,7 +136,7 @@ export class EditorSearch {
 			this.finderViews.set(view, finder);
 			const win = targetEl.ownerDocument?.defaultView;
 			if (win) {
-				const observer = new win.MutationObserver(() => finder.matchAgain(false));
+				const observer = new win.MutationObserver(() => { this.syncReadingSelections(); finder.matchAgain(false); });
 				observer.observe(targetEl, { attributes: true, attributeFilter: ["data-mode"] });
 				this.modeObservers.set(view, observer);
 			}
@@ -202,6 +222,7 @@ export class EditorSearch {
 	 */
 	destoryAll() {
 		this.disposed = true;
+		this.readingSelections.forEach((tracker) => tracker.destroy()); this.readingSelections.clear();
 		this.matchEngines.forEach((engine) => engine.destroy());
 		this.matchEngines.clear();
 		this.historyModals.forEach((modal) => modal.close());
@@ -240,12 +261,14 @@ export class EditorSearch {
 	}
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;
+		workspace.onLayoutReady?.(() => this.syncReadingSelections());
 
 		this.plugin.registerEvent(
 			workspace.on(
 				"active-leaf-change",
 				(leaf: WorkspaceLeaf | null) => {
 					if (!this.disposed && leaf?.view instanceof MarkdownView) {
+						this.syncReadingSelections();
 						this.syncFloatingEntries();
 						this.finderViews.get(leaf.view)?.matchAgain(false);
 					}
@@ -266,6 +289,7 @@ export class EditorSearch {
 		// A leaf may open a different file without becoming active again.
 		this.plugin.registerEvent(workspace.on("file-open", () => {
 			if (this.disposed) return;
+			this.syncReadingSelections();
 			this.syncFloatingEntries();
 			this.finderViews.forEach((finder) => finder.matchAgain(false));
 		}));
@@ -274,6 +298,7 @@ export class EditorSearch {
 		}));
 		this.plugin.registerEvent(workspace.on("layout-change", () => {
 			if (this.disposed) return;
+			this.syncReadingSelections();
 			this.syncFloatingEntries();
 			this.finderViews.forEach((finder, view) => {
 				if (this.isViewOpen(view)) finder.matchAgain(false);
@@ -326,7 +351,12 @@ export class EditorSearch {
 	private registerCommand() {
 		const { plugin } = this;
 		plugin.addCommand({ id: CMD.FIND_IN_SELECTION, name: i18n.t("commands.FindInSelection.name"),
-			editorCallback: (editor, ctx) => { this.getCommandFinder(editor, ctx)?.findInSelection(); } });
+			checkCallback: (checking) => {
+				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
+				if (!view || !this.isViewOpen(view)) return false;
+				if (!checking) this.getFinder(view).findInSelection();
+				return true;
+			} });
 		plugin.addCommand({ id: CMD.RESET_POSITION, name: i18n.t("search.tip.ResetFinderPosition"),
 			checkCallback: (checking) => {
 				const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);

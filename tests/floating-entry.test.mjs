@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { readingSelectionSource } from "./reading-source.mjs";
 
 class MarkdownView {}
 function environment(t, enabled = true) {
@@ -31,6 +32,7 @@ function environment(t, enabled = true) {
 			on: (name, callback) => { events.set(name, callback); return {}; } } },
 		registerEvent() {}, addCommand: (command) => commands.set(command.id, command) };
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
+		"./reading-selection": readingSelectionSource,
 		obsidian: { MarkdownView, Notice: class { constructor(text) { notices.push(text); } } },
 		"./SearchBox.svelte": { default: Finder }, "./search-highlight": { CLS: { FINDER: "nya-finder" } },
 		"./match-engine": { MatchEngine: class { constructor() { throw new Error("automatic entry must not create a match engine"); } } },

@@ -69,7 +69,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 本地化资源为英文／简体中文，历史长度与使用次数文案也通过翻译键显示。列表时间格式为 `YY-MM-DD HH:mm:ss`，详情为 `YYYY-MM-DD HH:mm:ss`，同时显示 moment 相对时间；合法的时间戳 0 不回退到其他字段。触屏／键盘可发现性仍需实测。依据：`src/HistoryList.svelte` 的格式化／元数据／操作样式、`src/HistoryDetail.svelte`、`src/i18n/index.ts`。
 
-编辑高亮用 CodeMirror class，阅读高亮用 CSS Custom Highlight API；共享颜色变量，但阅读 API 不支持编辑 class 的全部边框／圆角效果。依据：`src/styles/index.scss`、`src/search-highlight.ts`、`src/reading-search.ts:updateRegistry()`。
+编辑高亮用 CodeMirror class，阅读高亮用 CSS Custom Highlight API；共享颜色变量，但阅读 API 不支持编辑 class 的全部边框／圆角效果。阅读新增 `::highlight(nya-reading-scope)`（低优先级背景）和 `.nya-reading-overlay`（owner body 独立 fixed、非交互、读屏隐藏、按 owner／裁切祖先限制）；SVG 轮廓复用左右半线宽／上下 2px 净距，换行复用 `↵` 普通／当前颜色。只画挂载正文，不包裹节点，不把段落空隙补成大矩形；几何缺失时不猜测，滚动先隐藏旧位置再重测。阅读工具栏也显示范围按钮及 More 激活／失效反馈，不新增状态栏。依据：`src/styles/index.scss`、`src/search-highlight.ts`、`src/reading-search.ts:updateRegistry()`、`src/reading-overlay.ts`；实际叠层、裁切、主题、RTL、分屏和移动待实机验收。
 
 ## 应覆盖的截图分类
 

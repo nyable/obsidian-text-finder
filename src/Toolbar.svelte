@@ -42,8 +42,8 @@
 	const summaryId = `${triggerId}-summary`;
 	const label = (id: ToolbarAction, unavailable: boolean) => i18n.t(id === "selection" && unavailable
 		? "search.tip.FindInSelectionUnavailable" : toolbarLabels[id]);
-	$: inline = items.filter((item) => item.placement === "inline" && !(readingMode && item.id === "selection"));
-	$: more = items.filter((item) => item.placement === "more" && !(readingMode && item.id === "selection"));
+	$: inline = items.filter((item) => item.placement === "inline");
+	$: more = items.filter((item) => item.placement === "more");
 	$: if (!visible || !more.length) open = false;
 	$: controlTabIndex = visible ? tabindex : -1;
 	$: activeIds = new Set<ToolbarAction>([...(regexMode ? ["regex" as const] : []), ...(caseSensitive ? ["case" as const] : []), ...(wholeWord ? ["wholeWord" as const] : []), ...(selection ? ["selection" as const] : [])]);
@@ -135,7 +135,7 @@
 	}
 </script>
 
-<div class="nya-toolbar" bind:this={root} use:ownerEvents={visible} use:mobileToolbar={preview ? undefined : inlineTarget}>
+<div class="nya-toolbar" data-reading={readingMode} bind:this={root} use:ownerEvents={visible} use:mobileToolbar={preview ? undefined : inlineTarget}>
 	{#if preview}
 		{#each inline as item (item.id)}
 			<span class="nya-btn" class:nya-btn--active={activeIds.has(item.id)} class:nya-btn--disabled={item.id === "history" && !historyEnabled}

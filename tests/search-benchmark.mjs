@@ -3,6 +3,7 @@
 import { performance } from "node:perf_hooks";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
+import { readingDependencies } from "./reading-source.mjs";
 
 let phases = {}, stack = [];
 function timed(name, fn) {
@@ -20,6 +21,7 @@ function timed(name, fn) {
 const helper = loadSource("../src/util/text-helper.ts");
 const text = loadSource("../src/reading-text.ts");
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
+	...readingDependencies,
 	"./reading-text": { ...text,
 		indexReadingText: timed("textIndex", text.indexReadingText),
 		readingMatchEndpoints: timed("endpointMapping", text.readingMatchEndpoints),

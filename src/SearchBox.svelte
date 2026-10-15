@@ -77,10 +77,13 @@
 	let scopeEpoch = 0;
 	let scopeContext: EditorContext | null = null;
 	let scopeWindow: Window | null = null;
+	let readingScope = false;
 	const scopeState = (context: EditorContext | null) => context && searchScopeField
 		? context.editorView.state.field(searchScopeField, false) : undefined;
 	const clearScope = (block = false) => {
 		const previous = scopeContext;
+		if (readingScope) editorSearch.getReadingSearch(ownerView).clearScope();
+		readingScope = false;
 		scopeContext = null; scopeEnabled = false; scopeBlocked = block; scopeEmpty = false; scopeEpoch++;
 		if (previous && scopeState(previous)?.ranges != null) {
 			try { previous.editorView.dispatch({ effects: searchScopeEffect.of(null) }); }
@@ -88,6 +91,10 @@
 		}
 	};
 	const syncScope = (context: EditorContext | null) => {
+		if (readingScope) {
+			if (!isReading() || scopeWindow !== (ownerView.containerEl?.ownerDocument.defaultView ?? null)) clearScope(true);
+			return;
+		}
 		if (scopeEnabled && (isReading() || !context || context.file !== scopeContext?.file || context.editor !== scopeContext.editor
 			|| context.editorView !== scopeContext.editorView || scopeState(context)?.ranges == null
 			|| scopeWindow !== (ownerView.containerEl?.ownerDocument.defaultView ?? null))) clearScope(true);
@@ -95,10 +102,27 @@
 	};
 	const scopeRanges = (): readonly SearchRange[] | undefined => {
 		if (scopeBlocked) return [];
+		if (readingScope) return [];
 		return scopeEnabled ? normalizeSearchRanges(scopeState(scopeContext)?.ranges ?? [], scopeContext!.editorView.state.doc.length) : undefined;
 	};
 	const activateScope = () => {
-		if (disposed || isReading()) return false;
+		if (disposed) return false;
+		if (isReading()) {
+			const selection = editorSearch.getReadingSelection?.(ownerView);
+			if (!selection || !editorSearch.canSearchReading(ownerView)) {
+				editorSearch.plugin.reportError("search.SelectionRequired", new Error("No supported reading selection")); return false;
+			}
+			if (!editorSearch.getReadingSearch(ownerView).setScope(selection)) {
+				editorSearch.plugin.reportError("search.SelectionRequired", new Error("Reading selection could not be mapped")); return false;
+			}
+			if (scopeContext && scopeState(scopeContext)?.ranges != null) {
+				try { scopeContext.editorView.dispatch({ effects: searchScopeEffect.of(null) }); }
+				catch (error) { console.warn("Text Finder: could not clear detached search scope", error); }
+			}
+			scopeContext = null; scopeBlocked = false; scopeEpoch++;
+			readingScope = true; scopeEnabled = true; scopeWindow = ownerView.containerEl?.ownerDocument.defaultView ?? null;
+			scopeEmpty = false; cache.index = 0; return true;
+		}
 		const context = getEditorContext();
 		const state = scopeState(context);
 		const ranges = context ? normalizeSearchRanges(state?.candidate ?? [], context.doc.length) : [];
@@ -725,6 +749,8 @@
 				return;
 			}
 			const request = ++readingRequest;
+			if (scopeBlocked && !readingScope) { editorSearch.getReadingSearch(ownerView).blockScope(); readingScope = true; scopeEnabled = true;
+				scopeWindow = ownerView.containerEl?.ownerDocument.defaultView ?? null; }
 			editorSearch.getReadingSearch(ownerView).search(text, cache.options, cache.index, scroll, (result) => {
 				if (request !== readingRequest || !cache.visible || !isReading()) return;
 				cache.matches = result.matches;
@@ -733,6 +759,7 @@
 				readingUnsupported = result.unsupported;
 				readingError = result.error;
 				workerError = result.workerError ?? false;
+				if (readingScope && result.scopeInvalid) { scopeEmpty = true; scopeBlocked = true; }
 			}, direction);
 			return;
 		}
