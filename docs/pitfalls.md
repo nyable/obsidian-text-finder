@@ -2,10 +2,13 @@
 
 只收录源码、测试或 Git diff 能确认且有重复维护价值的经验。历史修复不等于所有实机环境验收通过；一次性环境阻塞与临时任务不在此记录。
 
+历史引用中的 `SearchBox.svelte` 操作现位于 `src/finder-session.ts`，组件模板／样式在 `src/SearchBox.vue`；其他 `.svelte` 路径对应同名 `.vue`，历史提交证据不变。
+
 | 易错做法／原因 | 必须保留的不变量 | 源码与回归证据 |
 | --- | --- | --- |
+| 只检查 ownerDocument 就断言跨窗口节点正确；默认 Vue DOM renderer 缓存初始化 Document | 创建节点显式绑定 owner Document，并单独检查所属 Window 构造器身份；根挂载不增加影响几何的 wrapper | `src/ui/mount.ts`；`tests/ui-owner.test.mjs` 的 realm／无 wrapper／多 app 隔离测试；`tests/browser.mjs` 的真实 iframe 与 adopt 后动态节点检查，不等于 Obsidian 弹窗验收 |
 | 先小写化全文再求偏移；Unicode 转换可改变长度 | 在原文上匹配，保留 UTF-16 坐标 | `43f4de2`；`src/util/text-helper.ts:findTextMatches()`；`tests/text-helper.test.mjs` 的 Unicode 偏移测试 |
-| 隐藏面板继续使用旧替换坐标；隐藏时不追踪正文 | 每次写入重新取得 owner 上下文并按当前原文重算 | `43f4de2`；`src/SearchBox.svelte:prepareReplacement()`；`tests/replacement.test.mjs` 的 hidden finder／删除／切文档测试 |
+| 隐藏面板继续使用旧替换坐标；隐藏时不追踪正文 | 每次写入重新取得 owner 上下文并按当前原文重算 | `43f4de2`；`src/finder-session.ts:prepareReplacement()`；`tests/replacement.test.mjs` 的 hidden finder／删除／切文档测试 |
 | 在匹配切片上重新执行正则；锚点／前后顾失去全文上下文 | 根据完整原文和原始 match 展开模板，全部变化来自一次快照，不递归展开结果 | `aa70692`；`src/util/text-helper.ts:expandReplacement()`；`tests/regex-replacement.test.mjs` |
 | 使用全局活动编辑器；点击或异步过程可能改变活动视图 | Finder 绑定 owner；文档、文件、编辑器身份失效即拒绝旧结果或写入 | `d4f14be`；`src/editor-extension.ts:getEditorContext()`、`src/SearchBox.svelte:isCurrentContext()`；`tests/editor-isolation.test.mjs` |
 | 只映射旧高亮坐标；正文变化可能改变正则前后顾语义 | 文档变化先清高亮，新结果必须绑定已提交的具体 CodeMirror doc | `d4f14be`；`src/search-highlight.ts:textMatchMarker`；`tests/search-highlight.test.mjs` |

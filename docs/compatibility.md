@@ -2,23 +2,24 @@
 
 源码能力检测、类型检查和模拟测试不等于真实宿主验收。这里记录依赖与保护策略，不虚构支持矩阵或发布通过结论。
 
+源码引用迁移：旧 `SearchBox.svelte` 操作符号现位于 `src/finder-session.ts`；模板／样式在 `src/SearchBox.vue`，其他旧 `.svelte` 路径对应同名 `.vue`。旧路径仅用于追溯原验证，不是仍保留的运行时实现。
+
 ## 版本与依赖口径
 
 - 插件 ID、最低 Obsidian 版本和移动端声明以 `manifest.json` 为准；`isDesktopOnly: false` 是声明，不是 Android／iOS 实测证明。
 - 开发 Node／pnpm、SDK 和依赖版本以 `.node-version`、`package.json`、`pnpm-lock.yaml` 为准，不在此复制版本清单。
 - 阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与 Manifest 最低 0.15.0、开发 SDK 版本是不同证据，不能推定所有版本支持插件阅读查找。
-- esbuild 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron 等为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。
+- Vite／Rolldown 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron／Node 内建模块为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。主构建与内嵌 Worker／调色器均显式 target ES2018，不代表所有宿主运行时 API 可用。
 
-依据：`src/reading-search.ts` 文件头、`manifest.json`、`package.json`、`esbuild.config.mjs`、`pnpm-workspace.yaml`。
+依据：`src/reading-search.ts` 文件头、`manifest.json`、`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`pnpm-workspace.yaml`。
 
 ### 依赖安全边界
 
-- 依赖扫描命中不等于插件可利用漏洞。Svelte 的 SSR 属性展开、动态标签和 contenteditable 绑定类公告需 SSR 调用链；本插件构建为客户端 DOM 组件，无 SSR／hydrate 入口。仍应随框架使用方式变化重新检查。
-- [Svelte DOM clobbering 公告](https://github.com/advisories/GHSA-rcqx-6q8c-2c42) 要求 form 属性展开与内部 input／button 的 name 同时由用户控制；当前源码没有 form，也不将查询／历史文本作为属性集合展开。不能因此宣称框架版本已修复。
+- 生产已移除 Svelte；旧公告的可达性分析不是 Vue 安全结论。Vue 只编译仓库模板，不将笔记、查询或历史文本作为模板／HTML 注入；静态 HTML 插入只处理编译器输出。没有 SSR／hydrate 入口。扫描命中须检查调用链，不将“客户端”作为通用豁免。
 - moment 来自宿主 Obsidian external；本插件调用 `moment.locale()` 读取语言，不将用户值传给 locale 加载。开发 SDK 的 moment 扫描结果不能证明实际宿主版本安全。
 - braces 位于开发 lint 的 glob 调用链，不在插件运行时包中；当前 lint 模式由开发命令固定，不由笔记或查询控制。处理开发工具风险与插件运行时风险须分开，不为扫描结果盲目升级框架主版本。
 
-依据：`package.json`／`pnpm-lock.yaml`、`esbuild.config.mjs`、`src/i18n/index.ts` 和组件模板。依赖版本或不可信输入边界变化时重新扫描并检查可达性；这不是永久豁免。
+依据：`package.json`／`pnpm-lock.yaml`、`vite.config.mjs`、`src/i18n/index.ts` 和组件模板。依赖版本或不可信输入边界变化时重新扫描并检查可达性；这不是永久豁免。
 
 ## API 边界与保护
 
@@ -62,10 +63,10 @@
 
 | 手段 | 能证明什么 | 不能证明什么 |
 | --- | --- | --- |
-| TypeScript／Svelte check | 类型及组件诊断 | 私有 API 在实际宿主可用 |
+| TypeScript／Vue check | 类型及组件诊断 | 私有 API 在实际宿主可用 |
 | Node 算法／控制器测试 | 文本、模板、数据规范化、统计、保存队列 | Chromium 绘制／滚动、移动体验 |
-| `source-loader.mjs` 抽取 script | 当前导出操作的模拟执行 | `$:` 响应式、bind、模板和生命周期；loader 会移除响应式标签 |
-| 真实组件 jsdom 测试 | 组件绑定、响应式、DOM 事件及焦点语义 | 实际图标／翻译／宿主；历史 DOM 测试移除样式，部分布局由 mock 几何值提供 |
+| `source-loader.mjs` 加载 TypeScript | 框架无关控制器的模拟执行 | Vue 模板／响应式与真实宿主生命周期 |
+| 真实 Vue 组件 jsdom 测试 | 官方 Vue／Vite 编译的组件、图标、scoped CSS、事件和焦点 | 翻译／宿主可为替身，布局可用 mock 几何；不证明真实绘制 |
 | 阅读 benchmark | 当前机器逻辑索引／导航开销及 Range 数量 | 固定性能门槛、实机绘制／滚动性能 |
 | CI 构建与产物检查 | 配置中的锁定安装、检查、构建链路 | 某次 CI 已成功；所有目标平台兼容 |
 | 可选宿主方法脚本 | 指定 ASAR 的真实 stat/read/write/queue、布局与卸载方法在内存边界中的行为 | 真实磁盘、移动适配器、完整宿主加载、GUI／滚动 |
@@ -82,10 +83,12 @@
 
 用户另确认第一阶段正式查找入口的编辑／阅读、大小写／导航、连续输入、正文／文件／关闭重开、同文件双分屏，以及当时同步替换／撤销检查成功。该反馈不替代第二阶段异步替换的实机验收，不推定未提供的平台或窗口场景通过。
 
+生产 UI 已迁移 Vue；独立 Vue 探针已由正式组件检查取代。`tests/browser.mjs` 在 Chromium 检查生产 Finder 的 Worker 查找／替换、IME、iframe owner 构造器身份、live adopt 后新节点归属及卸载，并采集固定模拟主题截图。`src/ui/mount.ts` 使用 owner-bound renderer，而非默认初始化 Document。iframe／adopt／模拟截图不是 Obsidian 弹窗或移动支持证据。用户此前对 Vite 构建的简单功能正常反馈，不等于本次 Vue 产物已实机验收。
+
 ## 实机证据要求
 
 真实应用检查需记录 Obsidian／系统版本、主题／snippets、语言、窗口／缩放、重现笔记和操作。重点是长文离屏全文计数、真实滚动、高亮重挂载、分屏／弹窗／迁移、编辑撤销重做、IME／焦点及目标 Android／iOS；外观页还需验收完整预览固定、低高度／移动键盘可用空间、颜色选择器／alpha、编辑与阅读高亮及恢复 CSS 继承。
 
 实机方法集中在 [testing](testing.md#实际应用验收)，但仓库没有据此确认的完整支持矩阵。验证场景和源码注释不是通过证据；真实报告应限定所验证环境。
 
-还需实机证据的边界包括：社区主题和离屏 computed style、details／折叠正文具体宿主结构、Clipboard／样式注入在弹出窗口的表现、插件卸载时历史 Modal 的关闭与订阅释放、移动存储适配器及慢 I/O 重载。对应实现：`src/reading-text.ts`、`src/reading-search.ts:scroll()`、`src/HistoryModal.svelte`、`src/settings-storage.ts`、`esbuild.config.mjs`、`src/main.ts:onunload()`。
+还需实机证据的边界包括：社区主题和离屏 computed style、details／折叠正文具体宿主结构、Clipboard／样式注入在弹出窗口的表现、插件卸载时历史 Modal 的关闭与订阅释放、移动存储适配器及慢 I/O 重载。对应实现：`src/reading-text.ts`、`src/reading-search.ts:scroll()`、`src/HistoryModal.svelte`、`src/settings-storage.ts`、`vite.config.mjs`、`src/main.ts:onunload()`。

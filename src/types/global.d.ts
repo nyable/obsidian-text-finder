@@ -1,5 +1,3 @@
-/// <reference types="svelte" />
-
 interface SearchRange { from: number; to: number; }
 
 interface MatchOffset {

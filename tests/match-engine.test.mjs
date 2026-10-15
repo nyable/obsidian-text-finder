@@ -1,15 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { build } from "esbuild";
-import { matchWorkerPlugin } from "../tools/match-worker-build.mjs";
+import { bundleSource } from "./bundle-source.mjs";
 import { installWorkerHost } from "./match-worker-host.mjs";
 import { workerCases } from "./worker-experiment-cases.mjs";
 import { loadSource } from "./source-loader.mjs";
 
-const bundle = await build({ entryPoints: ["src/match-engine.ts"], bundle: true, write: false,
-	format: "cjs", platform: "browser", plugins: [matchWorkerPlugin()] });
+const bundle = await bundleSource({ entry: "src/match-engine.ts" });
 const module = { exports: {} };
-new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
+new Function("module", "exports", bundle)(module, module.exports);
 const { MatchEngine } = module.exports;
 const helper = loadSource("../src/util/text-helper.ts");
 const options = { regexMode: true, caseSensitive: false };

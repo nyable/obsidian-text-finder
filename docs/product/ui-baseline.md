@@ -2,18 +2,20 @@
 
 本文件区分源码中的视觉事实和真实截图证据。截图分类用于确定比较范围，不是采集任务进度。交互语义见 [interactions](interactions.md)。
 
+下文旧 `.svelte` 路径对应同名 `.vue`；SearchBox 的操作函数已迁到 `src/finder-session.ts`，模板／CSS 仍在 `src/SearchBox.vue`。这些引用追溯原视觉约束，迁移不授权改变外观。`src/ui/TextRun.ts` 保留历史标题／统计／日期的相邻文本节点分段，避免字体 kerning 改变像素和文字宽度；不添加 DOM 元素或改变文本。
+
 ## 样式来源与兼容接口
 
 笔记菜单使用宿主 Menu／MenuItem 的原生样式，不新增 CSS、容器 aria-label 或重复 title 提示。右上角一个带 Text Finder 前缀的查找项（find 分组），正文选择两个带前缀的操作（selection 分组）；阅读纯正文另保留 clipboard 分组的复制选中文字，链接继续复用宿主原项。实际排序、菜单合并、边缘提示及移动长按菜单须实机验收；`tests/finder-menus.test.mjs` 只能证明项目语义和事件路由。
 
 - 全局变量、编辑高亮、阅读 `::highlight`、设置样式来自 `src/styles/index.scss`，构建为 `dist/styles.css`。
-- Svelte 组件有自己的 scoped CSS／SCSS；`esbuild.config.mjs` 使用 `css: "injected"`，组件样式不全部存在于全局样式产物中。
+- Vue scoped CSS／SCSS 与全局样式统一输出到 `dist/styles.css`，由 Obsidian 加载，不再运行 Svelte 样式注入。公开类／变量保持，移动祖先选择器和主题覆盖须保持原行为。框架 scope ID 属于内部实现。
 - `ToolbarPreview.svelte` 是设置页新增的展示组件；它与真实 Finder／Toolbar 通过 `src/styles/finder-primitives.scss` 共享面板、输入、按钮、计数和焦点样式，容器定位与窄宽布局独立。
 - `src/appearance.ts:AppearanceStyles` 只为显式自定义颜色生成按 Document 管理的 `body` 变量覆盖（`!important`）；默认没有覆盖样式，恢复时移除对应声明，卸载／窗口关闭移除插件样式，不改写宿主 inline style。更具体或 inline 的 `!important` 用户规则仍可能优先，不能承诺覆盖任意 CSS。
 - README 公开 `.nya-finder`（位置）、`.nya-toggle`（装饰）、`.nya-text-finder-match`、`.nya-text-finder-match-current` 和下列变量的自定义示例。
-- **兼容性推断：**这些公开类／变量是用户 CSS 接口，应保留名称与作用；Svelte 自动生成的作用域类不视为公开接口。改变 CSS 注入／作用域时必须核对级联与宿主窗口，而非只复制全局 SCSS。
+- **兼容性推断：**公开类／变量是用户 CSS 接口，须保留名称与作用；框架自动生成的 scope ID 不视为公开接口。改变 CSS 注入／作用域时须核对级联和宿主窗口，不只复制全局 SCSS。
 
-依据：`src/styles/index.scss`、各 `.svelte` 的 `<style>`、`esbuild.config.mjs`、`README-zh_CN.md` 的“自定义样式”、`style-settings.css`。
+依据：`src/styles/index.scss`、各 `.svelte` 的 `<style>`、`vite.config.mjs`、`tools/vite-build.mjs`、`README-zh_CN.md` 的“自定义样式”、`style-settings.css`。
 
 | 公开变量 | 当前默认值 | 用途 |
 | --- | --- | --- |
@@ -28,7 +30,7 @@
 | `--nya-scope-border-color` | `var(--interactive-accent)` | 搜索选区轮廓色 |
 | `--nya-scope-border-width` | `0px` | 搜索选区边框，0px 隐藏；设置开启后覆盖为 1–3px |
 
-Style Settings 配置文件是独立示例，不是插件自动注册的设置页：`style-settings.css` 没有作为 esbuild 入口导入。
+Style Settings 配置文件是独立示例，不是插件自动注册的设置页：`style-settings.css` 没有作为构建入口导入。
 
 ## 当前布局与主题事实
 

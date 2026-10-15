@@ -1,9 +1,10 @@
-import { build } from "esbuild";
+import { embeddedBundle } from "./vite-build.mjs";
 
 // Bundle the unregistered library base inside an owner-window factory. This
 // supplies the globals used by the library without eval or changing its code.
-export async function colorPickerModule() {
-	const result = await build({ stdin: { contents: "export { HexAlphaBase } from 'vanilla-colorful/lib/entrypoints/hex-alpha';", resolveDir: process.cwd() }, bundle: true, write: false, format: "iife", globalName: "PickerLibrary", target: "es2018" });
+export async function colorPickerModule({ watch = () => {} } = {}) {
+	const result = await embeddedBundle({ source: "export { HexAlphaBase } from 'vanilla-colorful/lib/entrypoints/hex-alpha';", name: "PickerLibrary" });
+	for (const path of Object.keys(result.modules)) if (!path.startsWith("\0")) watch(path);
 	return `export function createColorPicker(doc) {
 		const window = doc.defaultView;
 		const HTMLElement = window.HTMLElement;
@@ -22,7 +23,7 @@ export async function colorPickerModule() {
 					types?.delete(type); if (!types?.size) listeners.delete(handler);
 				}
 			};
-			${result.outputFiles[0].text}
+			${result.code}
 			class OwnerPicker extends PickerLibrary.HexAlphaBase {
 				disconnectedCallback() { this.release(); }
 				release() {
@@ -38,11 +39,4 @@ export async function colorPickerModule() {
 		}
 		return doc.createElement(tag);
 	}`;
-}
-
-export function colorPickerPlugin() {
-	return { name: "owner-color-picker", setup(build) {
-		build.onResolve({ filter: /^virtual:color-picker$/ }, () => ({ path: "color-picker", namespace: "owner-picker" }));
-		build.onLoad({ filter: /.*/, namespace: "owner-picker" }, async () => ({ contents: await colorPickerModule(), loader: "js" }));
-	} };
 }

@@ -3,8 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { build } from "esbuild";
-import { compile } from "svelte/compiler";
+import { compileComponents, fixtureAdapter } from "./vue-components.mjs";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { attachHistory } from "./history-source.mjs";
@@ -12,36 +11,11 @@ import { attachHistory } from "./history-source.mjs";
 // Compile the actual components, including bindings, reactive sorting and DOM
 // event modifiers. Only host APIs and decorative icons are stubbed.
 const root = fileURLToPath(new URL("../", import.meta.url));
-const bundle = await build({
-	stdin: {
-		contents: `export { default as HistoryModal } from './src/HistoryModal.svelte'; export { tick } from 'svelte';`,
-		resolveDir: root,
-	},
-	bundle: true,
-	write: false,
-	format: "cjs",
-	platform: "browser",
-	plugins: [{
-		name: "history-test-components",
-		setup(build) {
-			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/i18n$/ }, ({ path }) => ({ path, namespace: "stub" }));
-			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
-				if (path === "obsidian") return { contents: `export const moment = timestamp => { (globalThis.__historyDates ??= []).push(timestamp); return {format: () => 'date', fromNow: () => 'relative'}; };` };
-				if (path === "./i18n") return { contents: `export const i18n = { t: key => key };` };
-				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport { Component as Trash2, Component as Copy, Component as CheckSquare, Component as Square, Component as Info, Component as ArrowLeft, Component as Calendar, Component as Clock, Component as Hash, Component as AlignLeft };`, resolveDir: root };
-			});
-			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
-				const source = readFileSync(filename, "utf8")
-					.replace(/<script lang="ts">([\s\S]*?)<\/script>/, (_, script) => `<script>${ts.transpileModule(script, {
-						compilerOptions: { target: ts.ScriptTarget.ES2018, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true },
-					}).outputText}</script>`)
-					.replace(/<style[\s\S]*?<\/style>/g, "");
-				return { contents: compile(source, { filename, generate: "dom", css: "external" }).js.code, resolveDir: path.dirname(filename) };
-			});
-		},
-	}],
+const bundle = await compileComponents(fixtureAdapter + `\nimport View from '/src/HistoryModal.vue'; export const HistoryModal = fixture(View);`, {
+	obsidian: `export const moment = timestamp => { (globalThis.__historyDates ??= []).push(timestamp); return {format: () => 'date', fromNow: () => 'relative'}; };`,
+	"./i18n": `export const i18n = {t: key => key};`,
 });
+
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
 globalThis.window = dom.window;
@@ -49,7 +23,9 @@ globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 Object.defineProperty(globalThis, "navigator", { configurable: true, value: dom.window.navigator });
 const module = { exports: {} };
-new Function("module", "exports", bundle.outputFiles[0].text)(module, module.exports);
+globalThis.Element = dom.window.Element; globalThis.SVGElement = dom.window.SVGElement;
+const style = document.createElement("style"); style.textContent = bundle.styles.join("\n"); document.head.append(style);
+new Function("module", "exports", bundle.code)(module, module.exports);
 const { HistoryModal, tick } = module.exports;
 
 function mount(t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlugin) {

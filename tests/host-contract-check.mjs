@@ -97,7 +97,7 @@ class Plugin { addSettingTab() {} registerEvent() {} addCommand() { commands++; 
 const provider = loadSource("../src/editor-extension.ts", {
 	"./reading-selection": readingSelectionSource,
 	"./match-engine": {},
-	"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
+	"./search-highlight": {}, "./SearchBox": {}, "./reading-search": {}, obsidian: {},
 	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 });
 const { default: TextFinderPlugin } = loadSource("../src/main.ts", {

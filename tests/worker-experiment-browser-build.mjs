@@ -1,13 +1,12 @@
 // Generates a standalone, self-contained browser harness in approved temp space.
-import { build } from "esbuild";
+import { bundleSource } from "./bundle-source.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { workerSource } from "./worker-experiment-source.mjs";
 
 const directory = "/tmp/opencode/text-finder-worker-browser";
-const result = await build({ entryPoints: ["tests/worker-experiment-browser.mjs"], bundle: true, write: false,
-	platform: "browser", format: "iife", target: "es2022", define: { __workerSource: JSON.stringify(workerSource("browser")) } });
+const result = await bundleSource({ entry: "tests/worker-experiment-browser.mjs", format: "iife", target: "es2022", define: { __workerSource: JSON.stringify(workerSource("browser")) } });
 await mkdir(directory, { recursive: true });
-const script = result.outputFiles[0].text.replaceAll("</script", "<\\/script");
+const script = result.replaceAll("</script", "<\\/script");
 await writeFile(`${directory}/index.html`, `<!doctype html><meta charset="utf-8"><title>Text Finder Worker experiment</title>
 <h1>Standalone browser Worker experiment</h1>
 <p>Does not modify a Vault or integrate into Obsidian. No product execution limit is defined here.</p>

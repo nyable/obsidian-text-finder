@@ -11,7 +11,13 @@ pnpm build
 git diff --check
 ```
 
-测试使用 Node.js test runner；部分 TypeScript/Svelte 操作经 `tests/source-loader.mjs` 加载，DOM 交互使用 jsdom，部分测试编译实际 Svelte 组件。测试中的 Obsidian 渲染器与 Highlight API 使用替身，不等同于真实宿主。
+测试使用 Node.js test runner；框架无关 TypeScript 控制器经 `tests/source-loader.mjs` 加载，DOM 交互使用 jsdom，真实 Vue 组件经 `tests/vue-components.mjs` 使用官方 Vue／Vite 编译链构建。测试中的 Obsidian 渲染器与 Highlight API 使用替身，不等同于真实宿主。组件套件的 constructor／`$set`／`$destroy` 仅是既有测试夹具适配，不是生产 API。
+
+`pnpm test:browser` 使用 `tests/browser.mjs`／`tests/browser/` 编译生产组件，采集浅／深、桌面／移动布局截图，并在真实 Chromium 中运行生产 Finder 的 Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。产物写入 `/tmp/opencode/text-finder-vue-full/browser/`。需要已安装的 Playwright Chromium；模拟主题、iframe 与布局不等于 Obsidian／Android／iOS 验收。旧版截图必须单独保存，不用当前 Vue 截图冒充旧版基线。独立 Vue 探针已由正式组件回归取代。
+
+设置 `TEXT_FINDER_VISUAL_BASELINE=/path/to/preserved/browser pnpm test:browser` 可对保留的旧 REPORT.json 做精确截图哈希比较；要求浏览器版本、环境元数据和截图数量一致，差异显式失败，不自动更新基线。基线目录必须与当前输出目录不同，不将像素比较冒充全部交互／主题等价。
+
+`tests/vite-build.test.mjs` 通过正式 Vite 配置在内存构建，检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及实际产物初始化、Finder 创建／查找／全部替换／关闭／卸载；另检查内嵌输入 watch。宿主为替身，查找替换使用无浏览器 Worker 的同步兼容路径，不能据此宣称 Obsidian 真机通过。`tests/ui-owner.test.mjs` 检查无全局 Document 时的所属 realm、HTML／SVG 创建、独立 app 标签 ID、更新和幂等卸载。
 
 ## 主要覆盖
 
@@ -173,7 +179,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 | 选区外观 | 外观 → 搜索选区：默认背景随主题、边框关闭。选择背景／边框 alpha、应用／取消／单项恢复、开关及 1–3px、分组恢复；确认不改匹配色／工具栏／实际范围。检查单行／跨行首尾不齐／自动折行／长文滚动／缩放／语法及匹配拆分／多选区间隙／空行／RTL，轮廓不退化为整块大矩形、不遮文字、不拦选词点击；源码／实时预览、分屏／窗口迁移／卸载重载、主题与移动真机分别验收 |
 | 空行与换行展示 | 选择 `abc\n\ndef` 及多个空行／仅空格 Tab 空白行，开启轮廓：同范围可见空行连接、不扩编辑器整行；引用／列表缩进和首尾不重叠时为窄阶梯，折叠源码、独立选区、bidi 不强连。正则搜索 `\n`、`\n\n`、`abc\n\ndef`：已匹配换行显示 `↵`，当前／普通颜色随导航切换，连续换行属于一项仍只计一项；无末尾换行的 EOF 和软折行无标记。覆盖源码／实时预览、末行实际换行、编辑／替换／撤销／关闭后清理、复制不带额外符号、长行视口边缘、滚动缩放、分屏／弹窗及移动主题；阅读不新增源码标记 |
 
-行为依据：`src/SearchBox.svelte`、`src/editor-extension.ts`；自动回归参见 `tests/search-box-dom.test.mjs`、`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
+行为依据：`src/finder-session.ts`、`src/SearchBox.vue`、`src/editor-extension.ts`；自动回归参见 `tests/search-box-dom.test.mjs`、`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
 
 ### 阅读场景
 
@@ -191,7 +197,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 | 超时／异常 | 渲染超过默认 5 秒显示超时；定位／Highlight 失败显示错误而非无结果；恢复后重试可用，无残留高亮 |
 | 原生入口 | 旧原生偏好已清理，正常使用插件；不支持或用户在错误状态主动降级时关闭插件面板，不同时留下两套可见查找面板 |
 
-依据：`src/reading-text.ts`、`src/reading-search.ts`、`src/SearchStatus.svelte`；自动回归参见 `tests/reading-search.test.mjs`、`tests/reading-commands.test.mjs`。
+依据：`src/reading-text.ts`、`src/reading-search.ts`、`src/SearchStatus.vue`；自动回归参见 `tests/reading-search.test.mjs`、`tests/reading-commands.test.mjs`。
 
 ### 环境、生命周期与性能
 

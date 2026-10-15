@@ -1,10 +1,11 @@
 import { Modal, App } from "obsidian";
-import HistoryModalComponent from "./HistoryModal.svelte";
+import HistoryModalComponent from "./HistoryModal.vue";
+import { mountView, type MountedView } from "./ui/mount";
 import type TextFinderPlugin from "./main";
 
 export class HistoryModal extends Modal {
     plugin: TextFinderPlugin;
-    component: HistoryModalComponent | undefined;
+    component: MountedView<Record<string, unknown>> | undefined;
 
     constructor(app: App, plugin: TextFinderPlugin, private closed: () => void = () => {}) {
         super(app);
@@ -20,20 +21,17 @@ export class HistoryModal extends Modal {
         contentEl.style.display = "flex";
         contentEl.style.flexDirection = "column";
         contentEl.style.height = "100%";
-        contentEl.style.padding = "0"; // Move padding to Svelte component
+        contentEl.style.padding = "0"; // The Vue view owns the content padding.
 
-        this.component = new HistoryModalComponent({
-            target: contentEl,
-            props: {
+        this.component = mountView(HistoryModalComponent, contentEl, {
                 plugin: this.plugin,
                 modal: this,
-            },
         });
     }
 
     onClose() {
         if (this.component) {
-            this.component.$destroy();
+            this.component.destroy();
             this.component = undefined;
         }
         const { contentEl } = this;

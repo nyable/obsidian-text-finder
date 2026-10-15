@@ -1,4 +1,6 @@
-<script lang="ts">
+<script setup lang="ts">
+import { toRefs } from "vue";
+
 	import { i18n } from "./i18n";
 	import {
 		Trash2,
@@ -8,14 +10,16 @@
 		Clock,
 		Hash,
 		AlignLeft,
-	} from "lucide-svelte";
+	} from "lucide-vue-next";
 	import type { SearchHistoryItem } from "./main";
 	import { moment } from "obsidian";
-	import { createEventDispatcher } from "svelte";
+	
 
-	export let item: SearchHistoryItem;
+	const props = defineProps<{ item: SearchHistoryItem }>();
+const { item } = toRefs(props);
+const dispatch = defineEmits<{ close: []; copy: [item: SearchHistoryItem]; delete: [item: SearchHistoryItem] }>();
 
-	const dispatch = createEventDispatcher();
+	
 
 	const formatDate = (timestamp: number) => {
 		// @ts-ignore
@@ -28,93 +32,96 @@
 	};
 
 	const close = () => dispatch("close");
-	const copy = () => dispatch("copy", item);
-	const remove = () => dispatch("delete", item);
+	const copy = () => dispatch("copy", item.value);
+	const remove = () => dispatch("delete", item.value);
 </script>
+
+<template>
 
 <div class="nya-history-header">
 	<div class="nya-history-header-left">
 		<button
 			class="nya-icon-btn"
-			on:click={close}
-			title={i18n.t("history.Back")}
+			@click="close"
+			:title="i18n.t('history.Back')"
 		>
-			<ArrowLeft size={18} />
+			<ArrowLeft :size="18" />
 		</button>
-		<h2>{i18n.t("history.Details")}</h2>
+		<h2>{{ i18n.t("history.Details") }}</h2>
 	</div>
 </div>
 <div class="nya-history-detail">
 	<div class="nya-history-detail-meta">
 		<div class="nya-history-detail-card">
 			<div class="nya-history-card-icon">
-				<Calendar size={14} />
+				<Calendar :size="14" />
 			</div>
 			<div class="nya-history-card-content">
-				<span class="label">{i18n.t("history.Created")}</span>
+				<span class="label">{{ i18n.t("history.Created") }}</span>
 				<div class="value-group">
 					<span class="value"
-						>{formatDate(item.createdAt)}</span
+						>{{ formatDate(item.createdAt) }}</span
 					>
 					<span class="value sub"
-						>({formatRelative(
+						>({{ formatRelative(
 							item.createdAt,
-						)})</span
+						) }})</span
 					>
 				</div>
 			</div>
 		</div>
 		<div class="nya-history-detail-card">
 			<div class="nya-history-card-icon">
-				<Clock size={14} />
+				<Clock :size="14" />
 			</div>
 			<div class="nya-history-card-content">
-				<span class="label">{i18n.t("history.LastUsed")}</span>
+				<span class="label">{{ i18n.t("history.LastUsed") }}</span>
 				<div class="value-group">
-					<span class="value">{formatDate(item.lastUsedAt)}</span>
+					<span class="value">{{ formatDate(item.lastUsedAt) }}</span>
 					<span class="value sub"
-						>({formatRelative(item.lastUsedAt)})</span
+						>({{ formatRelative(item.lastUsedAt) }})</span
 					>
 				</div>
 			</div>
 		</div>
 		<div class="nya-history-detail-card">
 			<div class="nya-history-card-icon">
-				<Hash size={14} />
+				<Hash :size="14" />
 			</div>
 			<div class="nya-history-card-content">
-				<span class="label">{i18n.t("history.Count")}</span>
-				<span class="value">{item.count}</span>
+				<span class="label">{{ i18n.t("history.Count") }}</span>
+				<span class="value">{{ item.count }}</span>
 			</div>
 		</div>
 		<div class="nya-history-detail-card">
 			<div class="nya-history-card-icon">
-				<AlignLeft size={14} />
+				<AlignLeft :size="14" />
 			</div>
 			<div class="nya-history-card-content">
-				<span class="label">{i18n.t("history.Length")}</span>
-				<span class="value">{item.text.length}</span>
+				<span class="label">{{ i18n.t("history.Length") }}</span>
+				<span class="value">{{ item.text.length }}</span>
 			</div>
 		</div>
 	</div>
 	<div class="nya-history-detail-content-wrapper">
 		<div class="nya-history-detail-content">
-			{item.text}
+			{{ item.text }}
 		</div>
 	</div>
 	<div class="nya-history-detail-actions">
-		<button class="nya-history-btn" on:click={copy}>
-			<Copy size={14} />
-			{i18n.t("history.Copy")}
+		<button class="nya-history-btn" @click="copy">
+			<Copy :size="14" />
+			{{ i18n.t("history.Copy") }}
 		</button>
-		<button class="nya-history-btn delete" on:click={remove}>
-			<Trash2 size={14} />
-			{i18n.t("history.Delete")}
+		<button class="nya-history-btn delete" @click="remove">
+			<Trash2 :size="14" />
+			{{ i18n.t("history.Delete") }}
 		</button>
 	</div>
 </div>
 
-<style lang="scss">
+</template>
+<style scoped lang="scss">
 	.nya-history-header {
 		display: flex;
 		justify-content: space-between;
@@ -277,3 +284,4 @@
 		}
 	}
 </style>
+

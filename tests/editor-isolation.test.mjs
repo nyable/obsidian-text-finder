@@ -70,7 +70,7 @@ function environment() {
 		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
-		"./SearchBox.svelte": {}, obsidian: { MarkdownView },
+		"./SearchBox": {}, obsidian: { MarkdownView },
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 		"./reading-search": readingSearch,
 	});
@@ -79,8 +79,8 @@ function environment() {
 	search.getMatchEngine = () => ({ match: (source, query, options) => ({ status: "completed",
 		matches: helper.findTextOffsets(source, query, options.regexMode, options.caseSensitive), synchronous: true }), cancel() {} });
 	const finder = (view) => {
-		const component = loadSource("../src/SearchBox.svelte", {
-			svelte: { onMount() {}, tick: () => Promise.resolve() }, "./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
+		const source = loadSource("../src/finder-session.ts", {
+			"./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 			"./toolbar": toolbarSource,
 			"./i18n": { i18n: { t: (key) => key } },
 			"./search-highlight": highlightStub,
@@ -89,8 +89,7 @@ function environment() {
 			"./util/obsidian-internal": loadSource("../src/util/obsidian-internal.ts"),
 			obsidian: { MarkdownView, Platform: { isMobile: false } },
 		});
-		component.editorSearch = search;
-		component.ownerView = view;
+		const component = source.createFinderSession(search, view, "test", {reactive: value => value, tick: () => Promise.resolve(), onMount() {}});
 		component.getSearchCache().visible = true;
 		component.setFindText("cat", false);
 		search.finderViews.set(view, component);
@@ -389,9 +388,7 @@ test("creating a Finder passes its explicit owner even if another view is active
 		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
 		"./search-highlight": highlightStub,
-		"./SearchBox.svelte": { default: class {
-			constructor(options) { created.push(options); }
-		} },
+		"./SearchBox": { mountFinder(target, props) { created.push({target, props}); return {}; } },
 		obsidian: { MarkdownView }, "./i18n": { i18n: { t: (key) => key } },
 		"./util/common-helper": { generateUniqueId: () => "explicit-owner" }, "./HistoryModal": {},
 		"./reading-search": readingSearch,

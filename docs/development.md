@@ -6,7 +6,10 @@
 
 - Node.js 版本以 [`.node-version`](../.node-version) 为准，支持范围见 [`package.json`](../package.json) 的 `engines`。
 - pnpm，版本见 [`package.json`](../package.json) 的 `packageManager`。安装方式见 [pnpm 安装指南](https://pnpm.io/installation)。
-- 使用 TypeScript、Svelte 4、CodeMirror 6 和 esbuild。
+- 使用 TypeScript、Vue 3 Composition API／`<script setup>`、CodeMirror 6，正式与测试构建统一使用 Vite 8／Rolldown。生产已不依赖 Svelte 或直接 esbuild。
+- esbuild 仍可能由 Vite 的间接依赖／peer 安装进入锁文件；这不表示项目继续维护 esbuild 构建入口，不要为清掉依赖树名称而破坏 Vite 的依赖约束。
+
+`src/finder-session.ts` 是每个 owner 的会话控制器，通过 `FinderRuntime` 注入浅响应式状态、DOM 提交等待及生命周期；不导入 Vue。`SearchBox.vue` 负责展示与 DOM 绑定。宿主集成只使用 `mountFinder()`／`mountView()` 的操作、update 和 destroy，不依赖组件私有 API。`src/ui/mount.ts` 用 Vue 公开 renderer API 的 owner-bound DOM 操作，保持跨窗口构造器与原有父节点几何；不能改回全局 Document。详见 [架构](architecture.md)。
 
 ## 源码构建与安装
 
@@ -21,14 +24,14 @@ pnpm build
 
 将生成的 `dist/main.js`、`dist/styles.css` 和 `dist/manifest.json` 复制到测试库的 `.obsidian/plugins/text-finder/`，然后启用或重载插件。不要为了测试覆盖日常库中的设置和历史数据。
 
-`pnpm dev` 启动开发构建。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
+`pnpm dev` 使用 `vite build --watch --mode development` 监听构建，不启动网页服务器或承诺 Obsidian 内 HMR。正式产物保持 CommonJS `main.js`、`styles.css`、原样 `manifest.json`；匹配 Worker 和颜色选择器内嵌，不新增运行时下载。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
 
 ## 依赖与 CI
 
 - 本仓库使用 pnpm，不使用 npm 或 Yarn 安装依赖。
 - 修改依赖时，使用 pnpm 更新并提交 `pnpm-lock.yaml`。
 - [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) 固定 CodeMirror 版本并配置构建依赖许可，避免多个不兼容的实例。
-- CI 使用 `--frozen-lockfile` 安装，执行测试、TypeScript/Svelte 检查和插件构建，配置见 [`.github/workflows/`](../.github/workflows/)。
+- CI 使用 `--frozen-lockfile` 安装，执行测试、TypeScript／Vue 检查和插件构建，配置见 [`.github/workflows/`](../.github/workflows/)。`pnpm test` 单并发避免多个组件构建争用资源。`pnpm test:browser` 单独运行，需要已有 Playwright Chromium，不自动安装系统环境。
 - 回归测试含版本、翻译键、产品命令／设置表、CSS 默认值一致性检查；构建后 CI 比较 manifest 源文件和产物。
 
 ## 变更同步
@@ -50,7 +53,7 @@ pnpm build
 4. **检查整条提示路径。** 同时审查 `aria-label`、`title` 与 `setTooltip`：提示只覆盖预期目标，避免同一控件出现不同或重复文案。需要读屏名称却不需要名称悬浮提示的输入，可引用标题并保留独立的格式说明；不要另造全局悬浮提示屏蔽机制。
 5. **区分自动回归与实机验收。** 自动检查容器没有多余 `aria-label`、`aria-labelledby` 能解析到正确文本、真实控件仍有名称；在 Obsidian 中另查空白区域、标题、控件和菜单边缘的提示，并核对键盘焦点与弹窗表现。未实测不能标记宿主通过。
 
-源码示例：`src/settings-tab.ts` 的 tablist／外观 region，`src/color-picker.ts` 的 dialog／输入命名，`src/ToolbarPreview.svelte` 的预览图，以及 `src/Toolbar.svelte` 的 More 菜单标题引用与预览图标。
+源码示例：`src/settings-tab.ts` 的 tablist／外观 region，`src/color-picker.ts` 的 dialog／输入命名，`src/ToolbarPreview.vue` 的预览图，以及 `src/Toolbar.vue` 的 More 菜单标题引用与预览图标。
 
 回归入口：
 - `tests/main-settings.test.mjs`：`settings containers and preview retain accessible names without Obsidian hover labels`。

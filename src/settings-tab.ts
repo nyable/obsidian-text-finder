@@ -5,7 +5,8 @@ import { i18n } from "./i18n";
 import { HistorySortOrder, type HistorySortOrderType } from "./constants";
 import { parseHistoryLimit } from "./history";
 import { defaultToolbar, moveToolbarItem, toolbarLabels, type ToolbarAction, type ToolbarKind, type ToolbarPlacement } from "./toolbar";
-import ToolbarPreview from "./ToolbarPreview.svelte";
+import ToolbarPreview from "./ToolbarPreview.vue";
+import { mountView } from "./ui/mount";
 import { appearanceColors, colorKeys, defaultScopeAppearance, resolvedAppearanceColor, type AppearanceColorKey } from "./appearance";
 import { openColorPicker } from "./color-picker";
 import { createSettingsSelect, type SettingsSelect } from "./settings-select";
@@ -23,7 +24,7 @@ let nextSettingsId = 0;
 export class SettingTab extends PluginSettingTab {
 	private page: SettingsPage = "general";
 	private cleanupDrag?: () => void;
-	private preview?: ToolbarPreview;
+	private preview?: ReturnType<typeof mountView>;
 	private previewRoot?: HTMLElement;
 	private cleanupColor?: () => void;
 	private cleanupSelect?: () => void;
@@ -35,11 +36,11 @@ export class SettingTab extends PluginSettingTab {
 	private clearPreview() {
 		this.selectControls.forEach((control) => control.destroy()); this.selectControls.clear(); this.cleanupSelect = undefined;
 		this.cleanupColor?.(); this.cleanupColor = undefined;
-		this.preview?.$destroy(); this.preview = undefined; this.previewRoot = undefined;
+		this.preview?.destroy(); this.preview = undefined; this.previewRoot = undefined;
 	}
 	private refreshPreview() {
 		const { searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, enableHistory } = this.plugin.settings;
-		this.preview?.$set({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, historyEnabled: enableHistory });
+		this.preview?.update({ searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, historyEnabled: enableHistory });
 	}
 
 	constructor(app: App, public plugin: TextFinderPlugin) { super(app, plugin); }
@@ -205,12 +206,12 @@ export class SettingTab extends PluginSettingTab {
 		} else {
 			const preview = root.ownerDocument.createElement("div"); preview.className = "nya-appearance-preview"; root.append(preview);
 			this.previewRoot = preview;
-			this.preview = new ToolbarPreview({ target: preview, props: {
+			this.preview = mountView(ToolbarPreview, preview, {
 				searchToolbar: this.plugin.settings.searchToolbar, replaceToolbar: this.plugin.settings.replaceToolbar,
 				defaultRegexMode: this.plugin.settings.defaultRegexMode, defaultCaseSensitive: this.plugin.settings.defaultCaseSensitive,
 				defaultWholeWord: this.plugin.settings.defaultWholeWord,
 				historyEnabled: this.plugin.settings.enableHistory,
-			} });
+			});
 			const controls = root.ownerDocument.createElement("div"); controls.className = "nya-appearance-controls";
 			controls.tabIndex = 0; controls.setAttribute("role", "region");
 			controls.setAttribute("aria-labelledby", "nya-settings-tab-toolbar"); root.append(controls);

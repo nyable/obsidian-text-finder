@@ -3,12 +3,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Worker as NodeWorker } from "node:worker_threads";
-import { build } from "esbuild";
+import { bundleSource } from "./bundle-source.mjs";
 import { JSDOM } from "jsdom";
 import { workerSource } from "./worker-experiment-source.mjs";
 
-const bundle = await build({ entryPoints: ["tests/worker-probe-plugin.mjs"], bundle: true, write: false,
-	platform: "browser", format: "cjs", external: ["obsidian"],
+const bundle = await bundleSource({ entry: "tests/worker-probe-plugin.mjs", external: ["obsidian"],
 	define: { __workerSource: JSON.stringify(workerSource("browser")), __probeBuild: JSON.stringify({ test: true }) } });
 
 function environment(t) {
@@ -46,7 +45,7 @@ function environment(t) {
 	class Plugin { registerView(type, factory) { this.factory = factory; } addCommand(cmd) { commands.set(cmd.id, cmd); } registerEvent() {} }
 	class ItemView { constructor(leaf) { this.app = leaf.app; this.contentEl = win.document.createElement("div"); win.document.body.append(this.contentEl); } }
 	const module = { exports: {} };
-	new Function("require", "module", "exports", bundle.outputFiles[0].text)((name) => {
+	new Function("require", "module", "exports", bundle)((name) => {
 		assert.equal(name, "obsidian"); return { Plugin, ItemView, MarkdownView, Notice: class {}, apiVersion: "test-host" };
 	}, module, module.exports);
 	const plugin = new module.exports.default(); plugin.app = { workspace }; plugin.onload();

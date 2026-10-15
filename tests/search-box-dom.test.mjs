@@ -6,8 +6,7 @@ import test from "node:test";
 import { EditorState } from "@codemirror/state";
 import * as stateModule from "@codemirror/state";
 import * as viewModule from "@codemirror/view";
-import { build } from "esbuild";
-import { compile } from "svelte/compiler";
+import { compileComponents, fixtureAdapter } from "./vue-components.mjs";
 import { compileString } from "sass";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
@@ -15,7 +14,6 @@ import { attachHistory, toolbarSource } from "./history-source.mjs";
 import { loadSource } from "./source-loader.mjs";
 import { readingDependencies, readingSelectionSource } from "./reading-source.mjs";
 import { matchEngineSource } from "./match-engine-source.mjs";
-import { matchWorkerPlugin } from "../tools/match-worker-build.mjs";
 import { installWorkerHost } from "./match-worker-host.mjs";
 
 const { ReadingSearch } = loadSource("../src/reading-search.ts", {
@@ -26,41 +24,21 @@ const { ReadingSearch } = loadSource("../src/reading-search.ts", {
 const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 	"./reading-selection": readingSelectionSource,
 	"./match-engine": matchEngineSource,
-	"./search-highlight": {}, "./SearchBox.svelte": {}, obsidian: { MarkdownView: class {} },
+	"./search-highlight": {}, "./SearchBox": {}, obsidian: { MarkdownView: class {} },
 	"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	"./reading-search": { ReadingSearch },
 });
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const componentStyles = [];
-const bundle = await build({
-	stdin: { contents: `export {default as SearchBox} from './src/SearchBox.svelte'; export {MatchEngine} from './src/match-engine'; export * from './src/search-scope'; export {tick} from 'svelte'; export {Platform, Menu} from 'obsidian';`, resolveDir: root },
-	bundle: true, write: false, format: "cjs", platform: "browser",
-	external: ["@codemirror/state", "@codemirror/view"],
-	plugins: [matchWorkerPlugin(), {
-		name: "search-box-dom",
-		setup(build) {
-			build.onResolve({ filter: /^(obsidian|lucide-svelte)$|^\.\/(i18n|search-highlight)$/ }, ({ path }) => ({ path, namespace: "stub" }));
-			build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path }) => {
-				if (path === "obsidian") return { contents: `export const Platform = {isMobile: false}; export class Menu { static shown = []; items = []; addItem(fn) { const item = {setTitle(title){this.title = title;return this},setIcon(){return this},onClick(fn){this.run = fn;return this}}; fn(item);this.items.push(item);return this } showAtMouseEvent(){Menu.shown.push(this)} hide(){} }` };
-				if (path === "./i18n") return { contents: `export const i18n = {t: key => key};` };
-				if (path === "./search-highlight") return { contents: `export const searchCacheEffect = {of: value => value}; export * from './src/search-scope';`, resolveDir: root };
-				const icon = compile("<span></span>", { generate: "dom", css: "external" }).js.code.replace("export default Component;", "");
-				return { contents: icon + `\nexport {Component as TextSelect, Component as GripVertical, Component as PanelRightClose, Component as RotateCcw, Component as Search, Component as ArrowDown, Component as ArrowUp, Component as ReplaceAll, Component as X, Component as Replace, Component as Regex, Component as CaseSensitive, Component as WholeWord, Component as ChevronDown, Component as ChevronRight, Component as History, Component as Ellipsis};`, resolveDir: root };
-			});
-			build.onLoad({ filter: /\.svelte$/ }, ({ path: filename }) => {
-				const source = readFileSync(filename, "utf8")
-					.replace(/<script lang="ts">([\s\S]*?)<\/script>/, (_, script) => `<script>${ts.transpileModule(script, {
-						compilerOptions: { target: ts.ScriptTarget.ES2018, module: ts.ModuleKind.ESNext, verbatimModuleSyntax: true },
-					}).outputText}</script>`)
-					.replace(/<style lang="scss">([\s\S]*?)<\/style>/g, (_, styles) => `<style>${compileString(styles, { loadPaths: [path.dirname(filename)] }).css}</style>`);
-				const compiled = compile(source, { filename, generate: "dom", css: "external" });
-				componentStyles.push(compiled.css.code);
-				return { contents: compiled.js.code, resolveDir: path.dirname(filename) };
-			});
-		},
-	}],
-});
+const bundle = await compileComponents(fixtureAdapter + `
+ import View from '/src/SearchBox.vue'; export const SearchBox = fixture(View);
+ export {MatchEngine} from '/src/match-engine'; export * from '/src/search-scope'; export {Platform, Menu} from 'obsidian';`, {
+	obsidian: `export const Platform = {isMobile: false}; export class Menu { static shown = []; items = []; addItem(fn) { const item = {setTitle(title){this.title = title;return this},setIcon(){return this},onClick(fn){this.run = fn;return this}}; fn(item);this.items.push(item);return this } showAtMouseEvent(){Menu.shown.push(this)} hide(){} }`,
+	"./i18n": `export const i18n = {t: key => key};`,
+	"./search-highlight": `export const searchCacheEffect = {of: value => value}; export * from '/src/search-scope';`,
+}, ["@codemirror/state", "@codemirror/view"]);
+const componentStyles = bundle.styles;
+
 const dom = new JSDOM("<!doctype html><html><body></body></html>");
 const style = dom.window.document.createElement("style");
 // Simulate host mobile textarea metrics before the plugin styles. jsdom does
@@ -71,7 +49,8 @@ globalThis.window = dom.window;
 globalThis.document = dom.window.document;
 globalThis.CustomEvent = dom.window.CustomEvent;
 const module = { exports: {} };
-new Function("module", "exports", "require", bundle.outputFiles[0].text)(module, module.exports,
+globalThis.Element = dom.window.Element; globalThis.SVGElement = dom.window.SVGElement;
+new Function("module", "exports", "require", bundle.code)(module, module.exports,
 	(name) => name === "@codemirror/state" ? stateModule : viewModule);
 const { SearchBox, MatchEngine, tick, Platform, Menu, searchScopeField, searchScopeEffect, finderSelection } = module.exports;
 
@@ -479,8 +458,8 @@ test("automatic entry activation can delegate to native search without expanding
 	const input = document.createElement("input"); document.body.append(input); t.after(() => input.remove()); input.focus();
 	let calls = 0;
 	// Change the existing controller shared with the component.
-	h.component.$set({ editorSearch: { plugin: h.plugin, getEditorContext: () => null,
-		activateFloatingFinder: (owner) => { assert.equal(owner, h.view); calls++; h.component.setVisible(false); return false; } } });
+	Object.assign(h.editorSearch, { getEditorContext: () => null,
+		activateFloatingFinder: (owner) => { assert.equal(owner, h.view); calls++; h.component.setVisible(false); return false; } });
 	await tick(); h.component.showFloatingEntry(); await tick();
 	h.target.querySelector(".nya-dock-expand").click(); await tick();
 	assert.equal(calls, 1); assert.equal(h.component.isVisible(), false); assert.equal(document.activeElement, input);
@@ -591,7 +570,7 @@ test("new replacement intent supersedes queued compact query focus and selects o
 
 test("replacement UI commands do not open or change a reading-mode entry", async (t) => {
 	const h = mount(t, undefined, {}, false); await tick(); h.view.getMode = () => "preview";
-	h.component.showFloatingEntry(); await tick(); const before = structuredClone(h.component.getSearchCache());
+	h.component.showFloatingEntry(); await tick(); const before = JSON.parse(JSON.stringify(h.component.getSearchCache()));
 	h.component.showReplace("other"); h.component.toggleReplaceFromCommand(); await tick();
 	assert.equal(h.component.isDocked(), true); assert.deepEqual(h.component.getSearchCache(), before);
 	assert.notEqual(document.activeElement, h.target.querySelector(".replacer textarea"));
@@ -600,7 +579,7 @@ test("replacement UI commands do not open or change a reading-mode entry", async
 test("edge collapse retains session, highlights and replace expansion without closing or input focus", async (t) => {
 	const h = mount(t, undefined, { clearAfterHidden: true }); await tick();
 	h.component.setCollapse(false); h.component.getSearchCache().replace = "dog"; await tick();
-	const before = structuredClone(h.component.getSearchCache()), specs = h.specs.length, scrolls = h.scrolls.length;
+	const before = JSON.parse(JSON.stringify(h.component.getSearchCache())), specs = h.specs.length, scrolls = h.scrolls.length;
 	h.component.dockFinder(); await tick();
 	assert.equal(h.component.isVisible(), true); assert.deepEqual(h.component.getSearchCache(), before);
 	assert.equal(h.specs.length, specs); assert.equal(h.scrolls.length, scrolls);
@@ -2166,10 +2145,13 @@ test("scope text marks keep background-only styling and separate outlines never 
 });
 
 test("toolbar focus rings use focus-visible without changing mode activation or expanded feedback", () => {
-	const styles = componentStyles.find((css) => css.includes('.nya-toolbar-indicator'));
+	// Vite emits a shared CSS asset, not one string per component. Restrict this
+	// assertion to the toolbar's own scope rather than Finder input focus rules.
+	const styles = componentStyles.join('\n');
 	assert.ok(styles);
 	const rules = Array.from(styles.matchAll(/([^{}]+)\{([^{}]*)\}/g), ([, selector, body]) => ({ selector, body }));
-	const focus = rules.filter(({ selector }) => selector.includes('.nya-focus') && selector.includes(':focus'));
+	const toolbarScope = styles.match(/\.nya-toolbar(\[data-v-[\w-]+\])/)[1];
+	const focus = rules.filter(({ selector }) => selector.includes(toolbarScope) && selector.includes('.nya-focus') && selector.includes(':focus'));
 	assert.ok(focus.some(({ selector, body }) => selector.includes(':focus-visible') && /outline:\s*2px solid var\(--nya-focus-border-color\)/.test(body)));
 	assert.ok(focus.some(({ selector, body }) => selector.includes(':focus:not(:focus-visible)') && /outline:\s*none/.test(body)));
 	assert.ok(focus.every(({ body }) => !body.includes('box-shadow')), 'no pointer-focus blue shadow');

@@ -10,7 +10,7 @@ import {
 	WorkspaceLeaf,
 	type MarkdownFileInfo,
 } from "obsidian";
-import SearchBox from "./SearchBox.svelte";
+import { mountFinder, type Finder as SearchBox } from "./SearchBox";
 import { i18n } from "./i18n";
 import { generateUniqueId } from "./util/common-helper";
 import { HistoryModal } from "./HistoryModal";
@@ -214,13 +214,10 @@ export class EditorSearch {
 			}
 		} else {
 			const cid = generateUniqueId();
-			const finder = new SearchBox({
-				target: targetEl,
-				props: {
+			const finder = mountFinder(targetEl, {
 					editorSearch: this,
 					cid: cid,
 					ownerView: view,
-				},
 			});
 			this.registerFinderEvent(view, finder);
 			this.finderCache.set(cid, finder);
@@ -326,7 +323,7 @@ export class EditorSearch {
 		this.finderEvents.forEach((cleanup) => cleanup());
 		this.finderEvents.clear();
 		this.finderCache.forEach((finder) => {
-			finder && finder.$destroy();
+			finder && finder.destroy();
 		});
 		this.finderCache.clear();
 		this.finderViews.clear();
@@ -422,7 +419,7 @@ export class EditorSearch {
 					this.modeObservers.delete(view);
 					this.finderEvents.get(view)?.();
 					this.finderEvents.delete(view);
-					finder.$destroy();
+					finder.destroy();
 					this.finderViews.delete(view);
 					this.entryFiles.delete(view);
 					this.finderCache.forEach((cached, cid) => { if (cached === finder) this.finderCache.delete(cid); });

@@ -22,7 +22,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Regression tests
         run: pnpm test
-      - name: TypeScript and Svelte check
+      - name: TypeScript and Vue check
         run: pnpm typecheck
       - name: Build plugin
         run: pnpm build

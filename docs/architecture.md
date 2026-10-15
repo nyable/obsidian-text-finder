@@ -2,25 +2,29 @@
 
 这里描述当前模块、数据流和依赖边界。产品行为见 [features](product/features.md) 和 [interactions](product/interactions.md)。
 
+下文保留的旧 `SearchBox.svelte` 操作符号现位于 `src/finder-session.ts`，模板／CSS 在 `src/SearchBox.vue`；其他旧 `.svelte` 路径对应同名 `.vue`。旧生命周期名 onDestroy／beforeUpdate 对应 onBeforeUnmount／onBeforeUpdate。当前模块图及下方依赖边界以 Vue 实现为准。
+
 ## 模块关系
 
 ```text
 TextFinderPlugin                         加载、设置、错误与持久化
 ├─ SettingTab                            原生 Obsidian／DOM 设置 UI、会话折叠与局部恢复
-│  └─ ToolbarPreview.svelte              无笔记行为的外观预览，复用 Toolbar
+│  └─ ToolbarPreview.vue                 无笔记行为的外观预览，复用 Toolbar
 │     color-picker.ts                    颜色草稿／确认壳，vanilla-colorful 提供交互
 ├─ HistoryController                     共享历史、同步订阅通知
 ├─ SettingsStorage                       独立快照、跨实例串行读写
 ├─ AppearanceStyles                      各 Document 的显式颜色覆盖与清理
 └─ EditorSearch                          命令、视图归属、资源生命周期
-   ├─ MarkdownView → SearchBox.svelte     每视图查询会话
-   │  ├─ Toolbar.svelte × 2
-   │  └─ SearchStatus.svelte
+   ├─ MarkdownView → mountFinder         每视图查询会话与挂载
+   │  └─ SearchBox.vue                   DOM／输入／展示
+   │     ├─ finder-session.ts            owner 会话操作
+   │     ├─ Toolbar.vue × 2
+   │     └─ SearchStatus.vue
    ├─ MarkdownView → ReadingSearch       阅读适配器
    └─ HistoryModal.ts                    原生 Modal 容器
-      └─ HistoryModal.svelte
-         ├─ HistoryList.svelte
-         └─ HistoryDetail.svelte
+      └─ HistoryModal.vue
+         ├─ HistoryList.vue
+         └─ HistoryDetail.vue
 ```
 
 依据：`src/main.ts:onload()`、`src/editor-extension.ts` 的资源 Map／`getFinder()`／`getReadingSearch()`／`openHistory()`、`src/HistoryModal.ts`、组件导入与模板。
@@ -29,7 +33,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 ## 状态归属与数据流
 
-没有 `svelte/store` Store；`$:` 响应式语句、组件局部状态及框架无关控制器订阅承担状态更新。
+没有全局 UI Store。`createFinderSession()` 每次创建独立状态；`FinderRuntime` 注入浅响应式对象、DOM 提交等待及挂载清理，控制器不导入 Vue。`SearchBox.vue` 连接该端口，用 computed 派生展示状态；cache／options 分别浅响应式，不代理 Editor、CodeMirror doc、MarkdownView 或 Window。历史继续由原控制器同步通知。
 
 | 状态 | 所属／证据 |
 | --- | --- |
@@ -50,7 +54,7 @@ TextFinderPlugin                         加载、设置、错误与持久化
 
 选区范围：`src/search-scope.ts:searchScopeField` 保存锁定范围及用户选择候选，`finderSelection` Annotation 排除导航产生的选择，`searchScopeEffect` 明确设置／清除范围；范围通过 changes 映射，`searchScopeDecoration` 绘制独立装饰。`SearchBox` 管理范围 owner／窗口、代次和失效写入保护；`queryKey()` 包含范围及代次。范围不放进 `SearchOptions`、历史或持久化设置。`MatchRequest.ranges` 为纯数字快照，undefined 表示全文，空数组表示禁止匹配；Worker／同步 helper 共用范围扫描，Worker 解码及提交前都检查完整包含。自身提交后更新任务的范围查询身份，仍校验纯查询身份和范围代次，防止重入修改被误接受。
 
-查找执行：`tools/match-worker-build.mjs` 将 `src/match-worker.ts` 和原始 `text-helper.ts` 打包为自包含源码字符串，嵌入 `main.js`，运行时通过 Blob URL 在所属 Window 创建 Worker；无需额外安装 Worker 文件。`MatchEngine` 每个 owner／模式独立，空闲线程复用，忙碌取代时 terminate。输入传全文／查询／选项，回包传请求 ID 和可转移 Float64 坐标，不增加 32-bit 偏移上限。真实宿主对象不传给 Worker：编辑在完成时检查具体 Editor／CodeMirror doc／文件／窗口，阅读检查请求／renderer／全文就绪／DOM index／Document，并消费待定 MutationRecords。
+查找执行：`tools/vite-build.mjs:embeddedSources()` 将 `src/match-worker.ts` 和原始 `text-helper.ts` 打包为自包含源码字符串，嵌入 `main.js`，运行时通过 Blob URL 在所属 Window 创建 Worker；无需额外安装 Worker 文件。生产及测试复用该 Vite 子构建，旧 esbuild 适配已删除。`MatchEngine` 每个 owner／模式独立，空闲线程复用，忙碌取代时 terminate。输入传全文／查询／选项，回包传请求 ID 和可转移 Float64 坐标，不增加 32-bit 偏移上限。真实宿主对象不传给 Worker：编辑在完成时检查具体 Editor／CodeMirror doc／文件／窗口，阅读检查请求／renderer／全文就绪／DOM index／Document，并消费待定 MutationRecords。
 
 `MatchEngine` 初始化 ready 前不发送查询，初始化失败才自动同步降级；执行中故障不重放。没有有效查询执行超时。关闭／卸载及窗口 pagehide／beforeunload 移除监听、计时器、Worker 和 URL。阅读 DOM 索引和端点仍同步。替换复用同一通道和 helper；Worker 返回完整匹配坐标及目标 changes，主线程验证候选数量／坐标／插入类型，再校验实际不可变 doc 身份，单事务提交。单次只展开目标模板，全部才展开全部，无额外正则重验证。
 
@@ -151,6 +155,10 @@ interface PluginSettings {
 
 ## 生命周期
 
+`src/ui/mount.ts:mountView()` 每次挂载创建独立 app 与唯一 idPrefix，通过 Vue 公开 createRenderer API 定制 owner-bound HTML／SVG／文本／静态节点创建；实时读取 target.ownerDocument，adopt 后新节点不借用初始化窗口。独立注释锚点限定根插入范围，不增加布局 wrapper，保持原父节点几何；destroy 幂等卸载并移除锚点。组件样式统一进入宿主加载的 styles.css。
+
+`src/ui/dom-action.ts` 将 DOM 资源接到 directive 的 mounted／updated／beforeUnmount，释放位置控制器、Observer、事件与组合输入状态。`Toolbar.vue:onBeforeUpdate()` 在列表重排前归还搬移节点，避免 keyed patch 与移动溢出控制器争夺父节点。
+
 `onLayoutReady()` 在插件仍有效且尚未初始化时创建 EditorSearch 并注册高亮扩展；异步设置加载后也检查卸载状态。Finder 挂到所属 `view.containerEl`。workspace 编辑、文件、活动视图、布局、主题事件驱动刷新。模式变化监听 `data-mode`；关闭 leaf 清理 Finder、适配器和监听，插件卸载调用 `destoryAll()`。
 
 阅读资源按所属 Document 创建，`clear()`／`destroy()` 释放 Observer、计时器、端点映射和高亮所有权，并使迟到的请求回调失效。
@@ -171,13 +179,16 @@ interface PluginSettings {
 
 ## 依赖与耦合边界
 
+生产 UI 已采用 Vue 3。独立 Vue 迁移探针已删除，有效检查并入真实组件与 `tests/browser.mjs`，不维护另一套简化 Finder。正式、组件及实验构建使用 Vite／Rolldown，Worker 和 owner-window 调色器仍内嵌，不增加运行时资源文件。图标使用同版本 Lucide Vue 包保留原路径／几何。
+
 | 分类 | 模块 | 边界 |
 | --- | --- | --- |
-| 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Svelte |
+| 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Vue |
 | 框架无关但宿主耦合 | `settings-storage.ts`、`search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
-| 设置 UI | `settings-tab.ts` | 控件使用 Obsidian Setting 与直接 DOM 操作；挂载／更新／销毁 Svelte 外观预览 |
-| 混合集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts` | 插件／命令／Modal 与 Svelte 挂载、实例方法、`$destroy()` 直接或间接关联 |
-| 直接 Svelte 耦合 | `.svelte` 文件 | `$:`、bind、actions、dispatcher、tick、生命周期、动态组件、事件修饰符、scoped styles |
-| 工具链耦合 | esbuild Svelte 插件、tsconfig、类型引用、组件编译测试、script 抽取测试 | 不应把现有测试加载方式误认为框架无关 |
+| owner 会话 | `finder-session.ts` | 无 Vue 导入；保留宿主、DOM／CodeMirror 耦合，以 FinderRuntime 注入状态／调度／清理 |
+| 设置 UI | `settings-tab.ts` | 原生 Obsidian Setting／DOM；以 mountView 更新／销毁 Vue 预览 |
+| 宿主集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts`、`SearchBox.ts` | Finder 操作和 update／destroy 为边界，不依赖组件私有实例 |
+| Vue 展示与 DOM 适配 | `.vue`、`ui/mount.ts`、`ui/dom-action.ts` | Composition API、显式输入／IME、scoped styles、owner-bound renderer |
+| 工具链 | 官方 Vue Vite 插件、vue-tsc、`tests/vue-components.mjs`、`tests/bundle-source.mjs` | 真实组件和纯控制器测试分开，不将宿主替身当实机证据 |
 
-**维护约束：**SearchBox 同时包含业务编排与展示，修改组件时必须核对操作语义和安全不变量，不能当作纯展示层。依据：`src/SearchBox.svelte` 的导出操作、`src/editor-extension.ts` 的 `Map<MarkdownView, SearchBox>` 及调用点。
+**维护约束：**业务编排位于 `finder-session.ts`，但展示仍影响焦点、事件、DOM 搬移、异步布局和清理，修改任一层均须核对操作语义及安全不变量。依据：`src/SearchBox.ts:mountFinder()`、`src/SearchBox.vue`、`src/finder-session.ts`、`src/editor-extension.ts` 的 owner Map 和调用点。

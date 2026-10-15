@@ -41,7 +41,7 @@ function environment() {
 		toPreviousMatch: () => calls.push(["previous"]),
 		matchAgain: () => calls.push(["refresh"]),
 		resetFinderPosition: () => calls.push(["reset-position"]),
-		$destroy: () => calls.push(["destroy"]),
+		destroy: () => calls.push(["destroy"]),
 	};
 	let open = true;
 	const plugin = {
@@ -56,7 +56,7 @@ function environment() {
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
-		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": readingSource,
+		"./search-highlight": {}, "./SearchBox": {}, "./reading-search": readingSource,
 		obsidian: { MarkdownView, Notice: class { constructor(text) { notices.push(text); } } },
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	});
@@ -134,7 +134,7 @@ test("ToggleFind uses the same native fallback and closes an already-open plugin
 test("find commands expand a compact Finder instead of closing it or replacing its stored query", () => {
 	const h = environment();
 	const finder = { isVisible: () => true, isDocked: () => true,
-		setVisible: (...args) => h.calls.push(["visible", ...args]), closeFinder: () => h.calls.push(["close"]), $destroy() {} };
+		setVisible: (...args) => h.calls.push(["visible", ...args]), closeFinder: () => h.calls.push(["close"]), destroy() {} };
 	h.search.finderViews.set(h.view, finder); h.search.getFinder = () => finder;
 	const selection = h.dom.window.getSelection(), range = h.dom.window.document.createRange();
 	range.selectNodeContents(h.root.querySelector("strong")); selection.addRange(range);
@@ -171,7 +171,7 @@ for (const [id, action] of [
 		const command = h.commands.get(id);
 		assert.equal(command.checkCallback(true), true);
 		assert.equal(h.created(), 0);
-		if (id === "text-finder-hide-find") h.search.finderViews.set(h.view, { closeFinder: () => h.calls.push(["close"]), $destroy() {} });
+		if (id === "text-finder-hide-find") h.search.finderViews.set(h.view, { closeFinder: () => h.calls.push(["close"]), destroy() {} });
 		command.checkCallback(false);
 		assert.deepEqual(h.calls, [action]);
 		h.close();
@@ -214,7 +214,7 @@ test("ordinary open commands preserve a scoped session query instead of seeding 
 
 test("closing a reading leaf destroys its search, finder and cache references", () => {
 	const h = environment();
-	h.search.finderViews.set(h.view, { $destroy: () => h.calls.push(["destroy"]) });
+	h.search.finderViews.set(h.view, { destroy: () => h.calls.push(["destroy"]) });
 	h.search.finderCache.set("owner", h.search.finderViews.get(h.view));
 	const adapter = h.search.getReadingSearch(h.view);
 	adapter.search("world", { regexMode: false, caseSensitive: false }, 0, false, () => {});
@@ -233,7 +233,7 @@ test("view-scoped Escape listener is removed when its leaf closes", () => {
 	const h = environment();
 	h.view.containerEl = h.root;
 	let escapes = 0;
-	const finder = { isVisible: () => true, closeFinder: () => escapes++, $destroy() {} };
+	const finder = { isVisible: () => true, closeFinder: () => escapes++, destroy() {} };
 	h.search.registerFinderEvent(h.view, finder);
 	h.search.finderViews.set(h.view, finder);
 	h.root.dispatchEvent(new h.dom.window.KeyboardEvent("keydown", { key: "Escape" }));
@@ -286,7 +286,7 @@ test("late layout callbacks do not initialize unloaded plugins and initializatio
 	const { editorExtensionProvider } = loadSource("../src/editor-extension.ts", {
 		"./reading-selection": readingSelectionSource,
 		"./match-engine": matchEngineSource,
-		"./search-highlight": {}, "./SearchBox.svelte": {}, "./reading-search": {}, obsidian: {},
+		"./search-highlight": {}, "./SearchBox": {}, "./reading-search": {}, obsidian: {},
 		"./i18n": { i18n: { t: (key) => key } }, "./util/common-helper": {}, "./HistoryModal": {},
 	});
 	editorExtensionProvider(plugin); unloaded = true; callback();

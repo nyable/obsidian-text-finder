@@ -1,52 +1,52 @@
-<script context="module">
-	let nextPreviewId = 0;
-</script>
+<script setup lang="ts">
+import { toRefs, useId } from "vue";
+import { actionDirective } from "./ui/dom-action";
 
-<script lang="ts">
-	import { ChevronDown, X } from "lucide-svelte";
+	import { ChevronDown, X } from "lucide-vue-next";
 	import { i18n } from "./i18n";
 	import type { ToolbarItem } from "./toolbar";
-	import Toolbar from "./Toolbar.svelte";
+	import Toolbar from "./Toolbar.vue";
 	import { previewScopeOutline } from "./scope-outline";
 
-	export let searchToolbar: ToolbarItem[];
-	export let replaceToolbar: ToolbarItem[];
-	export let defaultRegexMode = false;
-	export let defaultCaseSensitive = false;
-	export let defaultWholeWord = false;
-	export let historyEnabled = true;
-	const noop = () => {};
-	const titleId = `nya-toolbar-preview-title-${++nextPreviewId}`;
+	const props = withDefaults(defineProps<{ searchToolbar: ToolbarItem[]; replaceToolbar: ToolbarItem[]; defaultRegexMode?: boolean; defaultCaseSensitive?: boolean; defaultWholeWord?: boolean; historyEnabled?: boolean }>(), {defaultRegexMode: false, defaultCaseSensitive: false, defaultWholeWord: false, historyEnabled: true});
+const {searchToolbar, replaceToolbar, defaultRegexMode, defaultCaseSensitive, defaultWholeWord, historyEnabled} = toRefs(props);
+const noop = () => {};
+	const titleId = `nya-toolbar-preview-title-${useId()}`;
+
+const vPreviewScopeOutline = actionDirective(previewScopeOutline);
 </script>
 
+<template>
+
 <div class="nya-toolbar-preview">
-	<h3 id={titleId}>{i18n.t("settings.Toolbar.preview")}</h3>
+	<h3 :id="titleId">{{ i18n.t("settings.Toolbar.preview") }}</h3>
 	<div class="nya-preview-stage">
-		<div class="nya-finder-preview" role="img" aria-labelledby={titleId}>
+		<div class="nya-finder-preview" role="img" :aria-labelledby="titleId">
 			<div class="nya-preview-dragger" aria-hidden="true"></div>
-			<div class="nya-preview-toggle" aria-hidden="true"><ChevronDown size={18} /></div>
+			<div class="nya-preview-toggle" aria-hidden="true"><ChevronDown :size="18" /></div>
 			<div class="nya-preview-main">
 				<div class="nya-preview-input nya-preview-find">text</div>
-				<div class="nya-preview-count">{i18n.t("search.tip.HasResults", { current: 1, total: 3 })}</div>
+				<div class="nya-preview-count">{{ i18n.t("search.tip.HasResults", { current: 1, total: 3 }) }}</div>
 				<div class="nya-preview-search-actions">
-					<Toolbar items={searchToolbar} run={noop} regexMode={defaultRegexMode} caseSensitive={defaultCaseSensitive}
-						wholeWord={defaultWholeWord} {historyEnabled} preview />
-					<div class="nya-preview-close" aria-hidden="true"><X size={18} /></div>
+					<Toolbar :items="searchToolbar" :run="noop" :regexMode="defaultRegexMode" :caseSensitive="defaultCaseSensitive"
+						:wholeWord="defaultWholeWord" :historyEnabled="historyEnabled" preview />
+					<div class="nya-preview-close" aria-hidden="true"><X :size="18" /></div>
 				</div>
-				<div class="nya-preview-input nya-preview-replace"><span class="nya-preview-placeholder">{i18n.t("search.tip.ReplacePlaceholder")}</span></div>
+				<div class="nya-preview-input nya-preview-replace"><span class="nya-preview-placeholder">{{ i18n.t("search.tip.ReplacePlaceholder") }}</span></div>
 				<div class="nya-preview-replace-actions">
-					<Toolbar items={replaceToolbar} run={noop} {historyEnabled} preview />
+					<Toolbar :items="replaceToolbar" :run="noop" :historyEnabled="historyEnabled" preview />
 				</div>
 			</div>
 		</div>
 	</div>
-	<div class="nya-preview-text nya-preview-scope" lang="en" use:previewScopeOutline>
+	<div class="nya-preview-text nya-preview-scope" lang="en" v-previewScopeOutline>
 		<div>Find <span class="nya-text-finder-scope" data-nya-scope="preview"><span class="nya-text-finder-match nya-text-finder-match-current">text</span> and more <span class="nya-text-finder-match">text</span></span></div>
-		<div><span class="nya-text-finder-scope" data-nya-scope="preview">within this <span class="nya-text-finder-match">text</span> selection</span>, not outside.</div>
+		<div>{{ ' ' }}<span class="nya-text-finder-scope" data-nya-scope="preview">within this <span class="nya-text-finder-match">text</span> selection</span>, not outside.</div>
 	</div>
 </div>
 
-<style lang="scss">
+</template>
+<style scoped lang="scss">
 	@use "./styles/finder-primitives" as finder;
 	.nya-toolbar-preview { margin-bottom: 16px; container-type: inline-size; }
 	h3 { margin-top: 0; font-family: var(--font-interface); font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }

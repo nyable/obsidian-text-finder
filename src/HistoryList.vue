@@ -1,19 +1,23 @@
-<script lang="ts">
+<script setup lang="ts">
+import { computed, toRefs } from "vue";
+import TextRun from "./ui/TextRun";
+
 	import { i18n } from "./i18n";
-	import { Trash2, Copy, CheckSquare, Square, Info } from "lucide-svelte";
+	import { Trash2, Copy, CheckSquare, Square, Info } from "lucide-vue-next";
 	import type { PluginSettings } from "./settings";
 	import type { SearchHistoryItem } from "./main";
 	import { moment } from "obsidian";
-	import { createEventDispatcher } from "svelte";
+	
 	import { HistorySortOrder } from "./constants";
 
-	export let history: SearchHistoryItem[] = [];
-	export let settings: PluginSettings;
-	export let selectedTexts: Set<string> = new Set();
+	const props = withDefaults(defineProps<{ history?: SearchHistoryItem[]; settings: PluginSettings }>(), {history: () => []});
+const { history, settings } = toRefs(props);
+const selectedTexts = defineModel<Set<string>>("selectedTexts", {default: () => new Set()});
+const dispatch = defineEmits<{ deleteSelected: []; select: [item: SearchHistoryItem]; viewDetails: [item: SearchHistoryItem]; copy: [item: SearchHistoryItem]; delete: [item: SearchHistoryItem] }>();
 
-	$: allSelected = history.length > 0 && history.every((item) => selectedTexts.has(item.text));
+	const allSelected = computed(() => history.value.length > 0 && history.value.every((item) => selectedTexts.value.has(item.text)));
 
-	const dispatch = createEventDispatcher();
+	
 
 	const formatTime = (timestamp: number) => {
 		// @ts-ignore
@@ -30,17 +34,17 @@
 	};
 
 	const toggleSelect = (text: string) => {
-		const nextSelection = new Set(selectedTexts);
+		const nextSelection = new Set(selectedTexts.value);
 		if (nextSelection.has(text)) {
 			nextSelection.delete(text);
 		} else {
 			nextSelection.add(text);
 		}
-		selectedTexts = nextSelection;
+		selectedTexts.value = nextSelection;
 	};
 
 	const toggleSelectAll = () => {
-		selectedTexts = allSelected ? new Set() : new Set(history.map((item) => item.text));
+		selectedTexts.value = allSelected.value ? new Set() : new Set(history.value.map((item) => item.text));
 	};
 
 	const removeSelected = () => {
@@ -64,122 +68,122 @@
 	};
 </script>
 
+<template>
+
 <div class="nya-history-header">
 	<h2>
-		{i18n.t("history.Title")}({history.length}/{settings.historyMaxCount})
+	12312312
+		<TextRun :value="i18n.t('history.Title')" /><TextRun value="(" /><TextRun :value="history.length" /><TextRun value="/" /><TextRun :value="settings.historyMaxCount" /><TextRun value=")" />
 	</h2>
 </div>
 
 <div class="nya-history-toolbar">
 	<div class="nya-history-toolbar-actions">
-		{#if selectedTexts.size > 0}
-			<button class="nya-history-btn delete" on:click={removeSelected}>
-				<Trash2 size={14} />
-				{i18n.t("history.DeleteSelected")} ({selectedTexts.size})
+		<template v-if="selectedTexts.size > 0">
+			<button class="nya-history-btn delete" @click="removeSelected">
+				<Trash2 :size="14" />
+				{{ i18n.t("history.DeleteSelected") }} ({{ selectedTexts.size }})
 			</button>
-		{/if}
-		<button class="nya-history-btn" on:click={toggleSelectAll}>
-			{#if allSelected}
-				<CheckSquare size={14} />
-				{i18n.t("history.UnselectAll")}
-			{:else}
-				<Square size={14} />
-				{i18n.t("history.SelectAll")}
-			{/if}
+		</template>
+		<button class="nya-history-btn" @click="toggleSelectAll">
+			<template v-if="allSelected">
+				<CheckSquare :size="14" />
+				{{ i18n.t("history.UnselectAll") }}
+			</template><template v-else>
+				<Square :size="14" />
+				{{ i18n.t("history.SelectAll") }}
+			</template>
 		</button>
 	</div>
 </div>
 
 <div class="nya-history-list">
-	{#if history.length === 0}
-		<div class="nya-history-empty">{i18n.t("history.Empty")}</div>
-	{:else}
-		{#each history as item (item.text)}
-			<div
+	<template v-if="history.length === 0">
+		<div class="nya-history-empty">{{ i18n.t("history.Empty") }}</div>
+	</template><template v-else>
+		<template v-for="(item) in history" :key="item.text">
+			<div :class="[{'selected': selectedTexts.has(item.text)}]"
 				class="nya-history-item"
-				class:selected={selectedTexts.has(item.text)}
+				
 			>
 				<div
 					class="nya-history-checkbox"
-					on:click|stopPropagation={() => toggleSelect(item.text)}
+					@click.stop="() => toggleSelect(item.text)"
 					role="checkbox"
-					aria-checked={selectedTexts.has(item.text)}
+					:aria-checked="selectedTexts.has(item.text)"
 					tabindex="0"
-					on:keydown={(e) => {
-						if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSelect(item.text); }
-					}}
+					@keydown="(e) => {
+						if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSelect(item.text); }
+					}"
 				>
-					{#if selectedTexts.has(item.text)}
-						<CheckSquare size={16} />
-					{:else}
-						<Square size={16} />
-					{/if}
+					<template v-if="selectedTexts.has(item.text)">
+						<CheckSquare :size="16" />
+					</template><template v-else>
+						<Square :size="16" />
+					</template>
 				</div>
 				<div
 					class="nya-history-content"
-					on:click={() => select(item)}
+					@click="() => select(item)"
 					role="button"
 					tabindex="0"
-					on:keydown|self={(e) => {
-						if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(item); }
-					}}
-					title={getTooltip(item)}
+					@keydown.self="(e) => {
+						if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(item); }
+					}"
+					:title="getTooltip(item)"
 				>
 					<div class="nya-history-top">
-						<div class="nya-history-text">{item.text}</div>
+						<div class="nya-history-text">{{ item.text }}</div>
 						<div class="nya-history-actions">
 							<button
 								class="nya-icon-btn"
-								on:click|stopPropagation={() =>
-									viewDetails(item)}
-								title={i18n.t("history.Details")}
+								@click.stop="() =>
+									viewDetails(item)"
+								:title="i18n.t('history.Details')"
 							>
-								<Info size={14} />
+								<Info :size="14" />
 							</button>
 							<button
 								class="nya-icon-btn"
-								on:click|stopPropagation={() => copy(item)}
-								title={i18n.t("history.Copy")}
+								@click.stop="() => copy(item)"
+								:title="i18n.t('history.Copy')"
 							>
-								<Copy size={14} />
+								<Copy :size="14" />
 							</button>
 							<button
 								class="nya-icon-btn delete"
-								on:click|stopPropagation={() => remove(item)}
-								title={i18n.t("history.Delete")}
+								@click.stop="() => remove(item)"
+								:title="i18n.t('history.Delete')"
 							>
-								<Trash2 size={14} />
+								<Trash2 :size="14" />
 							</button>
 						</div>
 					</div>
 					<div class="nya-history-bottom">
 						<span class="nya-history-length"
-							>{i18n.t("history.Characters", { count: item.text.length })}</span
+							>{{ i18n.t("history.Characters", { count: item.text.length }) }}</span
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-count"
-							>{i18n.t("history.Count")}: {item.count}</span
+							><TextRun :value="i18n.t('history.Count')" /><TextRun value=": " /><TextRun :value="item.count" /></span
 						>
 						<span class="nya-history-sep">|</span>
 						<span class="nya-history-time-combined">
-							{#if settings.historySortOrder === HistorySortOrder.CREATED_AT}
-								{formatTime(item.createdAt)} ({formatRelative(
-									item.createdAt,
-								)})
-							{:else}
-								{formatTime(item.lastUsedAt)} ({formatRelative(
-									item.lastUsedAt,
-								)})
-							{/if}
+							<template v-if="settings.historySortOrder === HistorySortOrder.CREATED_AT">
+								<TextRun :value="formatTime(item.createdAt)" /><TextRun value=" (" /><TextRun :value="formatRelative(item.createdAt)" /><TextRun value=")" />
+							</template><template v-else>
+								<TextRun :value="formatTime(item.lastUsedAt)" /><TextRun value=" (" /><TextRun :value="formatRelative(item.lastUsedAt)" /><TextRun value=")" />
+							</template>
 						</span>
 					</div>
 				</div>
 			</div>
-		{/each}
-	{/if}
+		</template>
+	</template>
 </div>
 
-<style lang="scss">
+</template>
+<style scoped lang="scss">
 	.nya-history-length {
 		color: var(--text-muted);
 		font-weight: 500;

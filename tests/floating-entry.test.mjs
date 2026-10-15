@@ -25,7 +25,7 @@ function environment(t, enabled = true) {
 		closeFinder() { this.visible = this.docked = false; }
 		showReplace(query) { this.replaceQuery = query; }
 		toggleReplaceFromCommand() { this.replaceToggles = (this.replaceToggles ?? 0) + 1; }
-		$destroy() { this.destroyed = true; }
+		destroy() { this.destroyed = true; }
 	}
 	const plugin = { settings: { showFloatingFinderOnOpen: enabled, useSelectionAsSearch: true },
 		app: { workspace: { iterateAllLeaves: (fn) => leaves.forEach(fn), getActiveViewOfType: () => active,
@@ -34,7 +34,7 @@ function environment(t, enabled = true) {
 	const { EditorSearch } = loadSource("../src/editor-extension.ts", {
 		"./reading-selection": readingSelectionSource,
 		obsidian: { MarkdownView, Notice: class { constructor(text) { notices.push(text); } } },
-		"./SearchBox.svelte": { default: Finder }, "./search-highlight": { CLS: { FINDER: "nya-finder" } },
+		"./SearchBox": { mountFinder: (target, props) => new Finder({target, props}) }, "./search-highlight": { CLS: { FINDER: "nya-finder" } },
 		"./match-engine": { MatchEngine: class { constructor() { throw new Error("automatic entry must not create a match engine"); } } },
 		"./reading-search": {}, "./i18n": { i18n: { t: (key) => key } },
 		"./util/common-helper": { generateUniqueId: () => `floating-${finders.length}` }, "./HistoryModal": {},

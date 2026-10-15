@@ -46,8 +46,8 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		app: { workspace: { getActiveViewOfType: () => available ? view : null } },
 	};
 	attachHistory(plugin);
-	const finder = loadSource("../src/SearchBox.svelte", {
-		svelte: { onMount() {}, tick: () => Promise.resolve() }, "./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
+	const source = loadSource("../src/finder-session.ts", {
+		"./finder-position": {}, "./history": loadSource("../src/history.ts", { "./constants": loadSource("../src/constants.ts") }),
 		"./toolbar": toolbarSource,
 		"./i18n": { i18n: { t: (key) => key } },
 		"./search-highlight": { ...scopeSource, searchCacheEffect: { of: (cache) => cache } },
@@ -56,10 +56,9 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 		"./constants": loadSource("../src/constants.ts"),
 		obsidian: { MarkdownView: class {}, Platform: { isMobile: false } },
 	});
-	finder.ownerView = view;
-	finder.editorSearch = { plugin, getEditorContext: () => available ? {
+	const finder = source.createFinderSession({ plugin, getEditorContext: () => available ? {
 		view, editor, editorView: editor.cm, file: null, doc: editor.cm.state.doc,
-	} : null };
+	} : null }, view, "test", {reactive: value => value, tick: () => Promise.resolve(), onMount() {}});
 	finder.getSearchCache().options.regexMode = regexMode;
 	finder.setFindText(search, false);
 	return {
@@ -293,7 +292,7 @@ for (const commandId of ["text-finder-replace", "text-finder-replace-all"]) {
 			"./match-engine": matchEngineSource,
 			"./search-highlight": {},
 			obsidian: { MarkdownView: class {} },
-			"./SearchBox.svelte": {},
+			"./SearchBox": {},
 			"./i18n": { i18n: { t: (key) => key } },
 			"./util/common-helper": {},
 			"./HistoryModal": {},

@@ -32,7 +32,7 @@ function environment(t, { bridge = true } = {}) {
 		} };
 		v.finder = { isDocked: () => false, hasSelectionScope: () => false,
 			setVisible: (...args) => calls.push([v, 'visible', ...args]), findSelectedText: (text) => calls.push([v, 'text', text]),
-			findInCapturedSelection: (ranges) => calls.push([v, 'scope', ranges]), $destroy() {} };
+			findInCapturedSelection: (ranges) => calls.push([v, 'scope', ranges]), destroy() {} };
 		views.push(v); return v;
 	}
 	const a = view(), b = view(); let active = b;
@@ -41,7 +41,7 @@ function environment(t, { bridge = true } = {}) {
 	} }, registerEvent() {}, addCommand() {} };
 	const { EditorSearch } = loadSource('../src/editor-extension.ts', {
 		obsidian: { MarkdownView, Menu, Notice: class { constructor(text) { notices.push(text); } } },
-		'./reading-selection': readingSelectionSource, './match-engine': {}, './search-highlight': {}, './SearchBox.svelte': {},
+		'./reading-selection': readingSelectionSource, './match-engine': {}, './search-highlight': {}, './SearchBox': {},
 		'./reading-search': {}, './i18n': { i18n: { t: (key) => key } }, './util/common-helper': {}, './HistoryModal': {},
 	});
 	const search = new EditorSearch(plugin);

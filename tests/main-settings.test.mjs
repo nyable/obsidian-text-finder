@@ -3,7 +3,7 @@ import test from "node:test";
 import { JSDOM } from "jsdom";
 import { loadSource } from "./source-loader.mjs";
 import { constants, historySource, settingsSource, toolbarSource, appearanceSource } from "./history-source.mjs";
-import { ToolbarPreview, tick, previewStyles } from "./toolbar-preview-source.mjs";
+import { ToolbarPreview, tick, previewStyles, mountPreview } from "./toolbar-preview-source.mjs";
 import { pickerSource } from "./color-picker-source.mjs";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", { pretendToBeVisual: true });
@@ -69,7 +69,7 @@ const settingsTabSource = loadSource("../src/settings-tab.ts", {
 	"./appearance": appearanceSource,
 	"./color-picker": pickerSource,
 	"./settings-select": loadSource("../src/settings-select.ts", { obsidian }),
-	"./ToolbarPreview.svelte": { default: ToolbarPreview },
+	"./ToolbarPreview.vue": { default: ToolbarPreview }, "./ui/mount": {mountView: mountPreview},
 });
 const { default: TextFinderPlugin } = loadSource("../src/main.ts", {
 	obsidian, "./settings-tab": settingsTabSource,
