@@ -6,38 +6,45 @@
 
 ```sh
 pnpm test
+pnpm test:artifacts
 pnpm typecheck
+pnpm lint
+pnpm format:check
+pnpm check:architecture
 pnpm build
+pnpm test:browser
 git diff --check
 ```
 
-测试使用 Node.js test runner；框架无关 TypeScript 控制器经 `tests/source-loader.mjs` 加载，DOM 交互使用 jsdom，真实 Vue 组件经 `tests/vue-components.mjs` 使用官方 Vue／Vite 编译链构建。测试中的 Obsidian 渲染器与 Highlight API 使用替身，不等同于真实宿主。组件套件的 constructor／`$set`／`$destroy` 仅是既有测试夹具适配，不是生产 API。
+`pnpm verify` 是本地统一质量入口，涵盖上述检查和产物校验。标准测试使用 Vitest 直接导入 TypeScript／Vue，位于 `tests/unit/`、`tests/component/`、`tests/integration/`；官方 Vue Vite 插件编译组件，Vue Test Utils 和 owner renderer 分别覆盖组件与跨 Document 场景。宿主渲染器与 Highlight API 使用显式替身，不等同于真实宿主。源码抽取加载器及旧组件 API 夹具已移除。生产 TypeScript 与新增 TypeScript 测试都纳入严格类型检查；既有 mjs 套件由 Vitest 执行，不宣称它们全部已类型化。
 
-`pnpm test:browser` 使用 `tests/browser.mjs`／`tests/browser/` 编译生产组件，采集浅／深、桌面／移动布局截图，并在真实 Chromium 中运行生产 Finder 的 Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。产物写入 `/tmp/opencode/text-finder-vue-full/browser/`。需要已安装的 Playwright Chromium；模拟主题、iframe 与布局不等于 Obsidian／Android／iOS 验收。旧版截图必须单独保存，不用当前 Vue 截图冒充旧版基线。独立 Vue 探针已由正式组件回归取代。
+`pnpm test:browser` 使用 Playwright Test（`playwright.config.mjs`、`tests/browser/finder.spec.mjs` 和 `harness.mjs`）编译生产组件，在真实 Chromium 运行 Finder Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。截图和 REPORT 默认写 `artifacts/browser/`，可用 TEXT_FINDER_ARTIFACTS 指定；失败 trace／diff 写 `artifacts/playwright/`。需要已安装的锁定 Playwright Chromium；模拟主题、iframe 与移动布局不等于 Obsidian／Android／iOS 验收。
 
-设置 `TEXT_FINDER_VISUAL_BASELINE=/path/to/preserved/browser pnpm test:browser` 可对保留的旧 REPORT.json 做精确截图哈希比较；要求浏览器版本、环境元数据和截图数量一致，差异显式失败，不自动更新基线。基线目录必须与当前输出目录不同，不将像素比较冒充全部交互／主题等价。
+`pnpm test:visual` 在 Linux 对 `tests/browser/baselines/chromium-linux/` 的 32 张可追溯原基线零像素容差比较，保留 expected／actual／diff，不自动更新。浏览器、字体、语言、时区、DPR 和主题夹具固定；更新须单独审查授权及差异，见 baselines/README。还可用 TEXT_FINDER_VISUAL_BASELINE 指向保留的外部 REPORT 做哈希核对；输入与输出目录必须不同。不得用当前输出冒充原基线，也不将像素比较当作全部操作等价。
 
-`tests/vite-build.test.mjs` 通过正式 Vite 配置在内存构建，检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及实际产物初始化、Finder 创建／查找／全部替换／关闭／卸载；另检查内嵌输入 watch。宿主为替身，查找替换使用无浏览器 Worker 的同步兼容路径，不能据此宣称 Obsidian 真机通过。`tests/ui-owner.test.mjs` 检查无全局 Document 时的所属 realm、HTML／SVG 创建、独立 app 标签 ID、更新和幂等卸载。
+`pnpm test:artifacts` 在独立 Node 进程运行 `tests/vite-build.test.mjs`，通过正式配置内存构建，避免 Vitest 模块 mock 影响产物。检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及产物初始化、Finder 查找／全部替换／关闭／卸载；另检查内嵌输入 watch。宿主仍是替身，同步兼容不能证明 Obsidian 真机通过。`tests/integration/owner-renderer.test.ts` 检查无全局 Document 的 realm、HTML／SVG／静态节点、独立 app 标签、更新和幂等卸载。
+
+构建路径回归使用 `path.win32.resolve()` 模拟 Vite 在 Windows 处理库入口后的反斜杠 ID，覆盖盘符、中文／空格、UNC、POSIX 及空源码。它检查虚拟入口 resolveId／load 的规范化，不等于 Windows 原生构建；改动构建入口时仍须在 Windows 原生 Node 下运行 `node --test tests/vite-build.test.mjs` 和 `pnpm build`，不能只凭 WSL 通过推定 Windows 通过。
 
 ## 主要覆盖
 
-- 笔记菜单：`finder-menus.test.mjs` 覆盖 more-options 来源过滤／所属视图／去重、普通设置与范围／收起保留、选择快照、丢焦、正文／renderer／file／Document 过期拒绝、旧原生偏好不再路由及不兼容时 owner 填词、复制／链接保留及卸载监听清理；真实组件测试覆盖明确填词清旧范围／失效保护、贴边展开，以及捕获范围不被后来的选择替换。可选 `node tests/menu-host-check.mjs /path/to/obsidian.asar` 只读提取真实事件菜单方法，不启动宿主、不写 Vault，不等于 GUI 或移动端验收。
+- 笔记菜单：`finder-menus.test.mjs` 覆盖 more-options 来源过滤／所属视图／去重、普通设置与范围／收起保留、选择快照、丢焦、正文／renderer／file／Document 过期拒绝、旧原生偏好不再路由及不兼容时 owner 填词、复制／链接保留及卸载监听清理；真实组件测试覆盖明确填词清旧范围／失效保护、贴边展开，以及捕获范围不被后来的选择替换。可选 `node tools/diagnostics/menu-host-check.mjs /path/to/obsidian.asar` 只读提取真实事件菜单方法，不启动宿主、不写 Vault，不等于 GUI 或移动端验收。
 
 菜单实机验收：编辑／阅读右上角“更多选项”各有一个打开入口，文件管理器／链接文件菜单不误加；正文选择右键两个操作含义清晰，无选择／Finder 输入选择不误加。检查选区填词设置、已有范围、旧原生偏好 true／false 升级后统一插件查找及不兼容回退、菜单丢焦、重复文本、多范围、同文件双分屏、弹窗和菜单打开后换文件；阅读链接复制／打开与纯正文复制保留，不出现双菜单。移动端需另外验证长按选词及系统菜单，不将桌面模拟测试当作触屏通过。
 
-- 阅读范围／换行：`reading-scope.test.mjs` 覆盖实际重复文本位置、跨行内元素／元素端点、折叠空白内收、排除端点拒绝、多范围间隙、全文正则上下文、空查询、虚拟同节点保留与替换节点失效、file/source/renderer 变化、主题重索引、API 暂失和 Worker 错误不扩大范围、候选丢焦／反选、break 来源／纯换行导航及独立覆盖层。`reading-commands.test.mjs` 覆盖显式阅读命令不走原生全文；`search-box-dom.test.mjs` 覆盖真实 Finder 的范围启用、More 激活／失效、查询保留和关闭清理。几何、宿主渲染器与 Highlight 多为替身，不能替代下述实机检查。
+- 阅读范围／换行：`reading-scope.test.mjs` 覆盖实际重复文本位置、跨行内元素／元素端点、折叠空白内收、排除端点拒绝、多范围间隙、全文正则上下文、空查询、虚拟同节点保留与替换节点失效、file/source/renderer 变化、主题重索引、API 暂失和 Worker 错误不扩大范围、候选丢焦／反选、break 来源／纯换行导航及独立覆盖层。`reading-commands.test.mjs` 覆盖显式阅读命令不走原生全文；`finder-panel.test.mjs` 覆盖真实 Finder 的范围启用、More 激活／失效、查询保留和关闭清理。几何、宿主渲染器与 Highlight 多为替身，不能替代下述实机检查。
 
-- 设置精简与迁移：`history.test.mjs`／`main-settings.test.mjs` 覆盖旧阅读原生偏好 true／false 清理、其他设置及精确历史保留、迁移保存一次及重载幂等；真实设置 DOM 不显示旧开关或跨视图恢复按钮。阅读命令／菜单／悬浮入口统一使用插件，不支持仍提示并降级；当前视图恢复命令、桌面右键和 Home 的既有回归继续保留。实机核对升级后的设置页、阅读入口及恢复操作，不以 jsdom 代替宿主验收。
+- 设置精简与迁移：`history-contracts.test.mjs`／`main-settings.test.mjs` 覆盖旧阅读原生偏好 true／false 清理、其他设置及精确历史保留、迁移保存一次及重载幂等；真实设置 DOM 不显示旧开关或跨视图恢复按钮。阅读命令／菜单／悬浮入口统一使用插件，不支持仍提示并降级；当前视图恢复命令、桌面右键和 Home 的既有回归继续保留。实机核对升级后的设置页、阅读入口及恢复操作，不以 jsdom 代替宿主验收。
 
 - 选区外观：`scope-outline.test.mjs` 验证矩形并集外轮廓、语法／高亮片段去内缝、跨行阶梯／bidi 空隙、多范围隔离、折行模拟重测、owner 创建／滚动基准、样式监听迁移清理、预览 ResizeObserver 清理及真实 CodeMirror mark／layer 生命周期。`appearance.test.mjs` 验证设置严格迁移、默认关闭、alpha／粗细跨 Document 注入及恢复继承；`main-settings.test.mjs` 验证独立分组、草稿局部预览／应用、开关／粗细持久化、单次分组恢复不改其他组和旧控件拒绝保存。几何多为替身，不证明真实宿主轮廓绘制。
 - 空白几何：`editor-whitespace.test.mjs` 覆盖真实换行／连续换行／跨行匹配、当前项颜色、EOF／软折行不造标记、文档失效／隐藏清理、可见区限制／折叠替换块拒绝、RTL／滚动缩放／双视图及旧 layer 缺失降级；覆盖同范围空行／空格 Tab 连接、独立范围／bidi 拒绝、缩进阶梯及长连接不压平文字。真实 CodeMirror 验证 layer 注册／销毁，CSS 检查无交互和伪元素，不等于宿主绘制或剪贴板实测。
 - 外观整理：真实设置测试检查轮廓开关在依赖项前、默认隐藏／开启显示、关闭保留颜色／粗细并关闭 picker/select 和回焦、隐藏控件拒绝打开面板；单个两行文本预览同时含三处匹配和跨行范围。编译 CSS 验证 32px 基础行高、8px 行距、列对齐、局部原生 Setting 重置及统一 360px 响应式。几何测试覆盖 1–3px 线宽下左右内缘贴近字符边界／上下 2px 净距、跨折行单词中间起止、紧间隙分轴限扩／不连片及预览线宽更新重测；不能证明实际宿主视觉效果。
 
-- 精确选区：`search-scope.test.mjs` 检查跨行精确边界、选择候选与导航隔离、边界插入／完整替换／删除／撤销、跨边界失效、多范围空隙及完整原文正则上下文；`match-engine.test.mjs` 对照正式 Worker／启动降级的范围查找与替换，并拒绝范围外回包。真实 `search-box-dom.test.mjs` 检查命令／More／隐藏状态、导航不缩范围、长度变化后重算、空范围与隐藏写入保护、文件／State／窗口失效及旧异步候选。模拟不证明真实宿主选词、绘制或撤销栈。
-- More 图标按钮组：`search-box-dom.test.mjs` 检查与外部同几何、无菜单文字／勾号、容器有效标签引用、模式连续切换保留焦点、方向键／原生 Tab／Escape、仅内部模式的收起圆点（展开隐藏，关闭全部不恢复）及无模式式激活蓝底／边框、空／失效范围仍受限制、计数无额外标记与范围无下划线。编译 CSS 检查 focus-visible outline／无通用 focus 阴影、圆点主题色／绝对定位／无动画。`main-settings.test.mjs` 检查纯展示预览同步圆点且不增加监听；jsdom 不证明真实浏览器 focus-visible 判定、提示、换行排版或主题对比度。
+- 精确选区：`search-scope.test.mjs` 检查跨行精确边界、选择候选与导航隔离、边界插入／完整替换／删除／撤销、跨边界失效、多范围空隙及完整原文正则上下文；`match-engine.test.mjs` 对照正式 Worker／启动降级的范围查找与替换，并拒绝范围外回包。真实 `finder-panel.test.mjs` 检查命令／More／隐藏状态、导航不缩范围、长度变化后重算、空范围与隐藏写入保护、文件／State／窗口失效及旧异步候选。模拟不证明真实宿主选词、绘制或撤销栈。
+- More 图标按钮组：`finder-panel.test.mjs` 检查与外部同几何、无菜单文字／勾号、容器有效标签引用、模式连续切换保留焦点、方向键／原生 Tab／Escape、仅内部模式的收起圆点（展开隐藏，关闭全部不恢复）及无模式式激活蓝底／边框、空／失效范围仍受限制、计数无额外标记与范围无下划线。编译 CSS 检查 focus-visible outline／无通用 focus 阴影、圆点主题色／绝对定位／无动画。`main-settings.test.mjs` 检查纯展示预览同步圆点且不增加监听；jsdom 不证明真实浏览器 focus-visible 判定、提示、换行排版或主题对比度。
 
 - 阅读文本、跨格式匹配、离屏计数、大小写、正则和高亮端点。
-- 全字匹配默认分隔符、中文／全角标点／NBSP、下划线／数字、匹配首尾标点、组合字符／emoji／UTF-16、短语／多行及正则模板；正式 Worker 与同步兼容结果差分、单次／全部替换和提交后计数。真实组件覆盖常驻／More 状态、默认初始化／保留／清空、旧工具栏迁移、设置预览／恢复，以及切换时编辑／阅读迟到结果和替换候选失效。入口：`text-helper.test.mjs`、`match-engine.test.mjs`、`reading-search.test.mjs`、`search-box-dom.test.mjs`、`toolbar.test.mjs`、`main-settings.test.mjs`。
+- 全字匹配默认分隔符、中文／全角标点／NBSP、下划线／数字、匹配首尾标点、组合字符／emoji／UTF-16、短语／多行及正则模板；正式 Worker 与同步兼容结果差分、单次／全部替换和提交后计数。真实组件覆盖常驻／More 状态、默认初始化／保留／清空、旧工具栏迁移、设置预览／恢复，以及切换时编辑／阅读迟到结果和替换候选失效。入口：`text-matching.test.mjs`、`match-engine.test.mjs`、`reading-search.test.mjs`、`finder-panel.test.mjs`、`toolbar-contracts.test.mjs`、`main-settings.test.mjs`。
 - 索引跳过显式排除子树的样式读取，只在 display:none 检查折叠例外；不跨索引缓存样式。查询／选项／虚拟挂载复用索引，正文及主题失效重新读取。
 - 虚拟化移出／挂回、离屏挂载后定位、跨块结果。
 - 渲染等待、保留用户导航意图、超时、异常及重试。
@@ -48,41 +55,41 @@ git diff --check
 - 单次替换的按钮、Enter 与命令入口一致性，以及隐藏面板焦点和重新打开后的选中状态。
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
 - 统一关闭入口、清空查找和替换文本、隐藏 Escape、模式异常与保留匹配选项偏好。
-- 临时移动与贴边：`finder-position.test.mjs` 覆盖 3px 直接启动、Pointer Capture／取消释放、绘制帧合并与无逐事件布局读取、左右候选确认／撤回／替换阻止、满宽避让、标记二维停留／吸附和资源释放；`search-box-dom.test.mjs` 覆盖装饰条无 tooltip 标签、箭头不承担拖动、30px／40px 标记单击／拖动区分、80% 反馈和原查询／高亮／焦点安全。`mobile-toolbar.test.mjs` 继续覆盖常驻溢出回流／More 原位。模拟不证明宿主实际跟手、触屏或安全区。
+- 临时移动与贴边：`finder-position.test.mjs` 覆盖 3px 直接启动、Pointer Capture／取消释放、绘制帧合并与无逐事件布局读取、左右候选确认／撤回／替换阻止、满宽避让、标记二维停留／吸附和资源释放；`finder-panel.test.mjs` 覆盖装饰条无 tooltip 标签、箭头不承担拖动、30px／40px 标记单击／拖动区分、80% 反馈和原查询／高亮／焦点安全。`mobile-toolbar.test.mjs` 继续覆盖常驻溢出回流／More 原位。模拟不证明宿主实际跟手、触屏或安全区。
 - 移动行高／手柄：真实组件的 `real mobile branch uses equal row heights, centered top grip and original collapse arrow` 覆盖 40px 基础外高、Grid 中央手柄及无提示标签；`mobile inputs override host padding and line height without hiding multi-line content` 用模拟宿主 textarea 样式检查 border-box 30px／20px 行高／4px padding 可容纳单行及保留多行输入；`mobile center grip drags directly and cancels without making counters or close draggable` 检查直接拖动／取消／计数关闭隔离和顶部栏高度 footprint。jsdom 不测真实 scrollHeight／字体排版或系统边缘手势，不可宣称实机空输入滚动已消失。
-- 默认悬浮入口：`floating-entry.test.mjs` 覆盖默认懒创建、启用后已有笔记／同文件双分屏、新文件／视图、关闭后普通激活不重现、关闭设置不隐藏及销毁清理。真实 `search-box-dom.test.mjs` 覆盖被动入口／后台刷新／位置恢复不匹配不抢焦点、点击展开不滚动、原生委托、替换 UI 命令展开／输入保留／聚焦和迟到焦点失效；`reading-commands.test.mjs` 覆盖小图标切换不是关闭、选区不覆盖及阅读降级。`main-settings.test.mjs`／`toolbar.test.mjs` 覆盖五分类、设置归属和布尔迁移。
-- 收起主题／初始贴边：`search-box-dom.test.mjs` 的 `compact entry uses quiet theme surfaces, rounded interactions and unchanged accessible controls` 检查主题变量、8px 圆角、交互规则及无 tooltip 名称；`mobile automatic entry corrects post-layout edge geometry and preserves manual parking through refresh` 用延迟紧凑布局模拟左右侧及手动停放，`queued automatic entry placement cannot override close, expansion, file changes or destruction` 检查过期意图。`finder-position.test.mjs` 的 `automatic compact positioning waits for measurable layout and follows safe viewport edges` 覆盖隐藏 owner／零尺寸节点恢复、VisualViewport／安全区及手动位置保留。jsdom 不证明实际主题对比度、CSS 过渡或后台标签挂载，真机验收仍必需。
-- 移动展开越界：`search-box-dom.test.mjs` 的 `mobile marker expansion stays inside bounds after positional animations would have finished` 根据实际编译 CSS 是否允许 right／transform 动画来模拟基础坐标变化，覆盖左右来源、中间／边缘停放、连续收起展开、满宽／较窄及延迟内容尺寸，校验不经额外 resize 就保持边界、纵向位置和不聚焦输入；`mobile position transitions are disabled without changing desktop transitions or reduced-motion rules` 检查移动 opacity、桌面位置过渡及 reduced-motion 优先禁用规则。修改前模拟可复现动画结束后越界，修改后通过；jsdom 不运行真实 CSS 动画，Android 实际绘制仍须验收。
-- 移动长按：`search-box-dom.test.mjs` 的 `mobile long press blocks menu and release expansion while held dragging and short taps still work` 覆盖有／无 contextmenu 的长按、默认行为／冒泡阻止、拖动／取消／短按展开及输入菜单隔离；`desktop compact context menu retains close and reset actions` 校验桌面菜单操作。`finder-position.test.mjs` 的 `optional held-click suppression leaves short taps and keyboard activation intact and expires` 覆盖键盘不吞、desktop 不变、取消、抑制过期和销毁清理；模拟时钟不等待真实长按，不证明宿主系统 callout／实际 touch click 顺序。
+- 默认悬浮入口：`floating-entry.test.mjs` 覆盖默认懒创建、启用后已有笔记／同文件双分屏、新文件／视图、关闭后普通激活不重现、关闭设置不隐藏及销毁清理。真实 `finder-panel.test.mjs` 覆盖被动入口／后台刷新／位置恢复不匹配不抢焦点、点击展开不滚动、原生委托、替换 UI 命令展开／输入保留／聚焦和迟到焦点失效；`reading-commands.test.mjs` 覆盖小图标切换不是关闭、选区不覆盖及阅读降级。`main-settings.test.mjs`／`toolbar-contracts.test.mjs` 覆盖五分类、设置归属和布尔迁移。
+- 收起主题／初始贴边：`finder-panel.test.mjs` 的 `compact entry uses quiet theme surfaces, rounded interactions and unchanged accessible controls` 检查主题变量、8px 圆角、交互规则及无 tooltip 名称；`mobile automatic entry corrects post-layout edge geometry and preserves manual parking through refresh` 用延迟紧凑布局模拟左右侧及手动停放，`queued automatic entry placement cannot override close, expansion, file changes or destruction` 检查过期意图。`finder-position.test.mjs` 的 `automatic compact positioning waits for measurable layout and follows safe viewport edges` 覆盖隐藏 owner／零尺寸节点恢复、VisualViewport／安全区及手动位置保留。jsdom 不证明实际主题对比度、CSS 过渡或后台标签挂载，真机验收仍必需。
+- 移动展开越界：`finder-panel.test.mjs` 的 `mobile marker expansion stays inside bounds after positional animations would have finished` 根据实际编译 CSS 是否允许 right／transform 动画来模拟基础坐标变化，覆盖左右来源、中间／边缘停放、连续收起展开、满宽／较窄及延迟内容尺寸，校验不经额外 resize 就保持边界、纵向位置和不聚焦输入；`mobile position transitions are disabled without changing desktop transitions or reduced-motion rules` 检查移动 opacity、桌面位置过渡及 reduced-motion 优先禁用规则。修改前模拟可复现动画结束后越界，修改后通过；jsdom 不运行真实 CSS 动画，Android 实际绘制仍须验收。
+- 移动长按：`finder-panel.test.mjs` 的 `mobile long press blocks menu and release expansion while held dragging and short taps still work` 覆盖有／无 contextmenu 的长按、默认行为／冒泡阻止、拖动／取消／短按展开及输入菜单隔离；`desktop compact context menu retains close and reset actions` 校验桌面菜单操作。`finder-position.test.mjs` 的 `optional held-click suppression leaves short taps and keyboard activation intact and expires` 覆盖键盘不吞、desktop 不变、取消、抑制过期和销毁清理；模拟时钟不等待真实长按，不证明宿主系统 callout／实际 touch click 顺序。
 - 移动手势隔离：`finder-position.test.mjs` 的 `mobile pointer ownership captures on down and bypasses ancestor swipe handlers even without capture` 模拟会阻止冒泡的宿主祖先监听，覆盖 capture 可用／抛错／缺失及真实取消回滚；`mobile capture-phase listeners and early pointer capture are released on every teardown path` 覆盖监听 capture 参数匹配及生命周期释放。真实组件的 `mobile compact gesture isolates host pointer and touch swipes without blocking other touches or taps` 检查宿主滑动隔离、Pointer／Touch 不重复移动、未参与手指及输入不屏蔽、短按保留与隐藏清理；`mobile touch guards release on destruction and owner blur without leaking document listeners` 检查 touch 释放。这些是模拟 DOM 事件，不证明 Android WebView 的 capture／click 或 Obsidian 更早阶段手势已实机通过。
-- 快捷键展开聚焦：`search-box-dom.test.mjs` 的 `empty-query compact command expansion focuses only after layout with preventScroll and no ancestor panning` 用模拟几何／焦点滚动检查展开 DOM、位置和替换行先于聚焦提交，无查询中间焦点；`compact query focus is invalidated by close, re-collapse, owner changes or destruction` 覆盖迟到请求，`non-compact query opening keeps immediate focus without scrolling and still navigates real matches` 区分焦点滚动与正文导航。jsdom 不实现真实焦点滚动，不能据此宣称宿主 header 横滑已实机消失；需复测空查询的显示／切换查找和替换命令、左右停放／窄分屏／移动软键盘。
+- 快捷键展开聚焦：`finder-panel.test.mjs` 的 `empty-query compact command expansion focuses only after layout with preventScroll and no ancestor panning` 用模拟几何／焦点滚动检查展开 DOM、位置和替换行先于聚焦提交，无查询中间焦点；`compact query focus is invalidated by close, re-collapse, owner changes or destruction` 覆盖迟到请求，`non-compact query opening keeps immediate focus without scrolling and still navigates real matches` 区分焦点滚动与正文导航。jsdom 不实现真实焦点滚动，不能据此宣称宿主 header 横滑已实机消失；需复测空查询的显示／切换查找和替换命令、左右停放／窄分屏／移动软键盘。
 - 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
 - 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。
 - `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
 - 外观位置下拉的鼠标／键盘临时导航与单次提交、同值不保存、标题引用、owner Document、视口上翻、旧选项失效与监听释放；切页／隐藏／折叠／重排／恢复／卸载关闭，与调色草稿互斥。sm／md 与 content／fill 组合、触发器和列表同宽／视口限制、全选项测量占位以及每次打开同步主题字体有结构及模拟几何回归。入口为 `settings-select.test.mjs`、`main-settings.test.mjs`；`appearance.test.mjs` 检查共享尺寸／字体／文字起点样式和默认开启居中规则，不代替宿主视觉／触屏／读屏验收。
 
-相关测试保留在 [`tests/`](../tests/)，例如 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 `search-box-dom.test.mjs`。当前覆盖情况以测试文件和运行结果为准，不在文档中固定测试总数。
+相关测试保留在 [`tests/integration/`](../tests/integration/) 的 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 [`tests/component/`](../tests/component/) 的 `finder-panel.test.mjs`。覆盖情况以测试及运行结果为准，不在文档中固定测试总数。
 
 ## 逻辑性能诊断
 
 ```sh
-node tests/reading-benchmark.mjs
-node --expose-gc tests/search-benchmark.mjs
-node tests/reading-index-benchmark.mjs HEAD
+pnpm diagnostic reading
+pnpm diagnostic search
+pnpm diagnostic index HEAD
 ```
 
 脚本用 100／1,000／5,000 个分块与递增匹配数量，输出首次索引时间、导航中位时间及绘制 Range 数量。它不属于自动正确性测试套件，也不提供固定性能门槛。
 
 jsdom 数据只反映当前机器上的逻辑开销，不能证明 Chromium 绘制、滚动或移动端性能。避免和完整测试／构建同时运行以减少测量噪声。不要使用可能发生灾难性回溯的正则进行日常库压力测试。
 
-`search-benchmark.mjs` 分别记录索引、正则、端点映射、Range、观察器、高亮与挂载定位的独占逻辑时间，覆盖无／低／高匹配密度、上下文正则、查询变化及正文变化；编辑部分只测匹配与单次／全部模板展开，不包含 CodeMirror 事务。heap delta 不是峰值内存，`otherMs` 包含未单独计时的分块和结果整理。
+`search-benchmark.mjs` 记录阅读控制器公开阶段的独占逻辑时间，覆盖无／低／高匹配密度、上下文正则、查询变化及正文变化；不注入另一套源码依赖图，索引／正则／端点映射留在 otherMs。编辑部分只测匹配与单次／全部模板展开，不含 CodeMirror 事务。heap delta 不是峰值内存。
 
-`reading-index-benchmark.mjs [基线Git引用] [分块数] [inline|excluded|formatted] [样本数]` 对同一 DOM 交替运行基线与当前索引，先预热，再记录中位耗时；默认覆盖三种正文、三种规模，每项 3 个样本。单独插桩记录 computed style、selector 和 childNodes 调用，残余时间包含遍历、文本／span 整理及拼接；插桩时间不混入无插桩中位耗时。指定基线时逐项断言全文、span 坐标和 DOM 节点身份一致。基线通过 git show 只读获取，不更改工作区；完整矩阵可能需要数分钟。可以用 `node tests/reading-index-benchmark.mjs HEAD 100 formatted 9` 复测小文档噪声，不将单次耗时当作性能承诺。
+`pnpm diagnostic index [基线Git引用] [分块数] [inline|excluded|formatted] [样本数]` 对同一 DOM 交替运行基线与当前索引，先预热，再记录中位耗时；默认覆盖三种正文、三种规模，每项 3 个样本。单独插桩记录 computed style、selector 和 childNodes 调用，残余时间包含遍历、文本／span 整理及拼接；插桩时间不混入无插桩中位耗时。指定基线时逐项断言全文、span 坐标和 DOM 节点身份一致。基线通过 git show 只读获取，不更改工作区；完整矩阵可能需要数分钟。可以用 `pnpm diagnostic index HEAD 100 formatted 9` 复测小文档噪声，不将单次耗时当作性能承诺。
 
 ## 可选宿主方法验证
 
 ```sh
-node tests/host-contract-check.mjs /path/to/obsidian.asar
+node tools/diagnostics/host-contract-check.mjs /path/to/obsidian.asar
 ```
 
 脚本只读提取指定安装包中的存储、队列、布局和卸载方法，在内存文件系统和 UI 服务边界运行当前插件源码，输出 app.js 校验值与验证范围。宿主代码未打包进仓库，不在普通 CI 强制依赖本机安装；方法形状变化时显式失败。该验证不是完整 Obsidian GUI、移动存储或真实磁盘验收。
@@ -90,12 +97,12 @@ node tests/host-contract-check.mjs /path/to/obsidian.asar
 ## 隔离 Worker 实验（非生产功能）
 
 ```sh
-node --test tests/worker-experiment.test.mjs
-node --expose-gc tests/worker-experiment-benchmark.mjs
-node tests/worker-experiment-browser-build.mjs
+pnpm exec vitest run tests/integration/worker-experiment.test.mjs
+pnpm diagnostic worker
+node tools/diagnostics/worker-experiment-browser-build.mjs
 ```
 
-- Node 实验直接编译 `src/util/text-helper.ts`，Worker 内复用原生 RegExp 和现有模板实现，不维护另一套匹配算法。普通回归覆盖完整原文、flags、捕获、前后顾、UTF-16、零宽排除、无效正则、字面量和单次／全部替换的传输一致性。
+- Node 实验经生产内嵌 Vite 构建复用 `src/core/search/text-matching.ts`，Worker 内使用相同原生 RegExp 和模板实现，不维护另一套匹配算法。普通回归覆盖完整原文、flags、捕获、前后顾、UTF-16、零宽排除、无效正则、字面量和单次／全部替换的传输一致性。
 - test-only 请求携带 owner／file／documentVersion／queryVersion／lifecycle 标签；替换或取消待定任务会终止旧 Worker，旧连接／请求 ID／快照的回包不能发布。标签只是协议实验，不能替代实际 Editor、CodeMirror doc 和文件身份校验。
 - benchmark 分别测冷启动、小／大正文、无／密集匹配、单次后缀模板和线性全部替换，比较对象数组复制与 Float64 坐标缓冲区转移。报告计算、往返和主线程还原对象的时间；往返减计算包含排队、调度、消息和复制，不是纯传输时间。parent heap delta 不是 Worker 堆或峰值内存。
 - 浏览器构建在 `/tmp/opencode/text-finder-worker-browser/index.html` 生成自包含实验页，点击安全按钮运行差分。它使用 Blob URL Worker 并在终止时释放 URL；只有在实际浏览器执行后才有浏览器证据。独立页面通过也不能证明 Obsidian CSP、移动 WebView、owner 生命周期或替换事务集成兼容。
@@ -103,22 +110,22 @@ node tests/worker-experiment-browser-build.mjs
 危险正则只允许显式运行隔离脚本，不纳入常规回归或索引压力测试：
 
 ```sh
-node tests/worker-experiment-cancel.mjs --dangerous
+node tools/diagnostics/worker-experiment-cancel.mjs --dangerous
 ```
 
 该脚本仅在 Node Worker 内执行故意构造的回溯输入，检查主线程计时器仍响应、显式终止、重建和实验 watchdog。浏览器页另有明确 opt-in 按钮，同样不做危险输入的同步比较。脚本中的 watchdog 时长只是实验安全措施，不是插件执行超时或新增产品限制。Worker 移出正则也不移出 DOM 索引、端点映射或高亮绘制；本实验未接入生产。
 
 ## Obsidian 独立只读 Worker 探针
 
-生产查找的自动验证另见 `tests/match-engine.test.mjs` 与 `tests/search-box-dom.test.mjs`：运行正式 bundle／Worker 源码，覆盖语义差分、启动降级／执行失败、旧请求、同查询导航、文档／文件／编辑器身份和阅读端点失效；Node-backed 浏览器替身不能证明真实宿主 CSP。
+生产查找的自动验证另见 `tests/integration/match-engine.test.mjs` 与 `tests/component/finder-panel.test.mjs`：运行正式 bundle／Worker 源码，覆盖语义差分、启动降级／执行失败、旧请求、同查询导航、文档／文件／编辑器身份和阅读端点失效；Node-backed 浏览器替身不能证明真实宿主 CSP。
 
 生产产物只需既有 `main.js`／`styles.css`／`manifest.json`，Worker 字符串嵌入 main。实际验收须使用临时库中的正式插件入口，而非只读探针：先做字面量／正则／大小写、连续输入与 Enter、编辑／阅读切换、同文件双分屏、关闭／重开、卸载／重载及弹窗迁移。第一阶段查找已收到用户检查成功反馈；第二阶段异步替换待实机验收。危险查找／替换测试需要明确 opt-in，不能由安全测试通过自动推出通过。
 
 异步替换自动测试覆盖 552 次正式 Worker 候选语义比较、单次后缀按需展开、失败／候选校验，实际组件的单次／全部提交、提交中重入事件、重算／模式定位、关闭／文件／doc／查询／输入失效、失败重试及同文件双 owner。CodeMirror 逆 changes 验证一次事务的 undo／redo 文本，不代替宿主真实撤销栈。实际安全样本：单次 `cat → cat!` 的额外前进；全部 `cat → dog` 一次撤销；捕获／命名组／前后顾、前缀／后缀及转义开关；提交前取消不改正文、提交后关闭不回滚且不迟到定位。先测试普通正文，不要求直接在正式入口输入危险模式。
 
 ```sh
-node tests/worker-probe-build.mjs
-node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
+node tools/diagnostics/worker-probe-build.mjs
+pnpm exec vitest run tests/integration/worker-probe.test.mjs tests/integration/worker-probe-dom.test.mjs
 ```
 
 构建输出 `/tmp/opencode/text-finder-worker-probe/text-finder-worker-probe/`，包含 `main.js`、独立 `manifest.json` 和 `BUILD.json`。插件 ID 为 `text-finder-worker-probe`，不覆盖正式插件；构建不自动安装或启用。BUILD 的源码和产物校验值用于标识未提交实验代码，不能只用基础 commit 代表整个产物。
@@ -153,7 +160,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 ### 准备与结果口径
 
 - 使用临时测试库，安装构建的 `dist/main.js`、`dist/styles.css`、`dist/manifest.json`，不覆盖日常库的数据。
-- 阅读查找关闭“阅读模式下使用 Obsidian 搜索”；复制 [测试笔记](../tests/fixtures/reading-search.md)，在尾部前加入长正文制造离屏分块。
+- 复制 [测试笔记](../tests/fixtures/reading-search.md)，在尾部前加入长正文制造离屏分块；阅读正常入口使用插件，不支持时按既有策略降级，不再有旧原生偏好开关。
 - 记录源码 commit、产物来源、Obsidian／系统版本、主题／snippets、语言、缩放、重现步骤及实际结果。未执行与失败要区分，不由本方法表推定通过。
 - 具体结果留在 OpenCode 会话或有明确版本／环境的验收记录中，不在本文件维护勾选进度。
 - 关闭契约已有源码及自动回归，见 [关闭契约](product/interactions.md#已批准的关闭契约)；仍需按真实宿主记录验收结果。
@@ -179,7 +186,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 | 选区外观 | 外观 → 搜索选区：默认背景随主题、边框关闭。选择背景／边框 alpha、应用／取消／单项恢复、开关及 1–3px、分组恢复；确认不改匹配色／工具栏／实际范围。检查单行／跨行首尾不齐／自动折行／长文滚动／缩放／语法及匹配拆分／多选区间隙／空行／RTL，轮廓不退化为整块大矩形、不遮文字、不拦选词点击；源码／实时预览、分屏／窗口迁移／卸载重载、主题与移动真机分别验收 |
 | 空行与换行展示 | 选择 `abc\n\ndef` 及多个空行／仅空格 Tab 空白行，开启轮廓：同范围可见空行连接、不扩编辑器整行；引用／列表缩进和首尾不重叠时为窄阶梯，折叠源码、独立选区、bidi 不强连。正则搜索 `\n`、`\n\n`、`abc\n\ndef`：已匹配换行显示 `↵`，当前／普通颜色随导航切换，连续换行属于一项仍只计一项；无末尾换行的 EOF 和软折行无标记。覆盖源码／实时预览、末行实际换行、编辑／替换／撤销／关闭后清理、复制不带额外符号、长行视口边缘、滚动缩放、分屏／弹窗及移动主题；阅读不新增源码标记 |
 
-行为依据：`src/finder-session.ts`、`src/SearchBox.vue`、`src/editor-extension.ts`；自动回归参见 `tests/search-box-dom.test.mjs`、`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
+行为依据：`src/features/finder/application/finder-session.ts`、`src/features/finder/ui/FinderPanel.vue`、`src/app/workspace-runtime.ts`；自动回归参见 `tests/component/finder-panel.test.mjs`、`tests/integration/editor-isolation.test.mjs`、`replacement.test.mjs`。
 
 ### 阅读场景
 
@@ -197,7 +204,7 @@ node --test tests/worker-probe.test.mjs tests/worker-probe-dom.test.mjs
 | 超时／异常 | 渲染超过默认 5 秒显示超时；定位／Highlight 失败显示错误而非无结果；恢复后重试可用，无残留高亮 |
 | 原生入口 | 旧原生偏好已清理，正常使用插件；不支持或用户在错误状态主动降级时关闭插件面板，不同时留下两套可见查找面板 |
 
-依据：`src/reading-text.ts`、`src/reading-search.ts`、`src/SearchStatus.vue`；自动回归参见 `tests/reading-search.test.mjs`、`tests/reading-commands.test.mjs`。
+依据：`src/features/reading/dom/reading-text.ts`、`reading-search.ts`、`src/features/finder/ui/SearchStatus.vue`；自动回归参见 `tests/integration/reading-search.test.mjs`、`reading-commands.test.mjs`。
 
 ### 环境、生命周期与性能
 

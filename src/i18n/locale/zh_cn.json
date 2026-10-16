@@ -1,191 +1,218 @@
 {
-  "plugin": {
-    "name": "Text Finder"
-  },
-  "search": {
-	"menu": {
-		"OpenFind": "Text Finder：打开查找",
-		"FindSelectedText": "Text Finder：以选中内容查找",
-		"FindInSelection": "Text Finder：在选区中查找",
-		"CopySelection": "复制选中文字",
-		"CopyFailed": "无法复制选中文字。",
-		"SelectionChanged": "笔记或选区上下文已变化，请重新选择文字并打开菜单。",
-		"NativeQueryUnavailable": "已打开原生查找，但无法自动填入选中文字。"
+	"plugin": {
+		"name": "Text Finder"
 	},
-	"SelectionRequired": "请先在当前笔记中选择可搜索的正文，再启用选区查找；阅读模式下请等待正文渲染完成。",
-	"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
-	"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",
-	"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",
-	"SynchronousRetry": "同步重试（可能阻塞）",
-	"CancelSearch": "取消并关闭",
-	"ReplacementPending": "正在计算替换… 尚未写入正文，可关闭或取消。",
-	"ReplacementRematching": "替换已完成，正在更新匹配… 取消不会撤销已提交的编辑。",
-	"ReadingPending": "正在准备搜索…",
-	"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
-	"StatusError": "查找暂不可用",
-	"EditorFailed": "无法更新编辑器位置或模式。请在视图就绪后重试。",
-	"ReplacedNavigationFailed": "替换已完成，但定位失败。再次替换前请检查正文。",
-	"Retry": "重试",
-	"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
-	"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
-	"UseNativeFind": "使用原生查找",
-	"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
-    "tip": {
-      "More": "更多操作",
-      "MoveFinder": "拖动移动查找框；方向键移动，Home 恢复位置",
-      "ResetFinderPosition": "恢复查找框位置",
-      "DockFinder": "贴边收起查找框",
-      "ExpandFinder": "展开查找框",
-      "NoResults": "无结果",
-      "HasResults": "第{{current}}项，共{{total}}项",
-      "ToggleReplace": "切换替换",
-      "MatchCase": "区分大小写",
-      "MatchWholeWord": "全字匹配",
-      "FindInSelection": "在选定内容中查找",
-      "FindInSelectionUnavailable": "在选定内容中查找（选区不可用；请重新选择并执行选区查找命令，或关闭范围限制）",
-      "MoreActive": "更多操作中已开启：{{modes}}",
-      "UseRegularExpression": "使用正则表达式",
-      "PreviousMatch": "上一个匹配项",
-      "NextMatch": "下一个匹配项",
-      "Close": "关闭 (Escape)",
-      "Replace": "替换",
-      "ReplaceAll": "全部替换",
-      "FindPlaceholder": "查找",
-      "ReplacePlaceholder": "替换"
-    }
-  },
-  "commands": {
-    "FindInSelection": { "name": "在选定内容中打开查找" },
-    "ShowFind": {
-      "name": "在当前文件中：打开查找"
-    },
-    "ShowFindAndReplace": {
-      "name": "在当前文件中：打开查找与替换"
-    },
-    "HideFind": {
-      "name": "关闭查找窗口"
-    },
-    "ToggleReplace": {
-      "name": "切换替换窗口"
-    },
-    "ToggleFind": {
-      "name": "切换查找窗口"
-    },
-    "PreviousMatch": {
-      "name": "上一个匹配"
-    },
-    "NextMatch": {
-      "name": "下一个匹配"
-    },
-    "Replace": {
-      "name": "在当前文件中：替换"
-    },
-    "ReplaceAll": {
-      "name": "在当前文件中：替换所有"
-    },
-    "ShowSearchHistory": {
-      "name": "显示搜索历史"
-    }
-  },
-  "settings": {
-    "Tabs": { "label": "设置分类", "general": "常规", "find": "查找", "replace": "替换", "history": "搜索历史", "toolbar": "外观" },
-    "Appearance": {
-      "colors": "颜色", "panel": "查找面板", "match": "普通匹配", "current": "当前匹配",
-      "focusBorder": "聚焦边框", "accentStrip": "左侧装饰条",
-      "matchBackground": "背景颜色", "matchText": "文字颜色",
-      "currentMatchBackground": "背景颜色", "currentMatchText": "文字颜色",
-      "scope": "搜索选区", "scopeBackground": "背景颜色", "scopeBorder": "边框颜色",
-      "scopeBorderEnabled": "显示选区轮廓边框", "scopeBorderWidth": "边框粗细",
-      "apply": "应用", "cancel": "取消",
-      "saturation": "颜色饱和度与亮度", "hue": "色相", "alpha": "不透明度",
-      "hexHint": "十六进制颜色：#RGB、#RGBA、#RRGGBB 或 #RRGGBBAA",
-      "resetColor": "恢复继承颜色：{{name}}"
-    },
-    "Toolbar": {
-      "search": "搜索栏按钮", "replace": "替换栏按钮",
-      "inline": "常驻", "more": "更多", "hidden": "隐藏",
-      "drag": "拖动排序：{{name}}", "placement": "显示位置：{{name}}",
-      "up": "上移：{{name}}", "down": "下移：{{name}}",
-      "moved": "已调整{{name}}的位置", "reset": "恢复默认设置", "resetDone": "已恢复默认设置",
-      "preview": "预览",
-      "defaultsDesc": "默认选项用于各 Markdown 视图首次创建查找器时。重新打开、切换文件或编辑／阅读模式均保留手动选择；修改设置不影响已有查找器。",
-      "defaultEnabled": "默认开启",
-      "defaultEnabledLabel": "默认开启：{{name}}"
-    },
-    "ClearAfterHidden": {
-      "name": "清空查找和替换文本",
-      "desc": "关闭查找器时清空查找和替换内容，保留匹配选项。"
-    },
-    "FinderDockSide": {
-      "name": "查找框收起边缘",
-      "desc": "将查找框收起到所属笔记视图的这一侧，保留查找和高亮；点击标签展开不会唤起键盘。",
-      "left": "左侧", "right": "右侧"
-    },
-    "FinderAutoDock": {
-      "name": "拖到边缘时自动收起",
-      "desc": "拖动移动控件靠近左右边缘，松手收起。接近满宽时，明确向左或右拖动即可；上下移动不收起。替换计算期间保持展开。"
-    },
-    "ShowFloatingFinderOnOpen": {
-      "name": "打开笔记时显示悬浮搜索入口",
-      "desc": "打开 Markdown 笔记时显示收起的小搜索图标，不自动搜索或抢占焦点。单击展开，拖动调整位置；启用后也适用于已经打开的笔记。"
-    },
-    "EnableInputHotkeys": {
-      "name": "启用输入框的快捷键",
-      "desc": "在查找框按 Enter 跳到下一项，在替换框按 Enter 替换一次。"
-    },
-    "SourceModeWhenSearch": {
-      "name": "搜索时强制源代码模式",
-      "desc": "搜索时使用源代码模式，便于定位实时预览中无法直接显示的内容。"
-    },
-    "MoveCursorToMatch": {
-      "name": "将光标移动至匹配项",
-      "desc": "搜索时移动光标并选择当前匹配项"
-    },
-    "UseSelectionAsSearch": {
-      "name": "将所选内容用作搜索文本",
-      "desc": "打开查找时，用当前选中的文本作为查找内容。"
-    },
-    "UseEscapeCharInReplace": {
-      "name": "支持替换输入框中使用转义字符",
-      "desc": "正则模式下，替换输入框支持用 \\n 和 \\t 插入换行和制表符。"
-    },
-    "EnableHistory": {
-      "name": "启用搜索历史",
-      "desc": "记录精确查询及使用情况，并通过上下键切换历史。禁用后保留已有历史，但停止记录和使用统计。"
-    },
-    "HistoryMaxCount": {
-      "name": "历史记录最大数量",
-      "desc": "1–200 条。按 Enter 或离开输入框后确认；调低上限会立即按当前排序淘汰低优先级记录。"
-    },
-    "HistorySortOrder": {
-      "name": "历史记录排序方式",
-      "desc": "选择历史记录列表的排序顺序",
-      "options": {
-        "createdAt": "按创建时间排序",
-        "count": "按使用次数排序",
-        "lastUsedAt": "按最后使用时间排序"
-      }
-    }
-  },
-  "history": {
-    "Length": "长度",
-    "Characters": "{{count}} 字符",
-    "Title": "搜索历史",
-    "ClearAll": "清空所有",
-    "Delete": "删除",
-    "Copy": "复制",
-    "Empty": "暂无历史记录",
-    "DeleteSelected": "删除选中",
-    "SelectAll": "全选",
-    "UnselectAll": "取消全选",
-    "Created": "创建时间",
-    "LastUsed": "最后使用",
-    "Count": "使用次数",
-    "Details": "详情",
-    "Back": "返回",
-    "LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
-    "SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
-    "CopyFailed": "Text Finder 无法复制历史文本，使用次数未更新。",
-    "ReuseFailed": "请先打开支持查找的 Markdown 编辑或阅读视图，再复用搜索历史。"
-  }
+	"search": {
+		"menu": {
+			"OpenFind": "Text Finder：打开查找",
+			"FindSelectedText": "Text Finder：以选中内容查找",
+			"FindInSelection": "Text Finder：在选区中查找",
+			"CopySelection": "复制选中文字",
+			"CopyFailed": "无法复制选中文字。",
+			"SelectionChanged": "笔记或选区上下文已变化，请重新选择文字并打开菜单。",
+			"NativeQueryUnavailable": "已打开原生查找，但无法自动填入选中文字。"
+		},
+		"SelectionRequired": "请先在当前笔记中选择可搜索的正文，再启用选区查找；阅读模式下请等待正文渲染完成。",
+		"WorkerCompatibility": "Worker 不可用，已使用同步兼容模式。复杂正则可能阻塞界面。",
+		"WorkerFailed": "搜索执行失败。可在 Worker 中重试，或明确选择同步重试（复杂正则可能阻塞界面）。",
+		"MatchPending": "正在搜索… 关闭或取消可终止 Worker。",
+		"SynchronousRetry": "同步重试（可能阻塞）",
+		"CancelSearch": "取消并关闭",
+		"ReplacementPending": "正在计算替换… 尚未写入正文，可关闭或取消。",
+		"ReplacementRematching": "替换已完成，正在更新匹配… 取消不会撤销已提交的编辑。",
+		"ReadingPending": "正在准备搜索…",
+		"ReadingPendingDetail": "正在等待阅读正文渲染完成。",
+		"StatusError": "查找暂不可用",
+		"EditorFailed": "无法更新编辑器位置或模式。请在视图就绪后重试。",
+		"ReplacedNavigationFailed": "替换已完成，但定位失败。再次替换前请检查正文。",
+		"Retry": "重试",
+		"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
+		"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
+		"UseNativeFind": "使用原生查找",
+		"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
+		"tip": {
+			"More": "更多操作",
+			"MoveFinder": "拖动移动查找框；方向键移动，Home 恢复位置",
+			"ResetFinderPosition": "恢复查找框位置",
+			"DockFinder": "贴边收起查找框",
+			"ExpandFinder": "展开查找框",
+			"NoResults": "无结果",
+			"HasResults": "第{{current}}项，共{{total}}项",
+			"ToggleReplace": "切换替换",
+			"MatchCase": "区分大小写",
+			"MatchWholeWord": "全字匹配",
+			"FindInSelection": "在选定内容中查找",
+			"FindInSelectionUnavailable": "在选定内容中查找（选区不可用；请重新选择并执行选区查找命令，或关闭范围限制）",
+			"MoreActive": "更多操作中已开启：{{modes}}",
+			"UseRegularExpression": "使用正则表达式",
+			"PreviousMatch": "上一个匹配项",
+			"NextMatch": "下一个匹配项",
+			"Close": "关闭 (Escape)",
+			"Replace": "替换",
+			"ReplaceAll": "全部替换",
+			"FindPlaceholder": "查找",
+			"ReplacePlaceholder": "替换"
+		}
+	},
+	"commands": {
+		"FindInSelection": { "name": "在选定内容中打开查找" },
+		"ShowFind": {
+			"name": "在当前文件中：打开查找"
+		},
+		"ShowFindAndReplace": {
+			"name": "在当前文件中：打开查找与替换"
+		},
+		"HideFind": {
+			"name": "关闭查找窗口"
+		},
+		"ToggleReplace": {
+			"name": "切换替换窗口"
+		},
+		"ToggleFind": {
+			"name": "切换查找窗口"
+		},
+		"PreviousMatch": {
+			"name": "上一个匹配"
+		},
+		"NextMatch": {
+			"name": "下一个匹配"
+		},
+		"Replace": {
+			"name": "在当前文件中：替换"
+		},
+		"ReplaceAll": {
+			"name": "在当前文件中：替换所有"
+		},
+		"ShowSearchHistory": {
+			"name": "显示搜索历史"
+		}
+	},
+	"settings": {
+		"Tabs": {
+			"label": "设置分类",
+			"general": "常规",
+			"find": "查找",
+			"replace": "替换",
+			"history": "搜索历史",
+			"toolbar": "外观"
+		},
+		"Appearance": {
+			"colors": "颜色",
+			"panel": "查找面板",
+			"match": "普通匹配",
+			"current": "当前匹配",
+			"focusBorder": "聚焦边框",
+			"accentStrip": "左侧装饰条",
+			"matchBackground": "背景颜色",
+			"matchText": "文字颜色",
+			"currentMatchBackground": "背景颜色",
+			"currentMatchText": "文字颜色",
+			"scope": "搜索选区",
+			"scopeBackground": "背景颜色",
+			"scopeBorder": "边框颜色",
+			"scopeBorderEnabled": "显示选区轮廓边框",
+			"scopeBorderWidth": "边框粗细",
+			"apply": "应用",
+			"cancel": "取消",
+			"saturation": "颜色饱和度与亮度",
+			"hue": "色相",
+			"alpha": "不透明度",
+			"hexHint": "十六进制颜色：#RGB、#RGBA、#RRGGBB 或 #RRGGBBAA",
+			"resetColor": "恢复继承颜色：{{name}}"
+		},
+		"Toolbar": {
+			"search": "搜索栏按钮",
+			"replace": "替换栏按钮",
+			"inline": "常驻",
+			"more": "更多",
+			"hidden": "隐藏",
+			"drag": "拖动排序：{{name}}",
+			"placement": "显示位置：{{name}}",
+			"up": "上移：{{name}}",
+			"down": "下移：{{name}}",
+			"moved": "已调整{{name}}的位置",
+			"reset": "恢复默认设置",
+			"resetDone": "已恢复默认设置",
+			"preview": "预览",
+			"defaultsDesc": "默认选项用于各 Markdown 视图首次创建查找器时。重新打开、切换文件或编辑／阅读模式均保留手动选择；修改设置不影响已有查找器。",
+			"defaultEnabled": "默认开启",
+			"defaultEnabledLabel": "默认开启：{{name}}"
+		},
+		"ClearAfterHidden": {
+			"name": "清空查找和替换文本",
+			"desc": "关闭查找器时清空查找和替换内容，保留匹配选项。"
+		},
+		"FinderDockSide": {
+			"name": "查找框收起边缘",
+			"desc": "将查找框收起到所属笔记视图的这一侧，保留查找和高亮；点击标签展开不会唤起键盘。",
+			"left": "左侧",
+			"right": "右侧"
+		},
+		"FinderAutoDock": {
+			"name": "拖到边缘时自动收起",
+			"desc": "拖动移动控件靠近左右边缘，松手收起。接近满宽时，明确向左或右拖动即可；上下移动不收起。替换计算期间保持展开。"
+		},
+		"ShowFloatingFinderOnOpen": {
+			"name": "打开笔记时显示悬浮搜索入口",
+			"desc": "打开 Markdown 笔记时显示收起的小搜索图标，不自动搜索或抢占焦点。单击展开，拖动调整位置；启用后也适用于已经打开的笔记。"
+		},
+		"EnableInputHotkeys": {
+			"name": "启用输入框的快捷键",
+			"desc": "在查找框按 Enter 跳到下一项，在替换框按 Enter 替换一次。"
+		},
+		"SourceModeWhenSearch": {
+			"name": "搜索时强制源代码模式",
+			"desc": "搜索时使用源代码模式，便于定位实时预览中无法直接显示的内容。"
+		},
+		"MoveCursorToMatch": {
+			"name": "将光标移动至匹配项",
+			"desc": "搜索时移动光标并选择当前匹配项"
+		},
+		"UseSelectionAsSearch": {
+			"name": "将所选内容用作搜索文本",
+			"desc": "打开查找时，用当前选中的文本作为查找内容。"
+		},
+		"UseEscapeCharInReplace": {
+			"name": "支持替换输入框中使用转义字符",
+			"desc": "正则模式下，替换输入框支持用 \\n 和 \\t 插入换行和制表符。"
+		},
+		"EnableHistory": {
+			"name": "启用搜索历史",
+			"desc": "记录精确查询及使用情况，并通过上下键切换历史。禁用后保留已有历史，但停止记录和使用统计。"
+		},
+		"HistoryMaxCount": {
+			"name": "历史记录最大数量",
+			"desc": "1–200 条。按 Enter 或离开输入框后确认；调低上限会立即按当前排序淘汰低优先级记录。"
+		},
+		"HistorySortOrder": {
+			"name": "历史记录排序方式",
+			"desc": "选择历史记录列表的排序顺序",
+			"options": {
+				"createdAt": "按创建时间排序",
+				"count": "按使用次数排序",
+				"lastUsedAt": "按最后使用时间排序"
+			}
+		}
+	},
+	"history": {
+		"Length": "长度",
+		"Characters": "{{count}} 字符",
+		"Title": "搜索历史",
+		"ClearAll": "清空所有",
+		"Delete": "删除",
+		"Copy": "复制",
+		"Empty": "暂无历史记录",
+		"DeleteSelected": "删除选中",
+		"SelectAll": "全选",
+		"UnselectAll": "取消全选",
+		"Created": "创建时间",
+		"LastUsed": "最后使用",
+		"Count": "使用次数",
+		"Details": "详情",
+		"Back": "返回",
+		"LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
+		"SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
+		"CopyFailed": "Text Finder 无法复制历史文本，使用次数未更新。",
+		"ReuseFailed": "请先打开支持查找的 Markdown 编辑或阅读视图，再复用搜索历史。"
+	}
 }

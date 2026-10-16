@@ -4,7 +4,7 @@
 
 ## 行内格式与链接
 
-hello **world**；hello *world*；hello `world`。
+hello **world**；hello _world_；hello `world`。
 
 [使用指南](https://hidden-url.example/manual)
 
@@ -14,8 +14,8 @@ Cat cat CAT；中文关键词；😀 cat；İ cat。
 
 - 第一项 cat
 - 可折叠父项
-  - 子项 cat
-  - 子项 **hello** world
+    - 子项 cat
+    - 子项 **hello** world
 
 > 引用 cat
 >
@@ -27,14 +27,14 @@ Cat cat CAT；中文关键词；😀 cat；İ cat。
 
 ## 表格与代码
 
-| 第一列 | 第二列 |
-| --- | --- |
-| hello **world** | cat |
-| Cat | CAT |
+| 第一列          | 第二列 |
+| --------------- | ------ |
+| hello **world** | cat    |
+| Cat             | CAT    |
 
 ```typescript
 const cat = "hello world";
-  // cat
+// cat
 ```
 
 ## 隐藏与排除范围

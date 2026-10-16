@@ -2,7 +2,7 @@
 
 除单独标出的“已批准约束”外，下文为当前实现事实，不代表授权调整其他交互。实际宿主表现需要按 [compatibility](../compatibility.md) 验证。
 
-Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` 操作符号现位于 `src/finder-session.ts`，模板／CSS 在 `src/SearchBox.vue`；其他旧 `.svelte` 路径对应同名 `.vue`。DOM 提交等待现使用 Vue nextTick，Toolbar 在 onBeforeUpdate 归还搬移节点；没有第二套旧组件实现。
+内部重构不改变本契约。Finder 应用逻辑位于 `src/features/finder/application/`，DOM 效果位于 `interaction/`，组件位于 `ui/`。DOM 提交等待使用 Vue nextTick，Toolbar 在 onBeforeUpdate 归还搬移节点。
 
 ## 打开与查询会话
 
@@ -20,7 +20,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 每个 owner 的编辑／阅读 Worker 通道独立；取代忙碌请求、关闭及卸载终止线程，不只忽略回包。同查询、同快照后台刷新保留待定滚动及累计导航方向，不能替换成不滚动意图。
 - 全字匹配切换沿用正则／大小写的重算策略，属于编辑／阅读查询身份及替换候选校验的一部分；切换取消旧计算，迟到结果不能发布、写入或定位。常驻及 More 均为图标按钮，使用 `aria-pressed`；常驻切换聚焦查询，More 切换保留面板及按钮焦点；隐藏按钮不关闭选项。
 
-依据：`src/editor-extension.ts` 的 `syncFloatingEntries()`／`activateFloatingFinder()`／`getFinder()`／`showFinder()`／`registerCommand()`；`src/SearchBox.svelte` 的 `showFloatingEntry()`／`showReplace()`／`toggleReplaceFromCommand()`／`setVisible()`／`matchAgain()`；`tests/floating-entry.test.mjs`、`tests/reading-commands.test.mjs`、`tests/search-box-dom.test.mjs`。新增打开与命令规则经维护者批准；自动回归不等于宿主键盘／焦点验收。
+依据：`src/app/workspace-runtime.ts` 的 `syncFloatingEntries()`／`activateFloatingFinder()`／`getFinder()`／`showFinder()`，`workspace-commands.ts:registerWorkspaceCommands()`；`src/features/finder/application/finder-session.ts` 的 `showFloatingEntry()`／`showReplace()`／`toggleReplaceFromCommand()`／`setVisible()`／`matchAgain()`；`tests/integration/floating-entry.test.mjs`、`reading-commands.test.mjs`、`tests/component/finder-panel.test.mjs`。新增打开与命令规则经维护者批准；自动回归不等于宿主键盘／焦点验收。
 
 ## 已批准的关闭契约
 
@@ -33,7 +33,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 2. 开启 `clearAfterHidden` 后，关闭应同时清空查询和替换输入；关闭仍不等于重置所有查询选项。
     - 默认保留查找和替换文本及匹配选项；开启清空后也保留选项，不把关闭当作重置会话偏好。
 
-依据：`src/SearchBox.svelte` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/editor-extension.ts` 的 `registerFinderEvent()` 和 HideFind／ToggleFind 命令；`src/util/obsidian-internal.ts:getLivePreviewPreference()`。上述约束经维护者明确确认，不来自源码推断。
+依据：`src/features/finder/application/finder-session.ts` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/app/workspace-runtime.ts:registerFinderEvent()` 和 `workspace-commands.ts` 的 HideFind／ToggleFind 命令；`src/platform/obsidian/live-preview.ts:getLivePreviewPreference()`。上述约束经维护者明确确认，不来自源码推断。
 
 范围不自动扩大到原生查找降级、视图销毁或插件卸载；这些路径当前承担隐藏／资源释放职责，是否执行同一模式恢复语义没有额外产品决定。
 
@@ -51,7 +51,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 移动端拖动入口由结果栏左侧 grip 改为顶部中央短横条，72×30px 命中区与左右计数／动作区独立，只有手柄拦截触摸滚动。结果栏和单行搜索框基础外高均 40px；查询／替换使用同一 30px 输入盒及明确的行高／padding，多行／长文本保持可滚动，不改输入与替换语义。此移动端修正经维护者批准，桌面及收起图标尺寸／吸附不变，真机触控和内容滚动仍待验收。
 - 收起保留计算／高亮但放弃之前待定的导航意图（编辑位置代次、Worker scroll／direction、阅读 pauseNavigation）；后续主动命令导航正常。替换候选与提交后重算期间禁用收起；贴边执行替换先展开。没有自动滚动收起。
 
-依据：`src/SearchBox.svelte`、`src/finder-position.ts`、`src/reading-search.ts:pauseNavigation()`；`tests/finder-position.test.mjs`、`tests/search-box-dom.test.mjs`。
+依据：`src/features/finder/application/finder-session.ts`、`src/features/finder/interaction/panel-presentation.ts`、`finder-position.ts`、`src/features/reading/dom/reading-search.ts:pauseNavigation()`；`tests/unit/finder-position.test.mjs`、`tests/component/finder-panel.test.mjs`。
 
 ## 选区范围契约
 
@@ -66,7 +66,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 换文件、切模式、编辑器 State 重建丢失范围字段、窗口迁移使范围失效，查找／替换保持空范围保护，需重选或明确清除，不把源码范围用于阅读或反向转换。阅读同样展示选区按钮及失效状态。销毁释放所属范围装饰，不影响其他 owner。
 - 工具栏默认 More，常驻及 More 均用 `aria-pressed`；隐藏按钮不清范围，也不添加额外标记。选区启用以按钮激活态为准，More 汇总其内部模式；计数旁不增加文字／清除入口。空／失效范围仍保持激活和写入限制，按钮提示说明需重选或关闭限制。正文默认淡背景，可明确开启外轮廓，无下划线，不给非操作容器添加 tooltip 标签。
 
-依据：`src/search-scope.ts`、`src/SearchBox.svelte` 的 `activateScope()`／`syncScope()`／`clearScope()`／`replaceInWorker()`、`src/editor-extension.ts`。回归：`tests/search-scope.test.mjs` 和 `tests/search-box-dom.test.mjs` 的 selection/scoped 系列。
+依据：`src/platform/codemirror/search-scope.ts`、`src/features/finder/application/search-scope.ts`、`finder-session.ts:replaceMatches()`、`src/app/workspace-runtime.ts`。回归：`tests/integration/search-scope.test.mjs` 和 `tests/component/finder-panel.test.mjs` 的 selection/scoped 系列。
 
 ### 阅读范围及换行
 
@@ -77,7 +77,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 背景注册表按 Document 合并 owner，scope priority -1／匹配 0／当前 1；轮廓与换行在 body 的独立 fixed portal，aria-hidden、pointer-events none、不写正文。滚动先隐藏旧几何、按帧重测，ResizeObserver／字体／viewport／外观变更请求绘制，按 owner 与裁切祖先限制显示。挂回重建临时 Range，不缓存 live Range；销毁释放监听、Observer、rAF 和覆盖层。
 - 普通查找统一使用插件，不兼容时提示并回退原生；显式范围命令使用插件能力，失败说明原因，不打开原生全文冒充范围。阅读替换／文件写入／切编辑模式保持禁止。
 
-依据：`src/reading-selection.ts`、`src/reading-text.ts`、`src/reading-search.ts`、`src/reading-overlay.ts`；回归：`tests/reading-scope.test.mjs`、`tests/reading-commands.test.mjs`、真实 Finder 的 `reading scope` 测试。实机选区丢焦、命令面板及覆盖层绘制仍待验收。
+依据：`src/features/reading/dom/reading-selection.ts`、`reading-text.ts`、`reading-search.ts`、`reading-overlay.ts`；回归：`tests/integration/reading-scope.test.mjs`、`reading-commands.test.mjs`、真实 Finder 的 `reading scope` 测试。实机选区丢焦、命令面板及覆盖层绘制仍待验收。
 
 ### 搜索选区外观
 
@@ -89,7 +89,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 轮廓留白只影响几何路径：左右仅按半线宽外扩，内缘贴近测得选中文字边界，不增加左右 2px 空间；上下保留 2px 内侧净距加半线宽外扩。片段先按视觉行合并；狭窄断开片段／多范围间隙沿分离轴限制外扩，不为留白连接本来分离的轮廓，左右紧间隙不取消上下留白。不添加正文 padding、不改变匹配坐标。正文与预览共用算法，粗细变化也请求预览重测。
 - 编辑匹配包含真实换行时，每个已消耗换行在测得行尾显示 `↵`，空白行同样可见；当前项／普通项复用既有颜色。标记只存在于独立 layer，pointer-events none、aria-hidden，无 aria-label／title／可聚焦控件，CSS 伪元素不插入正文文本。软折行、匹配末端未包含的换行、零宽位置和无换行的 EOF 不标记；一个跨行匹配仍只计一项。关闭／文档变更清理遵循原高亮失效规则，阅读模式不添加源码标记。
 
-依据：`src/scope-outline.ts`、`src/search-scope.ts`、`src/appearance.ts`、`src/settings-tab.ts`；回归 `tests/scope-outline.test.mjs`、`tests/appearance.test.mjs`、`tests/main-settings.test.mjs`。批准外观不等于宿主实机验收。
+依据：`src/shared/geometry/scope-outline.ts`、`src/platform/codemirror/search-scope.ts`、`src/features/settings/ui/appearance-styles.ts`、`settings-view.ts`；回归 `tests/integration/scope-outline.test.mjs`、`tests/unit/appearance.test.mjs`、`tests/integration/main-settings.test.mjs`。批准外观不等于宿主实机验收。
 
 ## 导航与替换
 
@@ -102,7 +102,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 匹配始终保留完整原文上下文，选区开启时只扫描允许范围内起点并接受完整包含的匹配；单次操作只展开目标匹配的模板，全部替换才展开所有模板。写入后定位失败提示“替换已完成”，不把它当作未写入，也不再额外前进。
 - 隐藏面板仍可通过编辑命令执行替换；安全来自写入前重算，而不是假设隐藏期间结果有效。
 
-依据：`src/SearchBox.svelte` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`prepareReplacement()`／`replaceText()`；`src/editor-extension.ts:registerEvent()`。回归：`tests/editor-isolation.test.mjs`、`tests/replacement.test.mjs`。
+依据：`src/features/finder/application/finder-session.ts` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`replaceMatches()`、`replacement-operation.ts:runReplacement()`；`src/app/workspace-runtime.ts:registerEvent()`。回归：`tests/integration/editor-isolation.test.mjs`、`replacement.test.mjs`、`finder-editor.test.ts`。
 
 ## 输入、焦点与菜单
 
@@ -115,7 +115,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 阅读插件不兼容时，“以选中内容查找”调用既有原生打开，再只向 owner 预览容器的 `.document-search-input input` 填入快照并派发 input；控件形状不可用时提示，不能向其他分屏输入框写值。
 - 阅读通过 shape-checked 内部 `Menu.forEvent()` 共享同一事件菜单，不停止传播、不调用第二次显示；缺失／调用失败不另建替代菜单。链接复制／打开等项目继续由宿主贡献；纯正文因默认浏览器菜单被抑制，补充所属 Document 的复制选中文字操作。菜单项不额外添加 title／aria-label；菜单按实例去重，卸载隐藏持有菜单并释放正文监听。
 
-依据：`src/editor-extension.ts:connectReadingMenu()`／`selectionMenu()`／`showSelectedText()`／`registerEvent()`；`src/SearchBox.svelte:findSelectedText()`／`findInCapturedSelection()`；`src/reading-selection.ts:stamp()`。回归：`tests/finder-menus.test.mjs`、`tests/search-box-dom.test.mjs`；宿主方法检查 `tests/menu-host-check.mjs` 不等于 GUI 验收。
+依据：`src/app/workspace-runtime.ts:connectReadingMenu()`／`selectionMenu()`／`showSelectedText()`／`registerEvent()`；`src/features/finder/application/finder-session.ts:findSelectedText()`／`findInCapturedSelection()`；`src/features/reading/dom/reading-selection.ts:stamp()`。回归：`tests/integration/finder-menus.test.mjs`、`tests/component/finder-panel.test.mjs`；宿主方法检查 `tools/diagnostics/menu-host-check.mjs` 不等于 GUI 验收。
 
 - `enableInputHotkeys` 开启时，普通 Enter／NumpadEnter 在查找框导航下一项，在替换框替换一次；排除 Alt／Ctrl／Shift／Meta，避免截获系统或用户快捷键。
 - IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter 和历史上下键不触发快捷操作。输入事件本身仍会更新查询。
@@ -124,15 +124,15 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - More 是工具栏延伸的紧凑图标按钮面板，不是文字列表／勾选菜单；同外部按钮几何、激活／禁用／提示样式，横排并在宽度不足时换行，宽高受 owner／可见视口限制。容器用 `role="group"`／`aria-labelledby`，模式用 `aria-pressed`，不用 menu／menuitemcheckbox。
 - More 触发器支持 Enter／Space，打开后聚焦首个可用按钮；方向键循环、Home／End 定位，跳过禁用项。切换模式保留面板和按钮焦点，普通操作执行后收起。Escape 关闭面板并回焦触发器，不关闭 Finder；Tab 原生浏览，焦点离开面板后收起且不抢回焦点。外部 pointerdown 或再次点击 More 收起。
 - More 仅汇总实际放在面板内的开启模式，收起且存在开启模式时右上角显示 5px 主题强调色圆点，不使用模式激活蓝底／边框；常驻／隐藏模式和普通动作不参与。展开时隐藏圆点，收起按当前内部状态恢复；圆点绝对定位、不改几何、无动画、无独立点击区域且 `aria-hidden`。展开用独立内边框反馈／`aria-expanded`，不是新模式开关；读屏说明列出内部开启模式且在展开时保留，容器不添加 tooltip 标签。设置纯展示预览显示相同收起圆点。不增加底部状态栏。
-- 工具栏内外按钮及 More 的额外焦点框采用 `:focus-visible` 的 2px outline，鼠标／触屏焦点不附加蓝色 box-shadow，保留键盘焦点、模式按钮自身激活边框和 More 的展开反馈；不改变输入框聚焦样式及其他 Finder 控件的焦点样式。依据：`src/Toolbar.svelte`、`src/styles/finder-primitives.scss:focus($keyboardOnly)`。
+- 工具栏内外按钮及 More 的额外焦点框采用 `:focus-visible` 的 2px outline，鼠标／触屏焦点不附加蓝色 box-shadow，保留键盘焦点、模式按钮自身激活边框和 More 的展开反馈；不改变输入框聚焦样式及其他 Finder 控件的焦点样式。依据：`src/features/finder/ui/FinderToolbar.vue`、`src/styles/finder-primitives.scss:focus($keyboardOnly)`。
 - 设置分类支持左右键／Home／End；工具栏排序后恢复对应按钮／手柄焦点。拖动有 4px 启动阈值，pointercancel、窗口失焦和 Escape 可取消；切页／隐藏设置清理拖动。
 - 历史行 Enter／Space 复用；复选框 Enter／Space 切换选择并阻止默认滚动。子按钮键盘操作不能触发父行复用；历史操作在 focus-within 及无 hover 设备上显示。
 
-依据：`src/SearchBox.svelte` 的 `syncFinderVisibility()`／`guardHiddenFocus()`／`trackComposition()`／`onFinderKeyDown()`／`enterOnReplacer()` 和 textarea 模板；`src/Toolbar.svelte:menuKeys()`；`src/settings-tab.ts`；`src/HistoryList.svelte`。回归：`tests/search-box-dom.test.mjs`、`tests/history-dom.test.mjs`。
+依据：`src/features/finder/interaction/panel-presentation.ts`、`composition-input.ts`、`input-shortcuts.ts` 和 `src/features/finder/ui/FinderPanel.vue` 的 textarea 模板；`FinderToolbar.vue:menuKeys()`；`src/features/settings/ui/settings-view.ts`；`src/features/history/ui/HistoryList.vue`。回归：`tests/component/finder-panel.test.mjs`、`history-panel.test.mjs`。
 
 ## 外观设置与预览
 
-- `ToolbarPreview.svelte` 实时呈现保存的布局与默认选项，不读取已有 Finder 的当前状态，也不连接笔记、匹配器或替换操作。
+- `ToolbarPreview.vue` 实时呈现保存的布局与默认选项，不读取已有 Finder 的当前状态，也不连接笔记、匹配器或替换操作。
 - “外观”页将完整预览置于滚动配置区之外，分类导航／预览固定可见，仅颜色与工具栏配置滚动；其他分类不改滚动方式。
 - 始终展示查找／替换两行；预览使用非交互元素，无输入、选择、焦点、悬停反馈、折叠或 More 菜单，不执行操作、不修改设置，也不注册所属 Document 的菜单监听。
 - 下方文本预览仅一个两行区域，三处 `text`（一个当前、两个普通）均位于首尾不齐的跨行选区中，另有选区外文字；同时展示所有相关颜色／轮廓，计数保持三项。窄屏自然折行，不固定高度或缩字裁切；原分开的选区样例并入同一区域。
@@ -151,7 +151,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 点击“应用”仅提交该项合法草稿，更新真实样式并保存一次；同值无需写入。取消、Escape、点击外部、设置切页／隐藏／重绘／卸载、窗口失焦／pagehide、窗口大小或外部滚动变化均丢弃草稿、取消预览帧并恢复已应用样式；打开另一项先取消上一项。Tab 在选择器内部循环，Escape 回焦色块。
 - 单项恢复直接删除对应显式覆盖；颜色分组恢复直接删除全部颜色覆盖，并一次保存，不重置工具栏／默认选项；均先取消未应用草稿。工具栏恢复不改颜色；恢复后沿用主题／CSS snippet／Style Settings，可能不是插件硬编码初始色。颜色更新不重新搜索、不移动当前项、不写笔记。
 
-依据：`src/settings-tab.ts` 的 `section()`／`reset()`／`clearPreview()`／`refreshPreview()`／`toolbar()`／`colors()`、`src/settings-select.ts:createSettingsSelect()`、`src/appearance.ts`、`src/color-picker.ts`、`src/ToolbarPreview.svelte`、`src/Toolbar.svelte` 的 `preview` 分支；回归：`tests/main-settings.test.mjs`、`tests/settings-select.test.mjs`、`tests/color-picker.test.mjs`、`tests/appearance.test.mjs`、`tests/search-box-dom.test.mjs`。
+依据：`src/features/settings/ui/settings-view.ts` 的 `section()`／`reset()`／`clearPreview()`／`refreshPreview()`／`toolbar()`／`colors()`、`settings-select.ts:createSettingsSelect()`、`appearance-styles.ts`、`color-picker.ts`、`ToolbarPreview.vue`，`src/features/settings/application/settings-controller.ts` 和 `src/features/finder/ui/FinderToolbar.vue` 的 preview 分支；回归：`tests/integration/main-settings.test.mjs`、`tests/component/settings-select.test.mjs`、`color-picker.test.mjs`、`tests/unit/appearance.test.mjs`、`tests/component/finder-panel.test.mjs`。
 
 ## 历史交互
 
@@ -165,7 +165,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 删除立即更新内存并请求保存，无确认弹窗。详情删除返回列表；保存失败不回滚可见修改。
 - 容量输入仅完整十进制整数 1–200 有效，Enter／blur 提交，无效输入恢复当前值；缩容立即按排序裁剪。
 
-依据：`src/SearchBox.svelte` 的 `recordSearchToHistory()`／`setVisibleFromHistory()`／`onFinderKeyDown()`；`src/HistoryModal.svelte` 的订阅／`select`／`copy`；`src/history.ts`；`src/settings-tab.ts:renderPage()`。数据规则见 [architecture](../architecture.md#持久化数据格式)。
+依据：`src/features/finder/application/finder-session.ts:recordSearchToHistory()`／`setVisibleFromHistory()`，`interaction/input-shortcuts.ts`；`src/features/history/ui/HistoryPanel.vue` 的订阅／select／copy；`src/features/history/model/history.ts`；`src/features/settings/ui/settings-view.ts:renderPage()`。数据规则见 [architecture](../architecture.md#持久化数据格式)。
 
 ## 阅读状态与错误
 
@@ -177,7 +177,7 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 打开时统一使用插件，不再提供使用原生查找的设置；旧 `useObsidianSearchInRead` 无论 true／false 均清理且不参与路由。不支持时提示并回退，运行失败可主动降级，降级关闭插件面板以避免两套入口同时可见。归一化迁移沿用已有保存保护，不因移除偏好绕过读取失败禁止覆盖的约束。
 - 存储／复制／复用错误由插件 Notice 提示，按全局 5 秒间隔节流；读取失败禁止写入，保存失败保留内存修改。
 
-依据：`src/SearchStatus.svelte`、`src/reading-search.ts` 的 `search()`／`run()`／`scroll()`／`clear()`、`src/editor-extension.ts` 的 `showFinder()`／`openNativeSearch()`、`src/main.ts:reportError()`。
+依据：`src/features/finder/ui/SearchStatus.vue`、`src/features/reading/dom/reading-search.ts` 的 `search()`／`run()`／`scroll()`／`clear()`、`src/app/workspace-runtime.ts` 的 `showFinder()`／`openNativeSearch()`、`src/app/create-plugin-runtime.ts:reportError()`。
 
 ## Worker 兼容与错误
 
@@ -187,6 +187,6 @@ Vue 等价迁移未改变产品契约。下文保留的旧 `SearchBox.svelte` �
 - 替换前取消未完成查找；提交前后台刷新同一有效快照不取代任务。替换输入变化、导航及生命周期失效取消候选；连续替换取代旧候选，不排队写旧文档。提交中自身 editor-change 事件不重入替换或取消后续重算。
 - 等待文案区分“尚未写入”与“已完成、正在更新匹配”。提交后取消只停止后续计算／定位，不撤销正文。候选失败的重试继续替换操作，必须重新核验身份；提交后失败只允许重新查找，不重复写入。
 
-依据补充：`src/SearchBox.svelte:replaceInWorker()`／`replacementCurrent()`、`src/match-engine.ts:replace()`、`tests/search-box-dom.test.mjs` 的 candidate invalidation／post-commit／same-file split 回归。
+依据补充：`src/features/finder/application/finder-session.ts:replaceMatches()`／`replacementCurrent()`、`src/platform/browser/match-engine.ts:replace()`、`tests/component/finder-panel.test.mjs` 的 candidate invalidation／post-commit／same-file split 回归。
 
-依据：`src/match-engine.ts`、`src/SearchBox.svelte:setFindText()`／`cancelEditing()`、`src/reading-search.ts:acceptMatches()`、`tests/match-engine.test.mjs`、`tests/search-box-dom.test.mjs`。
+依据：`src/platform/browser/match-engine.ts`、`src/features/finder/application/finder-session.ts:setFindText()`／`cancelEditing()`、`src/features/reading/dom/reading-search.ts:acceptMatches()`、`tests/integration/match-engine.test.mjs`、`tests/component/finder-panel.test.mjs`。

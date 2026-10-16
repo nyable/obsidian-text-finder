@@ -25,3 +25,9 @@ data.json
 
 # Agent
 .agent
+
+# Verification output
+artifacts/
+coverage/
+test-results/
+playwright-report/

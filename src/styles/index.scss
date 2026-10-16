@@ -16,14 +16,29 @@ body {
 }
 
 .nya-text-finder-scope {
-	&:not(.nya-text-finder-match) { background-color: var(--nya-scope-background); }
+	&:not(.nya-text-finder-match) {
+		background-color: var(--nya-scope-background);
+	}
 }
 
-.nya-scope-layer, .nya-scope-outline { pointer-events: none; }
-.nya-scope-layer > div { left: 0; top: 0; }
+.nya-scope-layer,
 .nya-scope-outline {
-	position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible;
-	fill: none; stroke: var(--nya-scope-border-color); stroke-width: var(--nya-scope-border-width);
+	pointer-events: none;
+}
+.nya-scope-layer > div {
+	left: 0;
+	top: 0;
+}
+.nya-scope-outline {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 1px;
+	height: 1px;
+	overflow: visible;
+	fill: none;
+	stroke: var(--nya-scope-border-color);
+	stroke-width: var(--nya-scope-border-width);
 	stroke-linecap: square;
 }
 
@@ -34,18 +49,37 @@ body {
 
 // A real source newline has no glyph box. The overlay neither changes wrapping
 // nor participates in editing, selection, clipboard text or accessibility text.
-.nya-newline-layer, .nya-newline-match { pointer-events: none; user-select: none; }
+.nya-newline-layer,
 .nya-newline-match {
-	display: flex; align-items: center; justify-content: center; overflow: hidden;
-	font-family: var(--font-text); font-size: var(--font-text-size); line-height: 1;
-	&::before { content: "↵"; }
-	&[data-direction="rtl"]::before { transform: scaleX(-1); }
+	pointer-events: none;
+	user-select: none;
+}
+.nya-newline-match {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	font-family: var(--font-text);
+	font-size: var(--font-text-size);
+	line-height: 1;
+	&::before {
+		content: "↵";
+	}
+	&[data-direction="rtl"]::before {
+		transform: scaleX(-1);
+	}
 }
 
 .nya-reading-overlay {
-	position: fixed; overflow: hidden; pointer-events: none; user-select: none; z-index: 1;
+	position: fixed;
+	overflow: hidden;
+	pointer-events: none;
+	user-select: none;
+	z-index: 1;
 }
-::highlight(nya-reading-scope) { background-color: var(--nya-scope-background); }
+::highlight(nya-reading-scope) {
+	background-color: var(--nya-scope-background);
+}
 
 ::highlight(nya-reading-matches) {
 	background-color: var(--nya-match-bgColor);
@@ -60,49 +94,186 @@ body {
 // Settings-only styles: never change the finder or Obsidian's other settings pages.
 .nya-settings {
 	&.nya-settings--appearance {
-		height: 100%; min-height: 0; box-sizing: border-box; overflow: hidden;
-		.nya-settings-layout { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-		.nya-settings-tabs { flex-shrink: 0; }
-		.nya-settings-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+		height: 100%;
+		min-height: 0;
+		box-sizing: border-box;
+		overflow: hidden;
+		.nya-settings-layout {
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+			min-height: 0;
+		}
+		.nya-settings-tabs {
+			flex-shrink: 0;
+		}
+		.nya-settings-panel {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			overflow: hidden;
+		}
 	}
-	.nya-appearance-preview { flex-shrink: 0; background: var(--background-primary); }
+	.nya-appearance-preview {
+		flex-shrink: 0;
+		background: var(--background-primary);
+	}
 	.nya-appearance-controls {
-		flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding: 0 4px 8px;
-		&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior-y: contain;
+		padding: 0 4px 8px;
+		&:focus-visible {
+			outline: 2px solid var(--interactive-accent);
+			outline-offset: -2px;
+		}
 	}
-	.nya-color-settings, .nya-scope-settings {
-		margin-bottom: 8px; font-family: var(--font-interface); font-size: var(--font-ui-small); container-type: inline-size;
+	.nya-color-settings,
+	.nya-scope-settings {
+		margin-bottom: 8px;
+		font-family: var(--font-interface);
+		font-size: var(--font-ui-small);
+		container-type: inline-size;
 	}
-	.nya-scope-options { display: grid; gap: 8px; }
-	.nya-scope-details { display: grid; gap: 8px; }
-	.nya-scope-details[hidden] { display: none; }
-	.nya-scope-details > .nya-color-row > span:first-child { padding-left: 12px; }
+	.nya-scope-options {
+		display: grid;
+		gap: 8px;
+	}
+	.nya-scope-details {
+		display: grid;
+		gap: 8px;
+	}
+	.nya-scope-details[hidden] {
+		display: none;
+	}
+	.nya-scope-details > .nya-color-row > span:first-child {
+		padding-left: 12px;
+	}
 	.nya-scope-toggle.setting-item {
-		display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
-		min-height: 32px; padding: 0; margin: 0; border: 0;
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px 12px;
+		min-height: 32px;
+		padding: 0;
+		margin: 0;
+		border: 0;
 	}
-	.nya-scope-toggle .setting-item-info { min-width: 0; margin: 0; padding: 0; }
-	.nya-scope-toggle .setting-item-name { margin: 0; font-size: var(--font-ui-small); line-height: 1.4; }
-	.nya-scope-toggle .setting-item-control { display: flex; align-items: center; justify-content: flex-end; margin: 0; padding: 0; }
-	.nya-color-group { display: grid; gap: 8px; background: var(--background-secondary); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
-	.nya-color-group:last-child { margin-bottom: 0; }
-	.nya-color-group h4 { margin: 0; color: var(--text-muted); font-size: var(--font-ui-small); font-weight: var(--font-semibold); }
-	.nya-color-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 32px; gap: 8px 12px; }
-	.nya-color-row > span:first-child { min-width: 0; line-height: 1.4; overflow-wrap: anywhere; }
-	.nya-color-controls { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+	.nya-scope-toggle .setting-item-info {
+		min-width: 0;
+		margin: 0;
+		padding: 0;
+	}
+	.nya-scope-toggle .setting-item-name {
+		margin: 0;
+		font-size: var(--font-ui-small);
+		line-height: 1.4;
+	}
+	.nya-scope-toggle .setting-item-control {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		margin: 0;
+		padding: 0;
+	}
+	.nya-color-group {
+		display: grid;
+		gap: 8px;
+		background: var(--background-secondary);
+		border-radius: 8px;
+		padding: 12px;
+		margin-bottom: 10px;
+	}
+	.nya-color-group:last-child {
+		margin-bottom: 0;
+	}
+	.nya-color-group h4 {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: var(--font-ui-small);
+		font-weight: var(--font-semibold);
+	}
+	.nya-color-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		align-items: center;
+		min-height: 32px;
+		gap: 8px 12px;
+	}
+	.nya-color-row > span:first-child {
+		min-width: 0;
+		line-height: 1.4;
+		overflow-wrap: anywhere;
+	}
+	.nya-color-controls {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 8px;
+	}
 	.nya-color-picker {
-		width: 28px; height: 28px; padding: 0; border: 1px solid var(--background-modifier-border); border-radius: 5px; cursor: pointer; box-shadow: none;
-		background: repeating-conic-gradient(var(--background-primary) 0% 25%, var(--background-modifier-border) 0% 50%) 50% / 8px 8px;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 5px;
+		cursor: pointer;
+		box-shadow: none;
+		background: repeating-conic-gradient(
+				var(--background-primary) 0% 25%,
+				var(--background-modifier-border) 0% 50%
+			)
+			50% / 8px 8px;
 	}
-	.nya-color-swatch { display: block; width: 100%; height: 100%; border-radius: inherit; }
-	.nya-color-code { width: 104px; color: var(--text-muted); font-family: var(--font-interface); font-size: var(--font-ui-small); font-variant-numeric: tabular-nums; line-height: 1.4; }
-	.nya-color-reset { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: transparent; box-shadow: none; color: var(--text-muted); svg { width: 14px; height: 14px; } }
-	.nya-color-reset:hover:not(:disabled) { background: var(--background-modifier-hover); }
-	.nya-color-controls :focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	.nya-color-swatch {
+		display: block;
+		width: 100%;
+		height: 100%;
+		border-radius: inherit;
+	}
+	.nya-color-code {
+		width: 104px;
+		color: var(--text-muted);
+		font-family: var(--font-interface);
+		font-size: var(--font-ui-small);
+		font-variant-numeric: tabular-nums;
+		line-height: 1.4;
+	}
+	.nya-color-reset {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--text-muted);
+		svg {
+			width: 14px;
+			height: 14px;
+		}
+	}
+	.nya-color-reset:hover:not(:disabled) {
+		background: var(--background-modifier-hover);
+	}
+	.nya-color-controls :focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
 	@container (max-width: 360px) {
-		.nya-color-row, .nya-scope-toggle.setting-item { grid-template-columns: minmax(0, 1fr); }
-		.nya-color-controls { justify-content: flex-end; }
-		.nya-scope-details > .nya-color-row > span:first-child { padding-left: 0; }
+		.nya-color-row,
+		.nya-scope-toggle.setting-item {
+			grid-template-columns: minmax(0, 1fr);
+		}
+		.nya-color-controls {
+			justify-content: flex-end;
+		}
+		.nya-scope-details > .nya-color-row > span:first-child {
+			padding-left: 0;
+		}
 	}
 	.nya-settings-tabs {
 		display: flex;
@@ -113,44 +284,123 @@ body {
 		border-bottom: 1px solid var(--background-modifier-border);
 		button {
 			flex-shrink: 0;
-			border: 0; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0;
-			min-height: 32px; cursor: pointer;
+			border: 0;
+			border-bottom: 2px solid transparent;
+			border-radius: 4px 4px 0 0;
+			min-height: 32px;
+			cursor: pointer;
 			background: transparent;
 			box-shadow: none;
 			color: var(--text-muted);
-			&:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
-			&[aria-selected="true"] { border-bottom-color: var(--interactive-accent); color: var(--text-accent); }
-			&:active { background: var(--background-modifier-active-hover, var(--background-modifier-hover)); }
-			&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+			&:hover {
+				background: var(--background-modifier-hover);
+				color: var(--text-normal);
+			}
+			&[aria-selected="true"] {
+				border-bottom-color: var(--interactive-accent);
+				color: var(--text-accent);
+			}
+			&:active {
+				background: var(
+					--background-modifier-active-hover,
+					var(--background-modifier-hover)
+				);
+			}
+			&:focus-visible {
+				outline: 2px solid var(--interactive-accent);
+				outline-offset: -2px;
+			}
 		}
 	}
-	.nya-settings-panel:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	.nya-settings-panel:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
 	.nya-toolbar-settings {
-		margin-bottom: 8px; container-type: inline-size;
-		font-family: var(--font-interface); font-size: var(--font-ui-small); line-height: var(--line-height-normal);
+		margin-bottom: 8px;
+		container-type: inline-size;
+		font-family: var(--font-interface);
+		font-size: var(--font-ui-small);
+		line-height: var(--line-height-normal);
 	}
 	.nya-settings-section-header {
-		display: flex; align-items: center; gap: 4px; margin: 0;
-		h3 { margin: 0; min-width: 0; font-size: var(--font-ui-medium); font-weight: var(--font-semibold); }
-		button { background: transparent; box-shadow: none; border: 0; color: var(--text-muted); }
-		button:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
-		.nya-settings-section-toggle { color: var(--text-normal); }
-		button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		margin: 0;
+		h3 {
+			margin: 0;
+			min-width: 0;
+			font-size: var(--font-ui-medium);
+			font-weight: var(--font-semibold);
+		}
+		button {
+			background: transparent;
+			box-shadow: none;
+			border: 0;
+			color: var(--text-muted);
+		}
+		button:hover {
+			background: var(--background-modifier-hover);
+			color: var(--text-normal);
+		}
+		.nya-settings-section-toggle {
+			color: var(--text-normal);
+		}
+		button:focus-visible {
+			outline: 2px solid var(--interactive-accent);
+			outline-offset: 2px;
+		}
 	}
 	.nya-settings-section-toggle {
-		display: flex; align-items: center; gap: 6px; min-height: 32px; height: auto; max-width: 100%;
-		padding: 4px; text-align: left; white-space: normal; font: inherit;
-		span:last-child { overflow-wrap: anywhere; }
-		&[aria-expanded="false"] .nya-settings-section-arrow { transform: rotate(-90deg); }
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-height: 32px;
+		height: auto;
+		max-width: 100%;
+		padding: 4px;
+		text-align: left;
+		white-space: normal;
+		font: inherit;
+		span:last-child {
+			overflow-wrap: anywhere;
+		}
+		&[aria-expanded="false"] .nya-settings-section-arrow {
+			transform: rotate(-90deg);
+		}
 	}
-	.nya-settings-section-arrow { display: flex; flex-shrink: 0; svg { width: 16px; height: 16px; } }
+	.nya-settings-section-arrow {
+		display: flex;
+		flex-shrink: 0;
+		svg {
+			width: 16px;
+			height: 16px;
+		}
+	}
 	.nya-settings-section-reset {
-		display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; flex-shrink: 0;
-		svg { width: 16px; height: 16px; }
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 0;
+		flex-shrink: 0;
+		svg {
+			width: 16px;
+			height: 16px;
+		}
 	}
-	.nya-settings-section-body[hidden] { display: none; }
-	.nya-settings-section-body { padding-top: 6px; }
-	.nya-toolbar-list { display: grid; gap: 10px; }
+	.nya-settings-section-body[hidden] {
+		display: none;
+	}
+	.nya-settings-section-body {
+		padding-top: 6px;
+	}
+	.nya-toolbar-list {
+		display: grid;
+		gap: 10px;
+	}
 	.nya-toolbar-row {
 		position: relative;
 		display: grid;
@@ -161,107 +411,357 @@ body {
 		padding: 0 12px 0 0;
 		background: var(--background-secondary);
 		border-radius: 8px;
-		button { flex-shrink: 0; }
-		&.nya-toolbar-dragging { opacity: 0.5; }
-		&.nya-drop-before::before, &.nya-drop-after::after {
-			content: ""; position: absolute; left: 0; right: 0; height: 2px; background: var(--interactive-accent);
+		button {
+			flex-shrink: 0;
 		}
-		&.nya-drop-before::before { top: -6px; }
-		&.nya-drop-after::after { bottom: -6px; }
+		&.nya-toolbar-dragging {
+			opacity: 0.5;
+		}
+		&.nya-drop-before::before,
+		&.nya-drop-after::after {
+			content: "";
+			position: absolute;
+			left: 0;
+			right: 0;
+			height: 2px;
+			background: var(--interactive-accent);
+		}
+		&.nya-drop-before::before {
+			top: -6px;
+		}
+		&.nya-drop-after::after {
+			bottom: -6px;
+		}
 	}
-	.nya-toolbar-row-controls { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 8px; min-height: 32px; padding-top: 8px; }
-	.nya-toolbar-item-icon { display: flex; align-items: center; color: var(--text-muted); flex-shrink: 0; svg { width: 18px; height: 18px; } }
-	.nya-toolbar-row-controls button { width: 28px; height: 28px; padding: 0; box-shadow: none; background: transparent; color: var(--text-muted); }
-	.nya-toolbar-row-controls button:hover:not(:disabled) { background: var(--background-modifier-hover); color: var(--text-normal); }
-	.nya-toolbar-row-controls button:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
-	.nya-toolbar-row-options { grid-column: 2; grid-row: 2; display: flex; justify-content: space-between; align-items: center; min-height: 32px; gap: 12px; padding-bottom: 8px; }
-	.nya-toolbar-placement { width: max-content; max-width: 100%; min-width: 0; }
-	.nya-toolbar-default.setting-item { display: flex; align-items: center; flex-direction: row; border: 0; padding: 0; margin: 0; gap: 10px; flex-shrink: 0; min-height: 28px; }
-	.nya-toolbar-default .setting-item-info { display: flex; align-items: center; margin: 0; flex: initial; }
-	.nya-toolbar-default .setting-item-name { margin: 0; color: var(--text-muted); font-size: var(--font-ui-small); line-height: 1.4; white-space: nowrap; }
-	.nya-toolbar-default .setting-item-control { display: flex; align-items: center; padding: 0; margin: 0; flex: initial; }
+	.nya-toolbar-row-controls {
+		grid-column: 2;
+		grid-row: 1;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-height: 32px;
+		padding-top: 8px;
+	}
+	.nya-toolbar-item-icon {
+		display: flex;
+		align-items: center;
+		color: var(--text-muted);
+		flex-shrink: 0;
+		svg {
+			width: 18px;
+			height: 18px;
+		}
+	}
+	.nya-toolbar-row-controls button {
+		width: 28px;
+		height: 28px;
+		padding: 0;
+		box-shadow: none;
+		background: transparent;
+		color: var(--text-muted);
+	}
+	.nya-toolbar-row-controls button:hover:not(:disabled) {
+		background: var(--background-modifier-hover);
+		color: var(--text-normal);
+	}
+	.nya-toolbar-row-controls button:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
+	.nya-toolbar-row-options {
+		grid-column: 2;
+		grid-row: 2;
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		min-height: 32px;
+		gap: 12px;
+		padding-bottom: 8px;
+	}
+	.nya-toolbar-placement {
+		width: max-content;
+		max-width: 100%;
+		min-width: 0;
+	}
+	.nya-toolbar-default.setting-item {
+		display: flex;
+		align-items: center;
+		flex-direction: row;
+		border: 0;
+		padding: 0;
+		margin: 0;
+		gap: 10px;
+		flex-shrink: 0;
+		min-height: 28px;
+	}
+	.nya-toolbar-default .setting-item-info {
+		display: flex;
+		align-items: center;
+		margin: 0;
+		flex: initial;
+	}
+	.nya-toolbar-default .setting-item-name {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: var(--font-ui-small);
+		line-height: 1.4;
+		white-space: nowrap;
+	}
+	.nya-toolbar-default .setting-item-control {
+		display: flex;
+		align-items: center;
+		padding: 0;
+		margin: 0;
+		flex: initial;
+	}
 	@container (max-width: 360px) {
-		.nya-toolbar-row-options { flex-direction: column; align-items: stretch; gap: 8px; }
-		.nya-toolbar-default.setting-item { justify-content: space-between; }
+		.nya-toolbar-row-options {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 8px;
+		}
+		.nya-toolbar-default.setting-item {
+			justify-content: space-between;
+		}
 	}
-	.nya-toolbar-name { flex: 1; min-width: 0; font-size: var(--font-ui-small); overflow-wrap: anywhere; }
+	.nya-toolbar-name {
+		flex: 1;
+		min-width: 0;
+		font-size: var(--font-ui-small);
+		overflow-wrap: anywhere;
+	}
 	.nya-toolbar-row > .nya-toolbar-handle {
-		grid-column: 1; grid-row: 1 / -1; align-self: stretch;
-		display: flex; align-items: center; justify-content: center;
-		width: 32px; height: auto; padding: 0; margin: 0;
-		background: transparent; box-shadow: none; border: 0; border-radius: 8px 0 0 8px;
-		color: var(--text-faint); touch-action: none; cursor: grab; user-select: none;
-		svg { width: 14px; height: 14px; pointer-events: none; }
-		&:hover, &:focus-visible { background: var(--background-modifier-hover); color: var(--text-normal); }
-		&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: -2px; }
+		grid-column: 1;
+		grid-row: 1 / -1;
+		align-self: stretch;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: auto;
+		padding: 0;
+		margin: 0;
+		background: transparent;
+		box-shadow: none;
+		border: 0;
+		border-radius: 8px 0 0 8px;
+		color: var(--text-faint);
+		touch-action: none;
+		cursor: grab;
+		user-select: none;
+		svg {
+			width: 14px;
+			height: 14px;
+			pointer-events: none;
+		}
+		&:hover,
+		&:focus-visible {
+			background: var(--background-modifier-hover);
+			color: var(--text-normal);
+		}
+		&:focus-visible {
+			outline: 2px solid var(--interactive-accent);
+			outline-offset: -2px;
+		}
 	}
-	.nya-toolbar-handle:active { cursor: grabbing; }
-	.nya-settings-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+	.nya-toolbar-handle:active {
+		cursor: grabbing;
+	}
+	.nya-settings-sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
 }
 
 // Shared dimensions and typography: size never imposes a fixed width.
-.nya-settings-select, .nya-settings-select-popover {
-	--nya-select-height: 28px; --nya-select-option-height: 32px;
-	--nya-select-padding-inline: 10px; --nya-select-icon-size: 14px; --nya-select-gap: 8px;
-	font-family: var(--font-interface); font-size: var(--font-ui-small); font-weight: var(--font-normal, 400);
-	font-style: normal; font-variant: normal; letter-spacing: normal; line-height: 1.4;
+.nya-settings-select,
+.nya-settings-select-popover {
+	--nya-select-height: 28px;
+	--nya-select-option-height: 32px;
+	--nya-select-padding-inline: 10px;
+	--nya-select-icon-size: 14px;
+	--nya-select-gap: 8px;
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-normal, 400);
+	font-style: normal;
+	font-variant: normal;
+	letter-spacing: normal;
+	line-height: 1.4;
 	&[data-size="md"] {
-		--nya-select-height: 32px; --nya-select-option-height: 36px;
-		--nya-select-padding-inline: 12px; --nya-select-icon-size: 16px;
+		--nya-select-height: 32px;
+		--nya-select-option-height: 36px;
+		--nya-select-padding-inline: 12px;
+		--nya-select-icon-size: 16px;
 	}
 }
 .nya-settings-select {
-	display: grid; grid-template-columns: minmax(0, 1fr) var(--nya-select-icon-size); align-items: center; gap: var(--nya-select-gap);
-	text-align: left; box-sizing: border-box; min-width: 0; max-width: 100%; width: max-content;
-	height: var(--nya-select-height); padding: 0 var(--nya-select-padding-inline); margin: 0;
-	background: transparent; background-image: none; box-shadow: none;
-	border: 1px solid var(--background-modifier-border); border-radius: 5px; color: var(--text-normal); cursor: pointer;
-	&[data-width="fill"] { width: 100%; }
-	&:hover { background: var(--background-modifier-hover); border-color: var(--background-modifier-border-hover); }
-	&[aria-expanded="true"] { background: var(--background-primary); border-color: var(--interactive-accent); }
-	&:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) var(--nya-select-icon-size);
+	align-items: center;
+	gap: var(--nya-select-gap);
+	text-align: left;
+	box-sizing: border-box;
+	min-width: 0;
+	max-width: 100%;
+	width: max-content;
+	height: var(--nya-select-height);
+	padding: 0 var(--nya-select-padding-inline);
+	margin: 0;
+	background: transparent;
+	background-image: none;
+	box-shadow: none;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 5px;
+	color: var(--text-normal);
+	cursor: pointer;
+	&[data-width="fill"] {
+		width: 100%;
+	}
+	&:hover {
+		background: var(--background-modifier-hover);
+		border-color: var(--background-modifier-border-hover);
+	}
+	&[aria-expanded="true"] {
+		background: var(--background-primary);
+		border-color: var(--interactive-accent);
+	}
+	&:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
 	.nya-toolbar-select-arrow {
-		grid-area: 1 / 2; display: flex; color: var(--text-muted); pointer-events: none;
-		svg { width: var(--nya-select-icon-size); height: var(--nya-select-icon-size); }
+		grid-area: 1 / 2;
+		display: flex;
+		color: var(--text-muted);
+		pointer-events: none;
+		svg {
+			width: var(--nya-select-icon-size);
+			height: var(--nya-select-icon-size);
+		}
 	}
 }
-.nya-settings-select-value, .nya-settings-select-sizing { grid-area: 1 / 1; min-width: 0; white-space: nowrap; }
-.nya-settings-select-value { overflow: hidden; text-overflow: ellipsis; }
+.nya-settings-select-value,
 .nya-settings-select-sizing {
-	display: grid; visibility: hidden; pointer-events: none; overflow: hidden;
-	span { grid-area: 1 / 1; }
+	grid-area: 1 / 1;
+	min-width: 0;
+	white-space: nowrap;
+}
+.nya-settings-select-value {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.nya-settings-select-sizing {
+	display: grid;
+	visibility: hidden;
+	pointer-events: none;
+	overflow: hidden;
+	span {
+		grid-area: 1 / 1;
+	}
 }
 
 // Select popups, like the color picker, live outside the clipped settings area.
 .nya-settings-select-popover {
-	position: fixed; z-index: calc(var(--layer-modal, 50) + 1); box-sizing: border-box;
-	padding: 4px; overflow-y: auto; overscroll-behavior: contain;
-	border: 1px solid var(--background-modifier-border); border-radius: 8px;
-	background: var(--background-primary); color: var(--text-normal); box-shadow: var(--shadow-s);
+	position: fixed;
+	z-index: calc(var(--layer-modal, 50) + 1);
+	box-sizing: border-box;
+	padding: 4px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
 	.nya-settings-select-option {
-		display: flex; align-items: center; justify-content: space-between; gap: var(--nya-select-gap);
-		min-height: var(--nya-select-option-height); padding: 4px calc(var(--nya-select-padding-inline) - 4px);
-		box-sizing: border-box; border-radius: 4px; cursor: pointer;
-		> span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-		&[data-highlighted="true"] { background: var(--background-modifier-hover); }
-		&[aria-selected="true"] .nya-settings-select-check { visibility: visible; }
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--nya-select-gap);
+		min-height: var(--nya-select-option-height);
+		padding: 4px calc(var(--nya-select-padding-inline) - 4px);
+		box-sizing: border-box;
+		border-radius: 4px;
+		cursor: pointer;
+		> span:first-child {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+		&[data-highlighted="true"] {
+			background: var(--background-modifier-hover);
+		}
+		&[aria-selected="true"] .nya-settings-select-check {
+			visibility: visible;
+		}
 	}
-	.nya-settings-select-check { display: flex; flex-shrink: 0; visibility: hidden; color: var(--text-accent); svg { width: var(--nya-select-icon-size); height: var(--nya-select-icon-size); } }
+	.nya-settings-select-check {
+		display: flex;
+		flex-shrink: 0;
+		visibility: hidden;
+		color: var(--text-accent);
+		svg {
+			width: var(--nya-select-icon-size);
+			height: var(--nya-select-icon-size);
+		}
+	}
 }
 
 // The picker is mounted in its owner Document, outside the settings scroll area.
 .nya-color-popover {
-	position: fixed; z-index: calc(var(--layer-modal, 50) + 1); box-sizing: border-box;
-	width: 248px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow-y: auto;
-	padding: 12px; border: 1px solid var(--background-modifier-border); border-radius: 8px;
-	background: var(--background-primary); color: var(--text-normal); box-shadow: var(--shadow-s);
-	font-family: var(--font-interface); font-size: var(--font-ui-small);
-	.nya-color-popover-title { margin-bottom: 10px; font-weight: var(--font-semibold); }
+	position: fixed;
+	z-index: calc(var(--layer-modal, 50) + 1);
+	box-sizing: border-box;
+	width: 248px;
+	max-width: calc(100vw - 16px);
+	max-height: calc(100vh - 16px);
+	overflow-y: auto;
+	padding: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+	box-shadow: var(--shadow-s);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+	.nya-color-popover-title {
+		margin-bottom: 10px;
+		font-weight: var(--font-semibold);
+	}
 	// Keep vanilla-colorful's :host flex column: its slider heights depend on it.
-	.nya-color-library { width: 100%; height: 180px; }
-	.nya-color-library::part(saturation) { border-radius: 5px 5px 0 0; }
-	.nya-color-value { width: 100%; height: 28px; margin-top: 10px; font: inherit; box-shadow: none; }
-	.nya-color-value[aria-invalid="true"] { border-color: var(--text-error); }
-	.nya-color-popover-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; button { font: inherit; } }
-	:focus-visible { outline: 2px solid var(--interactive-accent); outline-offset: 2px; }
+	.nya-color-library {
+		width: 100%;
+		height: 180px;
+	}
+	.nya-color-library::part(saturation) {
+		border-radius: 5px 5px 0 0;
+	}
+	.nya-color-value {
+		width: 100%;
+		height: 28px;
+		margin-top: 10px;
+		font: inherit;
+		box-shadow: none;
+	}
+	.nya-color-value[aria-invalid="true"] {
+		border-color: var(--text-error);
+	}
+	.nya-color-popover-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		margin-top: 10px;
+		button {
+			font: inherit;
+		}
+	}
+	:focus-visible {
+		outline: 2px solid var(--interactive-accent);
+		outline-offset: 2px;
+	}
 }

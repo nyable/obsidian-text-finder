@@ -9,7 +9,23 @@
 - 使用 TypeScript、Vue 3 Composition API／`<script setup>`、CodeMirror 6，正式与测试构建统一使用 Vite 8／Rolldown。生产已不依赖 Svelte 或直接 esbuild。
 - esbuild 仍可能由 Vite 的间接依赖／peer 安装进入锁文件；这不表示项目继续维护 esbuild 构建入口，不要为清掉依赖树名称而破坏 Vite 的依赖约束。
 
-`src/finder-session.ts` 是每个 owner 的会话控制器，通过 `FinderRuntime` 注入浅响应式状态、DOM 提交等待及生命周期；不导入 Vue。`SearchBox.vue` 负责展示与 DOM 绑定。宿主集成只使用 `mountFinder()`／`mountView()` 的操作、update 和 destroy，不依赖组件私有 API。`src/ui/mount.ts` 用 Vue 公开 renderer API 的 owner-bound DOM 操作，保持跨窗口构造器与原有父节点几何；不能改回全局 Document。详见 [架构](architecture.md)。
+`src/main.ts` 是薄入口，`src/app/create-plugin-runtime.ts` 装配宿主服务。Finder application 只接收 owner-bound ports，不导入 DOM／Vue／宿主类；`useFinderViewModel.ts` 连接浅响应式及交互层。`src/shared/ui/mount-view.ts` 使用 owner-bound renderer，保持跨窗口构造器和父节点几何；不能改回默认全局 Document。详见 [架构](architecture.md)。
+
+## 按任务定位
+
+| 修改内容 | 入口 | 最小回归 |
+| --- | --- | --- |
+| 匹配、全字、范围、替换模板 | `src/core/search/` | `tests/unit/text-matching.test.mjs`、`regex-replacement.test.mjs`、`tests/integration/match-engine.test.mjs` |
+| Finder 查询／导航／替换状态 | `src/features/finder/application/` | `finder-session.test.ts`、`replacement-operation.test.ts`、`tests/component/finder-panel.test.mjs` |
+| 焦点、IME、拖动、布局 | `src/features/finder/interaction/`、`ui/useFinderViewModel.ts` | 真实 Finder 组件、position／mobile-toolbar 与 Playwright |
+| 阅读全文、选区、绘制 | `src/features/reading/dom/`，私有能力在 `platform/obsidian/preview-renderer.ts` | reading-index／reading-search／reading-scope／reading-commands |
+| 历史身份／排序／订阅／复制 | `src/features/history/` | history-contracts／history-panel／finder-panel |
+| 设置 schema／更新／控件 | `src/features/settings/model/`、`application/settings-controller.ts`、`ui/settings-view.ts` | settings-controller／main-settings／appearance／settings-select |
+| 宿主命令／owner／生命周期 | `src/app/workspace-runtime.ts`、`workspace-commands.ts`、`owner-registry.ts` | editor-isolation／finder-menus／reading-commands／floating-entry |
+| 写入与重载存储 | `src/platform/codemirror/finder-editor.ts`、`platform/obsidian/settings-storage.ts` | finder-editor／replacement／settings-storage／main-settings |
+| 构建、内嵌 Worker／调色器 | `vite.config.mjs`、`tools/vite-build.mjs` | `pnpm test:artifacts`、build、浏览器 Worker |
+
+先读该功能的产品契约和模块 API，增加行为回归后改最小边界；不借 app 反向取服务，不用修改依赖／放宽断言绕过失败。变更后更新对应事实文档，报告实际检查与未覆盖的宿主环境。
 
 ## 源码构建与安装
 
@@ -17,12 +33,14 @@
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm test
-pnpm typecheck
-pnpm build
+pnpm verify
 ```
 
 将生成的 `dist/main.js`、`dist/styles.css` 和 `dist/manifest.json` 复制到测试库的 `.obsidian/plugins/text-finder/`，然后启用或重载插件。不要为了测试覆盖日常库中的设置和历史数据。
+
+`pnpm verify` 统一运行 lint（含生产 Promise 类型规则）、格式、依赖边界、Vitest、独立产物契约、类型检查／正式构建、产物校验及 Playwright smoke。浏览器缺失会失败而不是跳过；首次运行先 `pnpm exec playwright install chromium`。严格 Linux 视觉比较另运行 `pnpm test:visual`，不以不同 OS 字体结果更新 Linux 基线。日常小改可先按表运行目标套件，交付前运行完整入口。
+
+`pnpm test:watch` 为 Vitest 开发循环；`pnpm format` 写格式、`pnpm format:check` 只读检查。构建会写 dist，产物契约的内存构建不写安装目录。WSL 和 Windows 原生依赖需分别安装，不跨 OS 复用 node_modules；Windows 构建由使用者手动执行，不改变全局供应链策略。
 
 `pnpm dev` 使用 `vite build --watch --mode development` 监听构建，不启动网页服务器或承诺 Obsidian 内 HMR。正式产物保持 CommonJS `main.js`、`styles.css`、原样 `manifest.json`；匹配 Worker 和颜色选择器内嵌，不新增运行时下载。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
 
@@ -31,7 +49,7 @@ pnpm build
 - 本仓库使用 pnpm，不使用 npm 或 Yarn 安装依赖。
 - 修改依赖时，使用 pnpm 更新并提交 `pnpm-lock.yaml`。
 - [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) 固定 CodeMirror 版本并配置构建依赖许可，避免多个不兼容的实例。
-- CI 使用 `--frozen-lockfile` 安装，执行测试、TypeScript／Vue 检查和插件构建，配置见 [`.github/workflows/`](../.github/workflows/)。`pnpm test` 单并发避免多个组件构建争用资源。`pnpm test:browser` 单独运行，需要已有 Playwright Chromium，不自动安装系统环境。
+- CI 配置 Linux／Windows／macOS 锁定安装、测试、类型、lint／格式／依赖和构建；Linux job 另做严格视觉比较，配置见 [`.github/workflows/`](../.github/workflows/)。配置不代表各平台已经运行成功。`pnpm test` 限制单 worker，`pnpm test:browser` 单独运行，需要已有 Playwright Chromium，不自动安装系统环境。
 - 回归测试含版本、翻译键、产品命令／设置表、CSS 默认值一致性检查；构建后 CI 比较 manifest 源文件和产物。
 
 ## 变更同步
@@ -53,12 +71,12 @@ pnpm build
 4. **检查整条提示路径。** 同时审查 `aria-label`、`title` 与 `setTooltip`：提示只覆盖预期目标，避免同一控件出现不同或重复文案。需要读屏名称却不需要名称悬浮提示的输入，可引用标题并保留独立的格式说明；不要另造全局悬浮提示屏蔽机制。
 5. **区分自动回归与实机验收。** 自动检查容器没有多余 `aria-label`、`aria-labelledby` 能解析到正确文本、真实控件仍有名称；在 Obsidian 中另查空白区域、标题、控件和菜单边缘的提示，并核对键盘焦点与弹窗表现。未实测不能标记宿主通过。
 
-源码示例：`src/settings-tab.ts` 的 tablist／外观 region，`src/color-picker.ts` 的 dialog／输入命名，`src/ToolbarPreview.vue` 的预览图，以及 `src/Toolbar.vue` 的 More 菜单标题引用与预览图标。
+源码示例：`src/features/settings/ui/settings-view.ts` 的 tablist／外观 region，`color-picker.ts` 的 dialog／输入命名，`ToolbarPreview.vue` 的预览图，以及 `src/features/finder/ui/FinderToolbar.vue` 的 More 菜单标题引用与预览图标。
 
 回归入口：
-- `tests/main-settings.test.mjs`：`settings containers and preview retain accessible names without Obsidian hover labels`。
-- `tests/color-picker.test.mjs`：`picker shell traps Tab, cancels drafts on owner blur/pagehide/scroll and removes listeners` 中的 dialog／输入标题引用检查。
-- `tests/search-box-dom.test.mjs`：`hiding Finder closes More without restoring focus into hidden controls` 中的菜单／触发器命名检查。
+- `tests/integration/main-settings.test.mjs`：`settings containers and preview retain accessible names without Obsidian hover labels`。
+- `tests/component/color-picker.test.mjs`：`picker shell traps Tab, cancels drafts on owner blur/pagehide/scroll and removes listeners` 中的 dialog／输入标题引用检查。
+- `tests/component/finder-panel.test.mjs`：`hiding Finder closes More without restoring focus into hidden controls` 中的菜单／触发器命名检查。
 
 历史症状与验证边界见 [pitfalls](pitfalls.md) 和 [compatibility](compatibility.md)。
 

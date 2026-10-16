@@ -1,0 +1,383 @@
+{
+  "sourceCommit": "682305763777a6f2cb4934c9288e21235bbffa90",
+  "sourceDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "fixtureSha256": "53f959bdd86b852e4c239904ed0b81c0a851c054a7c4dec5e40bdb3f69cdf79a",
+  "lockfileSha256": "aac5523e1dee0e2b9761d58824e2158172b0476eaaf0f30b7cae80dac1590369",
+  "visualBundleSha256": "5176e2458e131eba34dbf207474b22d7d789ef03d719b68b3e6fad29ebc48da0",
+  "fixture": {
+    "font": "Arial, sans-serif",
+    "locale": "en-US",
+    "timezone": "UTC",
+    "deviceScaleFactor": 1,
+    "cssSnippets": "none",
+    "themes": "simulated fixed variables, not Obsidian themes"
+  },
+  "boundary": "Chromium simulated host. Not Obsidian GUI, real theme, mobile, or final Finder equivalence evidence.",
+  "screenshots": [
+    {
+      "name": "desktop-light-empty.png",
+      "scenario": "empty",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "cd8264bb7e1f4519ec5c4741f0cf49b1f04a3eb995fa86b2325e5c77768a772b"
+    },
+    {
+      "name": "desktop-light-find.png",
+      "scenario": "find",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "6c2746f2554e7d758656f781d6ac4a000bbbc460aa1cc82757b3800c7d14e101"
+    },
+    {
+      "name": "desktop-light-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "78ad291fe38f2b5ee3768cfe8cae6911458fa21b2fe499f89286c54b30f5a119"
+    },
+    {
+      "name": "desktop-light-replace.png",
+      "scenario": "replace",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "16fbac1fc8cd86f0c499e40fc549ae0fe9ee652ba4d65723a1d985683862191e"
+    },
+    {
+      "name": "desktop-light-docked.png",
+      "scenario": "docked",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "011532b2f8b3e51dfca208f4555f1f0edf05f861cafda2b40a204746770b5c94"
+    },
+    {
+      "name": "desktop-light-preview.png",
+      "scenario": "preview",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "06df3958f9891822d73460fb0fc075e220d18b6bfa3bef7495f28cb12b5e1524"
+    },
+    {
+      "name": "desktop-light-history.png",
+      "scenario": "history",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "0e4e5a420865bfa132e2d04055fc3fcaca80a9261178b8592fc61121f629cfcf"
+    },
+    {
+      "name": "desktop-light-detail.png",
+      "scenario": "detail",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "c21f35ae1259596ea244c74cef1b26fe4327a0dc5ed3083043ea239170ecdf01"
+    },
+    {
+      "name": "desktop-dark-empty.png",
+      "scenario": "empty",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "7a560539479d6254ccf2750d1ee59e5d9f3f08a61b27f69791084dc5441587c8"
+    },
+    {
+      "name": "desktop-dark-find.png",
+      "scenario": "find",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "e8c1de6c94ecf5041a7a7c7239448cabd4ca830e6d1ee98ba86faa12db7d23de"
+    },
+    {
+      "name": "desktop-dark-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "fe8f36c42c3a9bde250414dd98811ef1683b7ed95c1e538e25d3e5987087b7bf"
+    },
+    {
+      "name": "desktop-dark-replace.png",
+      "scenario": "replace",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "326daf3e095962395cc865f54d3eeae0395d159bd51076e4c759fd7c49722483"
+    },
+    {
+      "name": "desktop-dark-docked.png",
+      "scenario": "docked",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "bfe6588dc46158dcfc83026e6d4832d5355d708d34854d43dc8efd2079107086"
+    },
+    {
+      "name": "desktop-dark-preview.png",
+      "scenario": "preview",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "3551fc33612a5d97a41ac8180e3117f5e9abe9c5d2187f437bfbfbb7e976b5f6"
+    },
+    {
+      "name": "desktop-dark-history.png",
+      "scenario": "history",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "43f2220c08d3be59f0511f3f3e6a03250990a6755bde18aa1a9ae2adf54dee5f"
+    },
+    {
+      "name": "desktop-dark-detail.png",
+      "scenario": "detail",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "be2dc079243040a0d31176b4f71bea6b20c4445bdb2d37d819af41b5dea5df9c"
+    },
+    {
+      "name": "mobile-layout-light-empty.png",
+      "scenario": "empty",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "88a84caf656f88eb256b3c4126fc9acb8306db290fe16e5bfecf51dccd8d4fb6"
+    },
+    {
+      "name": "mobile-layout-light-find.png",
+      "scenario": "find",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "4294f0ee0c2bb1a6a9e4c71aac343642b6d742709d1b7d13370a031af61fba53"
+    },
+    {
+      "name": "mobile-layout-light-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "f731766787b3e75b49a474d0240ef6ca00186f1ade853ea005dad3619ed770b9"
+    },
+    {
+      "name": "mobile-layout-light-replace.png",
+      "scenario": "replace",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "2a5c81e5a3e89eab3a87825e996c4068f40229d0419ac060c04ab26e943251f5"
+    },
+    {
+      "name": "mobile-layout-light-docked.png",
+      "scenario": "docked",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "5436536d7f7d3afaf1a5fecf87649d7c3fa1615eba92eae660b0daabb011b904"
+    },
+    {
+      "name": "mobile-layout-light-preview.png",
+      "scenario": "preview",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "ccccac4689d4053e01481f54d324de0b03cdc4e376219adf03348d20267a8cba"
+    },
+    {
+      "name": "mobile-layout-light-history.png",
+      "scenario": "history",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "0c092083a71fc2049f230c3407ebe454000a3068510b49ffeb6da43357a3a9c2"
+    },
+    {
+      "name": "mobile-layout-light-detail.png",
+      "scenario": "detail",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "787131db724bee4a057af41fe26a1e8ece2ade955af70eead2a7a5f9bc35bd9e"
+    },
+    {
+      "name": "mobile-layout-dark-empty.png",
+      "scenario": "empty",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "fe06eb9394ce4976a8159e6905d6c5ba1070aab71fdc3ea2a8e7d5a0313f19cd"
+    },
+    {
+      "name": "mobile-layout-dark-find.png",
+      "scenario": "find",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "951e1cefb895a0d67fbeb4338edcde1d3b008137e9154cba319f139552156933"
+    },
+    {
+      "name": "mobile-layout-dark-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "1ef7e0781a3f15ea4f024080f54d704b89a216b41802cfc6dc75264ea4fb16aa"
+    },
+    {
+      "name": "mobile-layout-dark-replace.png",
+      "scenario": "replace",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "ffe5f68f7e5aca9e54d43db842be985fc1d2a00869bb980cd22957660fd9285b"
+    },
+    {
+      "name": "mobile-layout-dark-docked.png",
+      "scenario": "docked",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "e401695e73e89c8ff760459a3b91b0eb1a348e3843479ad2c7c865d5c218f202"
+    },
+    {
+      "name": "mobile-layout-dark-preview.png",
+      "scenario": "preview",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "eebbe91760d272a99efc92e55eb60da13a36fdf6dd8fe0095acb927b52c61c22"
+    },
+    {
+      "name": "mobile-layout-dark-history.png",
+      "scenario": "history",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "e56eeecb90047cc876416c41fad6f0ed42b107777e848ad5c9c758b377051288"
+    },
+    {
+      "name": "mobile-layout-dark-detail.png",
+      "scenario": "detail",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "2656ca2aa3707a3c72d69c933edbc82cc4dd9e8ab10daebbd743d676a3c96beb"
+    }
+  ],
+  "checks": [
+    "production Finder in second realm: real Worker match/replacement, IME, live owner adoption and unmount"
+  ],
+  "browser": "153.0.8010.12",
+  "production": {
+    "productionWorkerMatch": true,
+    "productionWorkerReplacement": true,
+    "ownerRealm": true,
+    "ime": true,
+    "adoptedOwnerCreation": true,
+    "unmounted": true
+  },
+  "passed": true
+}

@@ -1,194 +1,132 @@
 # 架构与数据边界
 
-这里描述当前模块、数据流和依赖边界。产品行为见 [features](product/features.md) 和 [interactions](product/interactions.md)。
-
-下文保留的旧 `SearchBox.svelte` 操作符号现位于 `src/finder-session.ts`，模板／CSS 在 `src/SearchBox.vue`；其他旧 `.svelte` 路径对应同名 `.vue`。旧生命周期名 onDestroy／beforeUpdate 对应 onBeforeUnmount／onBeforeUpdate。当前模块图及下方依赖边界以 Vue 实现为准。
+这里描述当前源码事实；产品行为见 [features](product/features.md) 和 [interactions](product/interactions.md)，视觉接口见 [ui-baseline](product/ui-baseline.md)。检查命令及宿主验收边界见 [testing](testing.md)。
 
 ## 模块关系
 
+项目是模块化单体，没有全局 UI store、DI 容器或事件总线。
+
 ```text
-TextFinderPlugin                         加载、设置、错误与持久化
-├─ SettingTab                            原生 Obsidian／DOM 设置 UI、会话折叠与局部恢复
-│  └─ ToolbarPreview.vue                 无笔记行为的外观预览，复用 Toolbar
-│     color-picker.ts                    颜色草稿／确认壳，vanilla-colorful 提供交互
-├─ HistoryController                     共享历史、同步订阅通知
-├─ SettingsStorage                       独立快照、跨实例串行读写
-├─ AppearanceStyles                      各 Document 的显式颜色覆盖与清理
-└─ EditorSearch                          命令、视图归属、资源生命周期
-   ├─ MarkdownView → mountFinder         每视图查询会话与挂载
-   │  └─ SearchBox.vue                   DOM／输入／展示
-   │     ├─ finder-session.ts            owner 会话操作
-   │     ├─ Toolbar.vue × 2
-   │     └─ SearchStatus.vue
-   ├─ MarkdownView → ReadingSearch       阅读适配器
-   └─ HistoryModal.ts                    原生 Modal 容器
-      └─ HistoryModal.vue
-         ├─ HistoryList.vue
-         └─ HistoryDetail.vue
+main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
+ ├─ SettingsStorage                     原目录 data.json、跨重载读写队列
+ ├─ HistoryController                   精确文本历史、同步通知／异步保存
+ ├─ AppearanceStyles                    每 Document 的显式 CSS 覆盖
+ ├─ SettingTab → SettingsView           薄宿主壳、原生 Setting／DOM 与 Vue 预览
+ │               └─ SettingsController 类型化设置更新与通知策略
+ └─ EditorSearch                        workspace 事件、owner 资源及视图工厂
+     ├─ registerWorkspaceCommands       命令可用性及 owner 路由
+     ├─ OwnerRegistry<MarkdownView>     Finder／阅读／Worker／选区／监听／菜单
+     ├─ createFinderHost／EditorPort    owner-bound 能力与不透明身份
+     │   └─ mountFinder → FinderPanel → useFinderViewModel
+     │       ├─ createFinderSession     查询／范围／导航／替换编排
+     │       ├─ QueryLane               异步查询意图、取消及旧结果隔离
+     │       ├─ runReplacement          prepare → 单次 commit → rematch
+     │       └─ panel-presentation      DOM／焦点／IME／拖动／布局
+     ├─ ReadingSearch                   完整渲染正文索引、导航、高亮与范围
+     └─ HistoryModal → HistoryPanel     HistoryView 能力，不传插件实例
 ```
 
-依据：`src/main.ts:onload()`、`src/editor-extension.ts` 的资源 Map／`getFinder()`／`getReadingSearch()`／`openHistory()`、`src/HistoryModal.ts`、组件导入与模板。
+### 目录和依赖
 
-笔记菜单由 `EditorSearch` 管理：公开 `file-menu`（限定 more-options／leaf）及 `editor-menu`；阅读按 MarkdownView 注册正文 `contextmenu`，能力检测内部 `Menu.forEvent()` 合并宿主事件菜单，`readingMenus` 随模式／布局／卸载清理。`populatedMenus` WeakMap 去重，`openMenus` 在 onHide 释放且卸载隐藏，不全局 patch Menu。菜单回调保存 owner／文档身份，编辑保存 doc 与 ranges；阅读保存 DOM 数字边界、source／renderer、`ReadingSelectionTracker.stamp()` 修订标记。新 `findInCapturedSelection()` 与原选区命令共享 activateScope，`findSelectedText()` 明确清范围后填查询，不增加持久化或命令 ID。原生阅读填词仅通过 owner 控件 DOM，并保留既有原生打开策略。
+- `src/core/search/`：纯匹配、范围、替换模板、业务类型和 Worker 协议。无 DOM／Vue／宿主依赖。
+- `src/features/finder/`：`model` 保存工具栏与查询身份，`application` 定义 ports 和用例，`interaction` 管 DOM 效果，`ui` 连接 Vue。
+- `src/features/reading/dom/`：明确依赖 DOM 的正文索引、数字端点、选区跟踪、覆盖层和阅读协调器；不伪装成纯领域算法。
+- `src/features/history/`：纯历史模型／控制器、窄 HistoryView 契约和列表／详情组件。
+- `src/features/settings/`：持久化 DTO、规范化、更新策略及控件／草稿／预览。设置 DTO 引用历史和工具栏公共模型，反向功能不导入设置服务。
+- `src/platform/`：Obsidian 私有能力检测／存储／日期、CodeMirror 文档与事务／高亮、浏览器 Worker 传输。
+- `src/app/`：连接具体宿主和功能，唯一允许同时知道插件、owner、适配器和视图工厂的装配层。
+- `src/shared/`：资源释放、跨功能纯几何、owner renderer／DOM action／TextRun；不依赖具体业务。
+- `src/i18n/`：资源、键类型及语言初始化；宿主 locale 由装配层读取。
+- `src/styles/`：公开变量、高亮与共享视觉 primitives；组件局部样式随 SFC 编译。
 
-## 状态归属与数据流
+`.dependency-cruiser.cjs` 检查包括类型依赖的循环、core／shared 纯度、app 反向引用、model／application 宿主导入、跨功能私有路径和 platform 挂载 UI。功能间只经 `index.ts`／`ui.ts` 等显式入口协作，不使用全仓库 export-star。反例回归：`tests/integration/architecture-boundaries.test.mjs`。TypeScript／Vite／Vitest 共用 `@/` 别名，模块内部可用短相对路径。
 
-没有全局 UI Store。`createFinderSession()` 每次创建独立状态；`FinderRuntime` 注入浅响应式对象、DOM 提交等待及挂载清理，控制器不导入 Vue。`SearchBox.vue` 连接该端口，用 computed 派生展示状态；cache／options 分别浅响应式，不代理 Editor、CodeMirror doc、MarkdownView 或 Window。历史继续由原控制器同步通知。
+## 状态归属与 Finder 数据流
 
-| 状态 | 所属／证据 |
+每次 `createFinderSession()` 创建独立的、完整类型初始化的 `FinderState`。Vue 通过 `useFinderViewModel()` 注入浅响应式、nextTick 和生命周期；cache／options 分别浅响应式，大匹配数组不深度代理。应用层不导入 Vue、Obsidian、CodeMirror 或 DOM 类型。
+
+| 状态／资源 | 所属 |
 | --- | --- |
-| 查询／替换／选项、可见性／折叠、匹配／索引 | `src/SearchBox.svelte` 的 `cache` |
-| 贴边状态／临时位置 | `src/SearchBox.svelte:docked`，`src/finder-position.ts` 的 owner 局部坐标；不属于查询身份、不持久化 |
-| 历史浏览、暂存输入、连续使用周期 | `src/history.ts:HistoryNavigation` 及组件的 `lastRecordedSearch`／`currentSearch` |
-| 匹配上下文、查询身份、阅读／编辑定位请求代次 | `src/SearchBox.svelte` 的 `matchedContext`／`matchedQuery`／`readingRequest`／`positionRequest` 等 |
-| 菜单、焦点、状态提示延迟／定位 | `src/Toolbar.svelte`、`src/SearchStatus.svelte` |
-| 设置与共享历史 | `src/main.ts:settings`、`src/history.ts:HistoryController` |
-| 历史选择／详情 | `src/HistoryModal.svelte:selectedTexts`／`viewingItem` |
-| Finder、适配器、监听与模式观察器 | `src/editor-extension.ts:EditorSearch` 的各 Map |
-| 自动入口应用过的 owner／文件、被动入口状态 | `EditorSearch.entryFiles` WeakMap 与 `SearchBox.svelte:passiveEntry`；不持久化，同文件双分屏独立 |
-| 阅读索引、端点、请求、计时器及 Document 高亮所有权 | `src/reading-search.ts:ReadingSearch` 和文档级 `documents` WeakMap |
+| 查询、替换、选项、可见／折叠、当前项、结果、历史浏览周期 | Finder 会话及 `HistoryNavigation` |
+| 待执行查询和累积导航方向、接受的 promise、matcher 能力 | `QueryLane`，不放进 Vue state |
+| 范围身份、代次、失效保护 | `application/search-scope.ts`；数字范围由 EditorPort 或 ReadingPort 提供 |
+| 替换阶段与提交后重算／定位结果 | `replacement-operation.ts` 和会话，提交后失败不得重放 |
+| DOM refs、IME、面板焦点／菜单／手势、尺寸／位置 | `useFinderViewModel`、`panel-presentation` 及 interaction 控制器 |
+| 原始 MarkdownView／Editor／CodeMirror doc／文件对象 | app 和 `platform/codemirror/finder-editor.ts`；通过稳定 token 和 DocumentSnapshot 提供身份 |
+| 设置、共享历史及保存可读性封锁 | 插件装配、SettingsController、HistoryController、SettingsStorage |
+| 历史选择／详情、迟到复制意图 | `HistoryPanel.vue`，精确文本 keyed identity |
+| 阅读索引／端点／等待／绘制和 Document 高亮所有权 | `ReadingSearch`、`reading-text.ts`、`reading-overlay.ts` |
 
-自动入口定位：`SearchBox.svelte:showFloatingEntry()` 同步设置收起可见性后，在 `tick()` 后按面板 intent／文件／Document／被动状态校验再 `refreshPlacement()`，不调用 reset／focus／匹配。移动端收起 CSS 不使用完整框居中 transform，收起定位只保留 opacity 过渡。`finder-position.ts:measure()` 在 owner 或节点无法测量时清除旧 geometry，但保留 `markerEdge`／`marker`／`manual` 意图，复用 ResizeObserver 与窗口／VisualViewport 监听在恢复可见时重新定位；没有新增计时器、持久化字段或跨视图状态。
+宿主只持有 `FinderCommands` 和挂载生命周期，不获取 session.state／内部事件／原始编辑器。`finderCommands()` 显式挑选命令，`FinderPanel.vue` 只暴露该对象。真实组件、纯端口及渲染边界分别有回归，不因默认 Vue mount 成功就推定跨窗口安全。
 
-编辑链路：输入／操作 → `setFindText()` → 原文匹配 → 校验 owner／文档／查询 → CodeMirror effect／选择／滚动。文档变化立即清旧高亮，重算后再提交新结果。依据：`src/SearchBox.svelte` 的上下文方法、`src/search-highlight.ts:textMatchMarker`。
+### 查询与导航
 
-选区范围：`src/search-scope.ts:searchScopeField` 保存锁定范围及用户选择候选，`finderSelection` Annotation 排除导航产生的选择，`searchScopeEffect` 明确设置／清除范围；范围通过 changes 映射，`searchScopeDecoration` 绘制独立装饰。`SearchBox` 管理范围 owner／窗口、代次和失效写入保护；`queryKey()` 包含范围及代次。范围不放进 `SearchOptions`、历史或持久化设置。`MatchRequest.ranges` 为纯数字快照，undefined 表示全文，空数组表示禁止匹配；Worker／同步 helper 共用范围扫描，Worker 解码及提交前都检查完整包含。自身提交后更新任务的范围查询身份，仍校验纯查询身份和范围代次，防止重入修改被误接受。
+输入 → `setFindText()` → 编辑／阅读路由 → 捕获查询、范围与 owner 身份 → 计算 → 校验当前身份 → 发布结果／导航。编辑发布绑定不可变 doc，正文变化先清旧高亮。`QueryLane` 使用 idle／pending 可辨识状态；同查询追加导航意图，收起面板只暂停定位，过期 promise 不发布。文件、编辑器、文档、模式、Window token、查询和范围代次分别校验，不合并成一个全局序号。
 
-查找执行：`tools/vite-build.mjs:embeddedSources()` 将 `src/match-worker.ts` 和原始 `text-helper.ts` 打包为自包含源码字符串，嵌入 `main.js`，运行时通过 Blob URL 在所属 Window 创建 Worker；无需额外安装 Worker 文件。生产及测试复用该 Vite 子构建，旧 esbuild 适配已删除。`MatchEngine` 每个 owner／模式独立，空闲线程复用，忙碌取代时 terminate。输入传全文／查询／选项，回包传请求 ID 和可转移 Float64 坐标，不增加 32-bit 偏移上限。真实宿主对象不传给 Worker：编辑在完成时检查具体 Editor／CodeMirror doc／文件／窗口，阅读检查请求／renderer／全文就绪／DOM index／Document，并消费待定 MutationRecords。
+`scrollToMatch()` 保留同步和异步宿主定位时序；模式切换可能重建编辑器，完成后须重新校验，过期请求不得提交 selection。无匹配不滚动。保存历史不是导航的一部分，不等待磁盘。
 
-`MatchEngine` 初始化 ready 前不发送查询，初始化失败才自动同步降级；执行中故障不重放。没有有效查询执行超时。关闭／卸载及窗口 pagehide／beforeunload 移除监听、计时器、Worker 和 URL。阅读 DOM 索引和端点仍同步。替换复用同一通道和 helper；Worker 返回完整匹配坐标及目标 changes，主线程验证候选数量／坐标／插入类型，再校验实际不可变 doc 身份，单事务提交。单次只展开目标模板，全部才展开全部，无额外正则重验证。
+`showFloatingEntry()` 只显示被动收起入口，不聚焦、不匹配旧查询。布局提交后的修正再次校验 panel intent、文件和 Document；手动位置不重置。展开命令与点击使用不同的原有焦点策略，关闭契约见 interactions，不从内部方法名推导产品行为。
 
-编辑替换分成候选／提交／重算／定位阶段：`replaceInWorker()` 返回 `ReplaceResult | Promise<ReplaceResult>`，Promise 完成时可检查 `changed` 是否实际提交；已提交结果的 `navigationCompletion` 覆盖后续匹配及宿主定位。完成后再次校验请求代次、查询／索引、可见性及文件／编辑器／文档身份，再提交选区并决定单次替换的额外前进。自身提交触发的同步宿主通知不重入；提交后的错误只提示“替换已完成”，重试不重复写入。重建编辑器仅后台重算，过期请求不再定位；无法取消宿主内部已启动的模式切换。无 Worker 的同步兼容路径仍保留。
+### 替换安全
 
-阅读链路：查询 → 检测私有渲染器／Highlight 能力 → 等待全文就绪 → 渲染 DOM 索引 → 精确查询匹配 → 稳定数字端点 → 挂载后临时 Range／Document 高亮注册表 → UI 回调。请求过期即拒绝发布。依据：`src/reading-text.ts`、`src/reading-search.ts`。
+同步兼容路径和 Worker 路径都从本次原文快照准备候选，不能复用隐藏面板的旧坐标。全文正则上下文及模板展开在 `core/search/text-matching.ts`，单次只展开目标模板，全部才展开全部；没有二次正则切片验证或递归替换模板。
 
-历史链路：操作 → 控制器同步更新设置／通知 → 组件刷新 → 异步保存快照。排序后的选择以精确文本为身份；保存不控制 UI 导航。依据：`src/history.ts:commit()`／`subscribe()`、`src/HistoryModal.svelte`。
+`runReplacement()` 是同步兼容与 Worker 共用的 prepare → 单次 commit → rematch 用例；会话提供 owner／查询有效性和导航效果，不维护另一条同步写入实现。提交前校验文件／Editor／EditorView／doc、模式、窗口、查询／替换输入及范围代次；`EditorPort.commit()` 在 CodeMirror 边界再次校验原始身份并一次 dispatch。自身提交期间的同步宿主通知不得重入取消或重放。
 
-本地化由 i18next 初始化英文／简体中文资源，以 Obsidian `moment.locale()` 将连字符映射为下划线后选择语言，英文 fallback；没有插件自身的语言切换设置。日期格式化也使用宿主 moment。依据：`src/i18n/index.ts`、`src/HistoryList.svelte`、`src/HistoryDetail.svelte`。
+`ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示提交后重算及定位完成；后续失败只提示“已替换但定位失败”，不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
 
-### 选区外观与轮廓
+### Worker
 
-选区呈现扩展：范围 mark 带 `data-nya-scope`，独立 `scopeOutlineLayer` 在 CodeMirror 测量阶段收集已渲染的 mark 矩形；`src/scope-outline.ts:scopeOutline()` 用水平扫描合并矩形、抵消内部边，只输出外轮廓 SVG path。marker 使用 owner Document 创建，不借用活动编辑器；边框禁用不读取 mark 几何。各 layer 订阅 `nya-scope-style-change` 请求更新并在迁移／销毁清旧 Document 监听；几何更新沿用 CodeMirror layer 调度与清理。`previewScopeOutline()` 仅处理设置样例，释放 ResizeObserver／resize 监听。
+`tools/vite-build.mjs:embeddedSources()` 将 `platform/browser/match-worker.ts` 和相同纯算法打包成字符串，内嵌 main.js。每 owner／模式的 `MatchEngine` 使用 owner Window 的 Blob Worker；空闲复用，忙碌取代 terminate。ready 前不提交查询；仅启动不可用自动同步兼容，执行失败不自动重放。没有新增语法黑名单、查询执行期限或匹配硬上限。
 
-`appearanceColors` 增加可选 `scopeBackground`／`scopeBorder`；`scopeAppearance` 保存 `{border:boolean,width:1|2|3}`，默认 false／1，严格规范化且旧数据默认无边框。默认 CSS 背景／边框色继续继承主题，显式色／已启用宽度由 `AppearanceStyles` 按 Document 发布变量。它们是外观偏好，不进入匹配查询身份、Worker 或替换候选；设置分组重置不重置实际范围。旧字段／命令不变。
-
-轮廓测量先合并同视觉行相邻 mark 矩形，再由 `paddedScopeOutlines()` 分轴计算视觉外扩：左右仅半线宽、内缘贴近测得字符边界；上下为 2px + 半线宽，保留约 2px 内侧净距。若与断开的同范围片段或其他范围接近，则沿分离轴限制该范围的外扩，左右紧间隙不再同时压缩上下留白；不同范围相交／接触时仍保守清零两轴。该参数不写 DOM 文本样式、不变更 StateField 数字坐标。统一的两行设置预览订阅同一 style-change 请求，粗细变更重测净距，销毁释放监听。`scopeStyles()` 用 `hidden` 关联组控制边框色／粗细，关闭保留数据并结束子面板，背景色独立；不新增持久化字段。
-
-`src/editor-geometry.ts` 统一 layer origin、可见源码行枚举及 `lineBlockAt`／`coordsAtPos` 检查：仅处理可见源码，拒绝替换／折叠块和不可用测量。正文轮廓先 `measureScopeRects()`／`normalizeScopeRects()` 合并文字行，再由 `src/scope-geometry.ts:addScopeBlankLines()` 根据 StateField 精确范围补选中空白行的桥接矩形，最后统一 padding／并集。桥接不进入视觉行归一化，避免高连接矩形把首尾文字压成大框；其他范围或歧义 bidi 片段优先保持分离。设置静态样例不读取编辑器状态。
-
-`src/search-highlight.ts:textMatchMarker` 保留原 DecorationSet、文档身份及写入失效规则，通过 provide 附加 `newlineMatchLayer`。layer 遍历可见源码行，用原 mark 覆盖关系判定真实换行是否匹配，测量行末并绘制 owner Document 的无文本 marker（CSS `↵`），不另存匹配数组、不改变计数或编辑 selection。旧宿主无 layer 保留文字高亮。资源随 CodeMirror layer 清理，无新计时器或 Document 监听。
+协议只传纯文本、选项、数字范围及请求 ID，结果用 Float64 可转移坐标；不传宿主对象或施加 32-bit 坐标上限。范围 undefined 是全文，[] 是禁止匹配；解码及提交前都验证候选完整包含。关闭／迁移／pagehide／卸载释放 Worker、Blob URL、监听及启动计时器。阅读 DOM 索引、事务和绘制仍在主线程，不能宣称所有工作均可取消。
 
 ## 阅读索引与高亮机制
 
-阅读范围及换行扩展：`reading-selection.ts` 的 owner tracker 在 Finder 懒创建之前捕获节点＋数字边界；`ReadingTextIndex.points` 保存元素子节点边界，span 反向映射文本端点，折叠空白向内收紧。索引 `breaks` 区分 hard／text／block／barrier 并记录前后锚点，保留既有逻辑字符串，不把保护边界或末尾合成字符当独立可导航换行。
+`platform/obsidian/preview-renderer.ts:rendererFor()` 集中检测私有 renderer 形状，包含全部 sections、全文／渲染状态及挂载／定位能力。公开 preview API 无法列出虚拟移出的分块；能力缺失不能用局部视口冒充全文。正常打开不兼容时走既有原生降级，显式范围命令不静默扩大为原生全文。
 
-`ReadingSearch.setScope()` 仅接受就绪正文，范围快照绑定 file／renderer／Document／source／节点数字映射，`getScopeRanges()` 区分 undefined 全文与 [] 失效；范围代次进入请求 key 并传现有 MatchExecutor。重索引验证映射，虚拟移出同节点不失效，节点替换不猜测恢复。空查询有范围时仍走展示；错误清理 preserveScope 防止重试扩大范围。纯换行 ReadingMatch 用 break 锚点和 sections 导航，文字匹配端点保留原实现。
+同模块的 `capturePreviewBody()` 为菜单捕获较窄的正文／render stamp，不要求全文搜索能力；`event-menu.ts` 和 `editor-context.ts` 隔离私有事件菜单与 CodeMirror 实例探测。缺失／异常能力及过期快照由 `host-bridges.test.ts` 和 `finder-menus.test.mjs` 覆盖。
 
-`reading-overlay.ts` 在 owner body 建独立 fixed portal，避免污染 renderer Observer／索引；仅挂载节点创建临时 Range／测矩形，复用 `normalizeScopeRects()`／`paddedScopeOutlines()`，不强连段落未知空隙。scroll／ResizeObserver／font loadingdone／viewport／外观变更经 owner rAF 合并测量，disconnect 取消帧与监听。注册表增加低优先级 `nya-reading-scope`，仍按 Document／owner 汇总，不覆盖另一分屏。新状态不持久化，Worker 数据协议不变。
+- `ReadingSearch.ready()` 要求当前源数据、text／lastText 一致，解析／渲染结束且所有块就绪。等待有界检查和 onRendered 回调，默认 5 秒是渲染保护，不是正则执行期限。
+- `reading-text.ts` 建完整 DOM 逻辑字符串、span／元素边界和 breaks。偏移是 UTF-16 正文偏移，不是 Markdown 源码偏移。先排除明确子树再读取样式，仅 display:none 检查折叠正文例外；正文规则以 features 为准。
+- 不长期持有 DOM Range：保存节点和数字端点，仅挂载后创建 Range。虚拟同节点移出／挂回只重绘；节点替换、源／renderer／Document 变化令索引或范围失效。
+- 查询／选项可复用有效索引；MutationObserver 观察正文及离屏分块的相关文本／属性，导航前消费待处理 records；主题变化显式失效。
+- 阅读选区 tracker 在 Finder 懒创建前捕获候选；确认范围需要就绪全文，映射折叠空白向内收紧，排除端点拒绝。失效范围保持 [] 限制，不自动恢复全文。
+- 高亮注册表按 Document 合并视图所有权，范围／普通／当前项有独立优先级。关闭一个 owner 不清其他视图。`reading-overlay.ts` 在 owner body 创建非交互 portal，不污染正文索引；scroll／resize／字体／外观变更合并 owner rAF，销毁取消帧和监听。
+- 换行 breaks 区分 hard／text／block／barrier，保留既有正文字符串，保护边界／末尾合成字符不成为独立可导航换行。几何缺失不猜测坐标，段落／表格间未知空隙不强连。
 
-- 公共 preview API 无法枚举虚拟化移出的分块，适配器集中使用私有 `previewMode.renderer` 的 sections、渲染状态、`onRendered`、`showSection`、`applyScrollSection` 和 `updateVirtualDisplay`。能力与降级边界见 [compatibility](compatibility.md)。
-- 就绪要求 renderer 文本与 lastText／当前视图数据一致、解析和渲染结束、所有分块已渲染。索引读取包含离屏节点的完整分块 DOM，排除页眉／页脚；不额外重渲染整篇 Markdown，避免重复触发第三方处理器。
-- `ReadingTextIndex` 保存逻辑文本及文本 span 到节点内偏移的映射。实体已由 DOM 解码，逻辑偏移为 UTF-16，**不是 Markdown 源码偏移**；空白及边界规则见 [阅读模式正文](product/features.md#阅读模式正文)。
-- 索引先检查显式排除的元素，再读取 computed style；只有 `display:none` 才检查折叠正文例外。`hidden`／`aria-hidden` 及隐藏 visibility 仍优先排除，不缓存跨索引的样式或折叠结论。
-- 匹配保存文本节点和数字端点，不长期缓存可变 DOM Range。节点移出会使 Range 塌缩，重新挂载不会自动恢复；绘制只为挂载分块创建临时 Range，跨节点端点分开绘制以避开排除内容。
-- 索引和精确查询结果可缓存；端点按分块分组。纯分块挂载／移出只重绘，正文及相关属性变化使索引失效，不把滚动当成全文编辑。
-- 一个 MutationObserver 同时监听阅读根和离屏分块，相关属性为 `class`、`style`、`hidden`、`aria-hidden`、`open`；主题变化也失效。导航前消费待处理变更，避免异步通知尚未执行时复用旧索引。
-- 高亮注册表按 Document 合并视图所有权，普通匹配优先级 0、当前项 1；正常关闭只移除对应视图。窗口迁移重建所属文档的索引／高亮。视觉接口见 [ui-baseline](product/ui-baseline.md)。
-
-依据：`src/reading-search.ts` 的 `ready()`／`run()`／`watch()`／`paint()`／`updateRegistry()`；`src/reading-text.ts` 的索引类型／`readingMatchEndpoints()`。回归：`tests/reading-search.test.mjs` 的离屏计数、虚拟化、窗口迁移及端点测试。请求等待、导航和取消行为见 [interactions](product/interactions.md#阅读状态与错误)。
+回归：`tests/integration/reading-search.test.mjs`、`reading-scope.test.mjs`、`reading-commands.test.mjs` 和 `tests/unit/reading-index.test.mjs`。宿主实际滚动、虚拟化及绘制仍待实测。
 
 ## 持久化数据格式
 
-唯一类型定义是 `src/settings.ts:PluginSettings`；`SettingsStorage` 通过公开 DataAdapter 在原插件目录的 `data.json` 保存同一个 JSON 对象，没有独立 schema version。会话输入、匹配、可见性、菜单、历史选择集合不持久化。
+唯一 DTO 定义为 `features/settings/model/settings.ts:PluginSettings`。原插件目录 `data.json` 保存同一个 JSON 对象，无新增 schema version。会话查询、匹配、可见性、位置、实际范围、菜单、历史选择集合均不持久化。
 
-```ts
-interface PluginSettings {
-  clearAfterHidden: boolean;
-  enableInputHotkeys: boolean;
-  sourceModeWhenSearch: boolean;
-  moveCursorToMatch: boolean;
-  useSelectionAsSearch: boolean;
-  useEscapeCharInReplace: boolean;
-  enableHistory: boolean;
-  historyMaxCount: number; // integer，1–200
-  historySortOrder: "createdAt" | "count" | "lastUsedAt";
-  searchHistory: {
-    text: string;
-    createdAt: number;
-    lastUsedAt: number;
-    count: number;
-  }[];
-  searchToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
-  replaceToolbar: { id: ToolbarAction; placement: "inline" | "more" | "hidden" }[];
-  defaultRegexMode: boolean; // 新建 Finder 的初始正则选项
-  defaultCaseSensitive: boolean; // 新建 Finder 的初始大小写选项
-  defaultWholeWord: boolean; // 新建 Finder 的初始全字匹配选项
-  finderDockSide: "left" | "right"; // 历史兼容字段，无设置控件；不覆盖已有值
-  finderAutoDock: boolean; // 默认 false，拖动松手自动贴边
-  showFloatingFinderOnOpen: boolean; // 默认 false，打开笔记时显示无焦点的小图标
-  appearanceColors: Partial<Record<AppearanceColorKey, string>>; // 默认 {}，规范化 hex RGB/RGBA
-}
-```
+字段保持：
 
-`ToolbarAction` 及各栏有效动作以 `src/toolbar.ts` 为准，两个工具栏不是可任意混放动作的列表。时间戳为非负安全整数，次数为正安全整数，递增饱和在最大安全整数；文本不 trim。
+- 布尔偏好：`clearAfterHidden`、`enableInputHotkeys`、`sourceModeWhenSearch`、`moveCursorToMatch`、`useSelectionAsSearch`、`useEscapeCharInReplace`、`enableHistory`、`defaultRegexMode`、`defaultCaseSensitive`、`defaultWholeWord`、`finderAutoDock`、`showFloatingFinderOnOpen`。
+- `historyMaxCount`：1–200 的整数；`historySortOrder`：createdAt／count／lastUsedAt。
+- `searchHistory`：`{text, createdAt, lastUsedAt, count}[]`。精确文本身份、不 trim；时间戳为非负安全整数，次数为正安全整数并饱和递增。
+- `searchToolbar`／`replaceToolbar`：`{id: ToolbarAction, placement: inline|more|hidden}[]`；有效动作由 Finder 纯工具栏模型拥有。
+- `finderDockSide`：left／right，历史兼容字段，无设置控件，不覆盖合法值。
+- `appearanceColors`：八个已知键的可选规范化 hex RGB／RGBA；默认 {}，不写覆盖样式。
+- `scopeAppearance`：`{border:boolean, width:1|2|3}`，默认 false／1；关闭保留颜色／粗细。
 
-- `normalizeHistory()` 逐项校验旧字符串、旧 timestamp 对象和混合记录；精确重复文本合并最早创建、最近使用、最大计数。旧记录中已经裁掉的空白无法恢复。
-- `normalizeSettings()` 校验布尔／容量／排序，加载时裁剪超量历史；忽略未知字段，结果保持幂等，默认数组相互独立。属性顺序不构成数据迁移。
-- 退役字段 `useObsidianSearchInRead` 不再出现在类型、默认值或布尔白名单中，旧 true／false 均移除，触发既有 changed／串行保存路径；不修改其他合法设置及精确历史。阅读路由不再读取旧值，不兼容降级及错误状态的原生入口保留。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/reading-commands.test.mjs`。常规页跨视图恢复按钮及仅供其调用的 `resetFinderPositions()` 移除，单视图恢复命令 ID、组件恢复方法与键盘／右键路径保留。
-- `sortHistory()` 按选定字段降序，再按最近使用时间、创建时间和精确文本形成稳定顺序；`trimHistory()` 用同一顺序保留容量内记录，不修改输入数组。
-- `normalizeToolbar()` 保留合法顺序、移除重复／外来动作、修复 placement、补齐缺失动作的默认配置。新增 `selection` 动作默认 `more`，旧完整默认布局迁移到新默认位置，自定义布局只在末尾补缺，不重排已有配置；只有动作布局持久化，实际范围不保存。
-- 默认选项独立于工具栏布局持久化，只接受布尔值；旧数据缺失时补为 false，保持既有初始化行为。预览固定展开，无折叠／菜单状态，也不注册菜单监听。
-- `wholeWord` 属于每视图 `SearchOptions`，不持久化当前手动值；仅持久化 `defaultWholeWord`。编辑 `queryKey()` 和阅读 `Request.key` 均包含它，Worker 请求复制完整选项，查找／替换／同步重试最终复用 `text-helper.ts:isWholeWordMatch()`。阅读在全文逻辑索引上判定，不以文本节点切分；切换只重算匹配而复用有效索引。`normalizeToolbar()` 将精确旧默认以及上一版末尾追加全字的默认布局迁移到新默认顺序；其他布局仍保留合法顺序／placement 并补齐缺失动作。无历史自定义标记，无法区分人为设置成精确旧默认与历史默认，两者均按默认迁移。
-- `createFinderPosition()` 使用独立 CSS `translate` 保留原有 transform／top／right 和公开定位接口，只在会话中保存 owner 相对位置。观察 owner／面板尺寸、所属 Window／VisualViewport 变化；拖动监听在结束、取消、隐藏、收起、销毁时清理，安全区探针和 Observer 在销毁时释放。移动不触发查找／保存；`nya-finder-position` 事件让 More／状态提示重新定位。
-- 自动贴边方向为局部会话值；历史 `finderDockSide` 保留但不再有配置控件，`finderAutoDock` 默认关闭。`finder-position.ts` 分离完整框 manual 和紧凑标记 marker／markerEdge，标记自由位置不被后台更新吸回边缘；缓存几何，pointermove 只更新最新坐标，requestAnimationFrame 合并写入 translate，pointerup 刷新最终坐标；只有布局／视口变化重新测量。无长按计时，捕获、待绘制帧、click 抑制和候选随生命周期清理；替换是否可收起由组件回调校验。`mobile-toolbar.ts` 搬移已有常驻 DOM 节点，More 不搬；`Toolbar.svelte:beforeUpdate` 数据变化前归还节点以保证 keyed 生命周期。
-- 移动长按与拖动：`SearchBox.svelte:dragToMove()` 向 `createFinderPosition.start()` 传入移动端 held-click 抑制标志，控制器仅记录所属 Window 的 `performance.now()` 并在 cleanup 比较 500ms，不设长按启动计时器。`dockMenu()`／拖动入口 contextmenu 处理器在移动端阻止菜单并调用 `suppressClick()`；拖动与长按复用同一 WeakSet／700ms 过期清理，新 pointerdown 解除该目标旧 click 抑制，detail 0 键盘 click 不吞。生命周期继续释放已有 click 清理计时器／指针监听，无新增全局事件或持久化字段。
-- 移动手势所有权：`createFinderPosition.start(event, mobileGesture)` 在移动端有效按下后阻止冒泡、立即尝试捕获；会话 pointermove／up／cancel 使用 owner Document 捕获阶段，cleanup 按相同 capture 参数移除，桌面仍用原冒泡路径。`SearchBox.svelte:dragToMove()` 另维护局部 touch identifier，仅入口 touchstart 安装临时 Document touchmove（capture／non-passive）及 end／cancel 保护，位置始终只由 Pointer Events 计算。两套会话分别按原事件结束／取消释放，避免 Android pointerup 先于 touchend 时漏出结束事件；隐藏／卸载／失焦／pagehide 清监听，Document 迁移清旧监听并在下次触摸重绑定。没有常驻全局触摸拦截或坐标持久化。
-- `showFloatingFinderOnOpen` 只接受布尔值，旧数据补 false。常规页启用时调用 `syncFloatingEntries()`；EditorSearch 初始化及文件／活动视图／布局事件按 owner 和文件路径去重应用，关闭 leaf 删除记录。`showFloatingEntry()` 只同步可见／收起和模式，不调用聚焦或匹配；`passiveEntry` 阻止后台刷新搜索旧查询，显式输入／导航／展开再激活。入口点击通过 `activateFloatingFinder()` 共用阅读降级，而非直接绕过宿主策略。
-- `SearchBox.svelte:focusInput()` 统一查询／替换输入焦点目标；小图标展开及替换命令等待 `tick()`，重新校正位置后使用 `focus({ preventScroll: true })`。捕获面板 intent、文件、模式和 Document 后校验，销毁或更新意图即失效；无计时器／帧监听需要额外释放。非收起态查询打开仍同步聚焦，绑定更新后仅补选中。替换入口不再先聚焦查询。
-- 移动结果栏使用左计数／中央手柄／右 `.nya-mobile-actions` 三列，`.nya-mobile-inline` 仍为原跨容器节点迁移目标，不重建 Toolbar 按钮。结果栏及单行框基础高 40px，`FinderPlacement.toolsHeight` 移动 fallback 同步为 40，优先读取实际 offsetHeight；动作换行后整个顶部栏仍被纳入可达范围，ResizeObserver 继续观察其高度。移动面板自然高度及显式输入尺寸不修改共享桌面／预览 primitives。
-- `appearanceColors` 仅接受 `focusBorder`、`accentStrip`、`matchBackground`、`matchText`、`currentMatchBackground`、`currentMatchText`。`normalizeColor()` 接受 3／4／6／8 位十六进制，展开简写并转小写、不透明 alpha 归并为 RGB；未知／非法值丢弃，旧数据缺失时补 `{}`，不产生额外样式覆盖。`src/appearance.ts` 定义键与既有公开变量映射。
-- `SettingsStorage.write()` 排队前序列化快照；按 App 和数据路径共享读写队列。注册表通过 Symbol 存在共享 realm 中，插件模块重载仍复用；新实例读取排在旧实例所有已接受写入之后。失败只拒绝该操作，不阻塞后续任务。
-- `read()` 用 `stat()` 区分文件不存在和权限异常，再读取并解析 JSON，不依赖可能吞异常的宿主 JSON 包装。卸载关闭旧实例入口，但已接受写入继续完成；`flush()` 可用于验证，不宣称同步卸载或宿主强制退出会等待它。
-- 读取失败启用默认内存状态并禁止写入；修复后重载，临时内存修改不会与重新读取的数据合并。保存失败不回滚，下次修改尝试保存最新快照，没有自动后台重试或强制退出落盘保证。
+`normalizeHistory()` 校验旧字符串／timestamp 对象及混合项，重复精确文本合并最早创建、最近使用和最大计数。`normalizeSettings()` 校验、裁剪并保持幂等及独立默认数组；忽略未知字段，退役的 useObsidianSearchInRead 删除后沿既有 changed 路径保存。工具栏仅对精确历史默认布局迁移，自定义合法顺序／placement 保留，新动作补默认值。
 
-依据：`src/history.ts`、`src/settings.ts`、`src/toolbar.ts`、`src/settings-storage.ts`、`src/main.ts`。回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/settings-storage.test.mjs`。旧 `SaveQueue` 不再用于生产设置写入，保留其独立算法测试。
+`SettingsController` 是设置 UI 更新入口：同步修改／通知后请求保存，不暴露可写设置给 SettingsView。分组恢复只影响该组；颜色草稿仅在局部预览，应用才更新。HistoryController 同步更新与订阅通知，异步保存不阻塞导航；成功复制后 existing-only 统计，迟到完成不复活删除项。
 
-## 生命周期
+`platform/obsidian/settings-storage.ts` 通过公开 stat／read／write 区分不存在、权限、损坏 JSON 和写入错误。按 App／路径的队列通过共享 realm Symbol 跨模块重载复用；排队前独立 JSON 快照，新实例 read 排在旧实例已接受写入之后。失败不阻断后续任务。卸载关闭新请求，但已接受任务继续；flush 不代表宿主退出会等待。
 
-`src/ui/mount.ts:mountView()` 每次挂载创建独立 app 与唯一 idPrefix，通过 Vue 公开 createRenderer API 定制 owner-bound HTML／SVG／文本／静态节点创建；实时读取 target.ownerDocument，adopt 后新节点不借用初始化窗口。独立注释锚点限定根插入范围，不增加布局 wrapper，保持原父节点几何；destroy 幂等卸载并移除锚点。组件样式统一进入宿主加载的 styles.css。
+读取失败用默认内存状态启动并封锁保存，不能覆写已有磁盘数据；修复后重载不合并临时修改。保存失败不回滚，下次请求保存最新快照，没有自动后台重试或强制退出落盘保证。回归：`settings-storage.test.mjs`、`main-settings.test.mjs`、`history-contracts.test.mjs`、`settings-controller.test.ts`。
 
-`src/ui/dom-action.ts` 将 DOM 资源接到 directive 的 mounted／updated／beforeUnmount，释放位置控制器、Observer、事件与组合输入状态。`Toolbar.vue:onBeforeUpdate()` 在列表重排前归还搬移节点，避免 keyed patch 与移动溢出控制器争夺父节点。
+## 生命周期与视觉边界
 
-`onLayoutReady()` 在插件仍有效且尚未初始化时创建 EditorSearch 并注册高亮扩展；异步设置加载后也检查卸载状态。Finder 挂到所属 `view.containerEl`。workspace 编辑、文件、活动视图、布局、主题事件驱动刷新。模式变化监听 `data-mode`；关闭 leaf 清理 Finder、适配器和监听，插件卸载调用 `destoryAll()`。
+`OwnerRegistry` 按具体 MarkdownView 懒创建资源，读取选区不预建完整 Finder／Worker；同路径分屏独立。释放时记录保留到清理结束，避免 Finder 清理失去 reading 资源。`Disposables` 逆序、幂等并聚合异常，某资源失败不跳过其他资源。workspace／插件公开 dispose 与宿主 onunload 适配；迟到 layout 回调不重建卸载对象。Modal 关闭销毁视图并取消订阅，workspace 卸载关闭全部已跟踪弹窗和菜单。
 
-阅读资源按所属 Document 创建，`clear()`／`destroy()` 释放 Observer、计时器、端点映射和高亮所有权，并使迟到的请求回调失效。
+`shared/ui/mount-view.ts` 使用 Vue 公开 createRenderer 与 owner-bound 创建操作，实时读取 target.ownerDocument，HTML／SVG／静态节点均不借用初始化 Document。每次挂载独立 app／idPrefix，注释锚点隔离插入范围，不增加布局 wrapper。TextRun 保留相邻文本节点分段，避免 kerning 差异。DOM actions 负责 Observer／事件／计时器资源，Toolbar 在 onBeforeUpdate 归还移动节点再进行 keyed patch。
 
-历史 Modal 由 EditorSearch 跟踪，卸载主动关闭；`onClose()` 销毁组件并移除跟踪，组件取消历史订阅，迟到复制成功不再统计。真实宿主窗口表现仍需实测。
+CodeMirror 范围通过 StateField／changes 映射，finderSelection annotation 排除导航选择。轮廓测量仅处理可见源码，拒绝折叠／替换块及歧义 bidi；纯 `shared/geometry/scope-outline.ts` 合并矩形、去内部缝，分轴限制外扩。同范围完整可见空白行通过 `scope-geometry.ts` 补桥，不扩数字写入范围。newline layer 只绘制实际匹配换行的非文本 ↵，不改排版、计数或剪贴板；旧宿主无 layer 保留文字高亮。
 
-颜色样式不重算查询／移动当前项，只更新公开变量。主窗口、布局就绪／变化时的已有 leaf Document、`window-open` 新窗口及设置 owner Document 注册到 `AppearanceStyles`；`window-close`／`pagehide` 清对应资源，卸载清所有样式和监听，迟到布局回调不重建资源。未覆盖的颜色通过 computed color 探针显示继承值；不改写宿主 style。设置页显示名称改为“外观”，保留内部 `toolbar` 分类 ID／翻译键以免不必要的标识变化。
+AppearanceStyles 按 Document 注入显式变量，window-close／pagehide／卸载移除；继承值以 owner computed color 探针显示。调色器用生产内嵌 owner-window 工厂，库拖动监听随断开／release 清理。SettingsView 统一释放预览、草稿、select 和拖动资源。容器名称使用所属 Document 有效的 aria-labelledby，真实控件保留必要提示。
 
-`src/color-picker.ts` 仅维护单项草稿、局部预览帧、确认／取消及焦点；不持有插件设置或保存队列。`SettingTab` 在应用回调才写设置与全局样式；`clearPreview()` 先销毁选择器，恢复草稿变量、取消帧，再销毁预览。库代码通过 `tools/color-picker-build.mjs`／`virtual:color-picker` 打包为 owner-window 工厂（无 eval／CDN），提供正确 realm 的 HTMLElement、Document、Window、CustomEvent，并跟踪库的拖动监听；元素断开或主动 release 清自己的 Document 监听。版本化私有 custom element 名称注册可重载复用；默认样式留在库 Shadow DOM。颜色转换及手势不自行实现。
-
-`SettingTab.section()` 统一颜色、搜索选区、搜索工具栏、替换工具栏四个分组的折叠标题和独立恢复按钮；`collapsed` Set 默认包含四个分组，仅在本次设置访问中使用，隐藏后重置为全部折叠，不进入持久化字段。`reset()` 校验当前页面、预览存活及触发器归属，先取消调色／拖动，再直接沿用原分组保存路径并立即发统一 2 秒 Notice，不等待磁盘写入、不额外保存，不持有恢复确认 Modal；折叠不保存。非操作容器通过实例唯一标题 ID 的 `aria-labelledby` 保留读屏名称，避免宿主的 `aria-label` 自动悬浮提示；More 面板引用所在 Toolbar 的独立触发器 ID。
-
-`src/settings-select.ts:createSettingsSelect()` 为外观位置选择提供原生 DOM select-only combobox，独立管理当前值／临时导航、owner Document 列表与监听，不持有插件配置或保存队列。`SettingTab` 提供有效性校验及单次提交路径，统一跟踪控制器；各栏 `render()` 销毁旧控件，`clearPreview()` 在切页／隐藏／卸载时销毁全部控件。关闭列表仅移除弹层与临时监听，销毁另移除触发器事件；旧列表事件通过实例身份检查失效。菜单／调色／拖动相互关闭，不引入新配置字段或依赖。
-
-下拉接口提供 `size?: "sm" | "md"` 和 `width?: "content" | "fill"`，默认 sm／content。所有选项在 aria-hidden 的 Grid 测量占位中叠放，使隐藏分组内也能按内容布局，不增加测量 Observer；触发器限于容器宽度。portal 每次打开读取 owner Window 的 computed 字体及局部尺寸变量、复制到列表，按触发器实测宽度并限制视口；尺寸变量仅为组件内部实现，不纳入 body 的公开 CSS／Style Settings 默认值表。
-
-依据：`src/editor-extension.ts`、`src/reading-search.ts` 的 `watch()`／`clear()`／`destroy()`、`src/HistoryModal.ts:onClose()`、`src/HistoryModal.svelte:onDestroy()`。
-
-## 依赖与耦合边界
-
-生产 UI 已采用 Vue 3。独立 Vue 迁移探针已删除，有效检查并入真实组件与 `tests/browser.mjs`，不维护另一套简化 Finder。正式、组件及实验构建使用 Vite／Rolldown，Worker 和 owner-window 调色器仍内嵌，不增加运行时资源文件。图标使用同版本 Lucide Vue 包保留原路径／几何。
-
-| 分类 | 模块 | 边界 |
-| --- | --- | --- |
-| 框架无关业务 | `text-helper.ts`、`history.ts`、`settings.ts`、`constants.ts`、`toolbar.ts`、`save-queue.ts` | 算法／数据／通知语义不要求 Vue |
-| 框架无关但宿主耦合 | `settings-storage.ts`、`search-highlight.ts`、`editor-context.ts`、`reading-text.ts`、`reading-search.ts`、`obsidian-internal.ts`、`i18n/` | 仍需 CodeMirror、DOM、Obsidian 或私有 API |
-| owner 会话 | `finder-session.ts` | 无 Vue 导入；保留宿主、DOM／CodeMirror 耦合，以 FinderRuntime 注入状态／调度／清理 |
-| 设置 UI | `settings-tab.ts` | 原生 Obsidian Setting／DOM；以 mountView 更新／销毁 Vue 预览 |
-| 宿主集成 | `main.ts`、`editor-extension.ts`、`HistoryModal.ts`、`SearchBox.ts` | Finder 操作和 update／destroy 为边界，不依赖组件私有实例 |
-| Vue 展示与 DOM 适配 | `.vue`、`ui/mount.ts`、`ui/dom-action.ts` | Composition API、显式输入／IME、scoped styles、owner-bound renderer |
-| 工具链 | 官方 Vue Vite 插件、vue-tsc、`tests/vue-components.mjs`、`tests/bundle-source.mjs` | 真实组件和纯控制器测试分开，不将宿主替身当实机证据 |
-
-**维护约束：**业务编排位于 `finder-session.ts`，但展示仍影响焦点、事件、DOM 搬移、异步布局和清理，修改任一层均须核对操作语义及安全不变量。依据：`src/SearchBox.ts:mountFinder()`、`src/SearchBox.vue`、`src/finder-session.ts`、`src/editor-extension.ts` 的 owner Map 和调用点。
+模拟宿主／jsdom／Chromium 截图都不等于 Obsidian、主题、Android 或 iOS 验收；完整检查方法和平台证据口径见 [testing](testing.md) 与 [compatibility](compatibility.md)。

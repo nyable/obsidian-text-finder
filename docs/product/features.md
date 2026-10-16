@@ -10,7 +10,7 @@
 
 菜单按所属视图路由，打开时不创建 Finder／启动匹配；选择操作保存菜单打开时的选择，正文或 owner 身份变化后拒绝过期操作。阅读右键依赖可检测的内部 `Menu.forEvent()` 合并宿主菜单，缺失时不另建菜单；纯正文保留复制选中文字，链接仍贡献其原有菜单。实机及移动端菜单呈现待验收。
 
-依据：`src/editor-extension.ts` 的 `registerCommand()`／`getFinder()`、`src/SearchBox.svelte` 的 `setFindText()`／`prepareReplacement()`；使用说明见 `README-zh_CN.md`。
+依据：`src/app/workspace-commands.ts:registerWorkspaceCommands()`、`src/app/workspace-runtime.ts:getFinder()`、`src/features/finder/application/finder-session.ts` 的 `setFindText()`／`replaceMatches()`；使用说明见 `README-zh_CN.md`。
 
 | 命令 ID | 能力 | 目标 |
 | --- | --- | --- |
@@ -36,17 +36,17 @@
 - 正则使用 JavaScript `RegExp`，flags 为 `g`、正则模式下的 `m` 和大小写不敏感时的 `i`。没有单独 flags 输入；全字匹配可与正则组合。
 - 全字匹配默认关闭，在共享匹配循环中按 VS Code 默认 `editor.wordSeparators` 过滤完整匹配的两端，不改写正则、捕获组或 UTF-16 坐标。首尾、空格／Tab／CR／LF 和默认 ASCII 分隔标点构成边界；匹配自身首尾的分隔符也满足对应边界。下划线、全角标点、NBSP、中文及组合标记不作为分隔符，不执行中文分词。例如 `cat` 匹配 `cat-dog` 但不匹配 `cat_name`，`中文` 不匹配 `中文内容`，`C++` 匹配 `C++17`。编辑／阅读／替换及 Worker／同步路径共用判定。
 - 空查询、空正文、无结果、无效正则均返回空匹配；零宽匹配不计数、不替换。无效正则当前没有独立语法错误界面。
-- 编辑模式下匹配包含真实换行时，在每个已匹配换行的行尾绘制非交互 `↵`（RTL 镜像），空白行也可见；沿用普通／当前匹配颜色。不把软折行或无换行的文末标记出来，连续换行属于一次匹配时计数仍为一项。只改变展示，不插入字符、修改排版或替换坐标；阅读模式不添加源码换行标记。依据：`src/search-highlight.ts:newlineMatchLayer`、`tests/editor-whitespace.test.mjs`。
+- 编辑模式下匹配包含真实换行时，在每个已匹配换行的行尾绘制非交互 `↵`（RTL 镜像），空白行也可见；沿用普通／当前匹配颜色。不把软折行或无换行的文末标记出来，连续换行属于一次匹配时计数仍为一项。只改变展示，不插入字符、修改排版或替换坐标；阅读模式不添加源码换行标记。依据：`src/platform/codemirror/search-highlight.ts:newlineMatchLayer`、`tests/integration/editor-whitespace.test.mjs`。
 - 单次替换和全部替换基于当前原文重新计算。全部替换通过一个 CodeMirror changes 事务提交，不递归处理新插入文本。
 - 单次替换只展开目标模板，不预先创建所有候选插入文本；不限制既有捕获、前缀／后缀或转义能力。
 - 正则替换支持 `$1`–`$99`、`$<name>`、`$&`、`$$`、原文前缀 `` $` `` 和后缀 `$'`；遵循 JavaScript 模板语义。
 - 正则模式且转义设置开启时，替换输入单次解析 `\n`、`\t`、`\\`；未知转义、末尾反斜杠和真实 NUL 保留。普通文本替换不展开美元模板或反斜杠转义。
 
-依据：`src/util/text-helper.ts` 的 `findTextMatches()`／`prepareReplacements()`／`expandReplacement()`；`src/SearchBox.svelte` 的 `adjustReplaceText()`／`replaceText()`。回归：`tests/text-helper.test.mjs`、`tests/regex-replacement.test.mjs`、`tests/replacement.test.mjs`。
+依据：`src/core/search/text-matching.ts` 的 `findTextMatches()`／`prepareReplacements()`／`expandReplacement()`；`src/features/finder/application/finder-session.ts` 的 `adjustReplaceText()`／`replaceMatches()`、`replacement-operation.ts`。回归：`tests/unit/text-matching.test.mjs`、`regex-replacement.test.mjs`、`tests/integration/replacement.test.mjs`。
 
-全字边界依据：`src/util/text-helper.ts:isWholeWordMatch()`；上游对照 [VS Code `isValidMatch()`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/model/textModelSearch.ts) 和 [`USUAL_WORD_SEPARATORS`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/core/wordHelper.ts)。这是默认边界规则对照，不表示整个正则引擎／flags 与 VS Code 完全一致。
+全字边界依据：`src/core/search/text-matching.ts:isWholeWordMatch()`；上游对照 [VS Code `isValidMatch()`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/model/textModelSearch.ts) 和 [`USUAL_WORD_SEPARATORS`](https://github.com/microsoft/vscode/blob/3fd165bbb0d1dcafd9e3df36c3aa26474c6ecb85/src/vs/editor/common/core/wordHelper.ts)。这是默认边界规则对照，不表示整个正则引擎／flags 与 VS Code 完全一致。
 
-多行边界细节：CR／LF 在匹配范围外时形成边界；若换行本身属于匹配首尾，不单凭该换行放行，需要继续满足外侧字符／正文首尾边界。回归见 `tests/text-helper.test.mjs` 的多行样例。
+多行边界细节：CR／LF 在匹配范围外时形成边界；若换行本身属于匹配首尾，不单凭该换行放行，需要继续满足外侧字符／正文首尾边界。回归见 `tests/unit/text-matching.test.mjs` 的多行样例。
 
 ## 精确选区查找／替换
 
@@ -55,9 +55,9 @@
 - 范围独立于当前选择，导航不重捕获；正文用淡背景、不加下划线，启用以按钮激活态为准，不在计数旁增加状态文字。按钮在 More 中时，收起的 More 用强调色圆点提示内部模式开启，展开隐藏圆点且不使用模式激活配色，隐藏按钮则不另加标记；空／失效范围仍保持限制、选区按钮激活及恢复提示。编辑事务映射范围，生命周期失效及关闭后的隐藏替换均不得默默扩大为全文。
 - 匹配从每个范围起点在原文扫描，前后顾、锚点、全字边界及替换模板仍使用全文上下文；不是在切片上重新匹配。原范围外前缀的非重叠匹配不占用范围内起点，例如 `aaa` 中选后两个字符搜索 `aa` 可以命中。
 - 编辑范围使用源码／实时预览的源码坐标；阅读范围使用渲染正文逻辑坐标，两者不自动互转。范围不保存到设置或历史；同文件双分屏各自独立。
-- 可选轮廓为同一连续范围内完全选中且可见的普通空白行（含空格／Tab）补充连接区域；优先沿上下选中文字的共同宽度连接，无重叠时从测得的空白行插入点形成窄阶梯。不扩展为整行大框，不改变背景或实际范围；独立选区、折叠／隐藏源码和有歧义的 bidi 片段不强行相连。依据：`src/scope-geometry.ts:addScopeBlankLines()`。
+- 可选轮廓为同一连续范围内完全选中且可见的普通空白行（含空格／Tab）补充连接区域；优先沿上下选中文字的共同宽度连接，无重叠时从测得的空白行插入点形成窄阶梯。不扩展为整行大框，不改变背景或实际范围；独立选区、折叠／隐藏源码和有歧义的 bidi 片段不强行相连。依据：`src/platform/codemirror/scope-geometry.ts:addScopeBlankLines()`。
 
-依据：`src/search-scope.ts`、`src/util/text-helper.ts:findTextMatches()`、`src/SearchBox.svelte:findInSelection()`／`scopeRanges()`、`src/match-engine.ts`。回归：`tests/search-scope.test.mjs`、`tests/match-engine.test.mjs`、`tests/search-box-dom.test.mjs`；宿主实际范围绘制／输入选区仍需实测。
+依据：`src/platform/codemirror/search-scope.ts`、`src/core/search/text-matching.ts:findTextMatches()`、`src/features/finder/application/search-scope.ts`／`finder-session.ts:findInSelection()`、`src/platform/browser/match-engine.ts`。回归：`tests/integration/search-scope.test.mjs`、`match-engine.test.mjs`、`tests/component/finder-panel.test.mjs`；宿主实际范围绘制／输入选区仍需实测。
 
 ## 阅读模式正文
 
@@ -72,7 +72,7 @@
 - 不承诺任意第三方动态输出、伪元素文字、图片、Canvas 或 iframe 内容的全文兼容。
 - 不支持环境回退原生查找；渲染失败／超时提供重试和原生入口。
 
-依据：`src/reading-text.ts` 的 `excluded`／`indexReadingText()`、`src/reading-search.ts` 的 `run()`、`src/editor-extension.ts` 的 `showFinder()`。索引与端点机制见 [architecture](../architecture.md#阅读索引与高亮机制)。
+依据：`src/features/reading/dom/reading-text.ts` 的 `excluded`／`indexReadingText()`、`reading-search.ts:run()`、`src/app/workspace-runtime.ts:showFinder()`。索引与端点机制见 [architecture](../architecture.md#阅读索引与高亮机制)。
 
 ## 历史与工具栏
 
@@ -83,11 +83,11 @@
 - 搜索／替换工具栏分别支持顺序及 `inline`（常驻）、`more`（更多）、`hidden`（隐藏）；隐藏按钮不移除命令能力。
 - 支持拖动、上下按钮、手柄方向键排序和单栏恢复默认；关闭按钮与展开替换入口固定。
 - “外观”设置页顶部固定完整实时纯展示预览，下方颜色及工具栏配置独立滚动；颜色、搜索选区、搜索栏按钮、替换栏按钮四个分组可独立折叠，默认全部折叠，预览始终展开两行，无任何操作。分类 Tab 提供悬停、选中、按下及键盘聚焦样式。每个按钮使用独立配置块，左侧整高拖动区，上层身份／排序、下层显示位置／默认开关；正则、大小写及全字匹配项支持默认开启。分组标题旁的回退图标提示“恢复默认设置”，点击直接恢复，仅作用于本组；搜索栏同时恢复布局及三个默认选项，替换栏仅恢复布局，不改变已有 Finder 或颜色。颜色整组和单项恢复也直接执行，无确认框，统一提示“已恢复默认设置”。
-- 外观页按钮显示位置使用主题化自定义下拉，支持鼠标／键盘、当前项勾选和视口边缘上翻；导航不修改配置，明确选择不同值才保存，保持现有显示位置含义。“默认开启”文字与开关采用局部居中布局；历史分类的排序下拉不变。依据：`src/settings-select.ts`、`src/settings-tab.ts`、`tests/settings-select.test.mjs`、`tests/main-settings.test.mjs`。
+- 外观页按钮显示位置使用主题化自定义下拉，支持鼠标／键盘、当前项勾选和视口边缘上翻；导航不修改配置，明确选择不同值才保存，保持现有显示位置含义。“默认开启”文字与开关采用局部居中布局；历史分类的排序下拉不变。依据：`src/features/settings/ui/settings-select.ts`、`settings-view.ts`、`tests/component/settings-select.test.mjs`、`tests/integration/main-settings.test.mjs`。
 - 预览查找词固定为 `text`，替换框无内容、显示 placeholder；下方仅一个两行英文正文区，同时展示一个当前匹配、两个普通匹配、首尾不齐的跨行选区及少量选区外文字。窄屏自然折行、高度自适应，复用编辑高亮的 CSS 类及颜色变量，不执行真实匹配。
 - 外观页提供聚焦边框／装饰条、普通匹配背景／文字、当前匹配背景／文字六项颜色；点击色块打开 vanilla-colorful 的颜色／色相／透明度面板，支持 alpha 十六进制输入。调色只更新预览草稿，点击“应用”才一次更新真实编辑／阅读样式及保存；取消或离开页面丢弃草稿。单项或颜色分组恢复移除覆盖，继续继承 CSS snippet／Style Settings／主题，不影响工具栏配置。
 
-依据：`src/history.ts`、`src/HistoryModal.svelte`、`src/HistoryList.svelte`、`src/Toolbar.svelte`、`src/settings-tab.ts` 的 `toolbar()`。
+依据：`src/features/history/model/history.ts`、`src/features/history/ui/HistoryPanel.vue`、`HistoryList.vue`、`src/features/finder/ui/FinderToolbar.vue`、`src/features/settings/ui/settings-view.ts:toolbar()`。
 
 ## 面板避让
 
@@ -103,13 +103,13 @@
 - 收起不是关闭，不执行清空输入或源码模式恢复；正常关闭仍遵守原契约。收起放弃尚未完成的导航意图但保留计算，后续命令导航仍可用。替换候选／提交后重算期间禁止收起；收起时执行替换命令先展开显示进度。
 - 位置限制在 owner 可见边界与 VisualViewport 的交集，考虑安全区；移动端以垂直避让为主，resize／键盘／视口滚动后重新约束。More 和状态提示随位置更新，菜单可上翻并限制尺寸。没有自动收起、惯性或宿主正文布局改写。
 
-依据：`src/finder-position.ts:createFinderPosition()`、`src/SearchBox.svelte:dockFinder()`／`expandFinder()`／`positionFinder()`、`src/reading-search.ts:pauseNavigation()`。回归：`tests/finder-position.test.mjs`、`tests/search-box-dom.test.mjs`；移动端软键盘与宿主几何仍待实测。
+依据：`src/features/finder/interaction/finder-position.ts:createFinderPosition()`、`panel-presentation.ts`、`src/features/finder/application/finder-session.ts:dockFinder()`／`expandFinder()`、`src/features/reading/dom/reading-search.ts:pauseNavigation()`。回归：`tests/unit/finder-position.test.mjs`、`tests/component/finder-panel.test.mjs`；移动端软键盘与宿主几何仍待实测。
 
 ## 设置语义
 
-默认值的唯一代码来源为 `src/settings.ts:defaultSettings()` 和 `src/toolbar.ts:defaultToolbar()`。
+默认值的唯一代码来源为 `src/features/settings/model/settings.ts:defaultSettings()` 和 `src/features/finder/model/toolbar.ts:defaultToolbar()`。
 
-旧版 `useObsidianSearchInRead` 已退役：不再提供控件或参与路由，归一化删除旧字段并沿用已有保存队列迁移，其他设置和精确历史不变。阅读正常统一使用插件，不兼容仍提示并回退，运行失败仍可手动打开原生查找。依据：`src/settings.ts:normalizeSettings()`、`src/editor-extension.ts:activateFloatingFinder()`；回归：`tests/history.test.mjs`、`tests/main-settings.test.mjs`、`tests/reading-commands.test.mjs`。
+旧版 `useObsidianSearchInRead` 已退役：不再提供控件或参与路由，归一化删除旧字段并沿用已有保存队列迁移，其他设置和精确历史不变。阅读正常统一使用插件，不兼容仍提示并回退，运行失败仍可手动打开原生查找。依据：`src/features/settings/model/settings.ts:normalizeSettings()`、`src/app/workspace-runtime.ts:activateFloatingFinder()`；回归：`tests/unit/history-contracts.test.mjs`、`tests/integration/main-settings.test.mjs`、`reading-commands.test.mjs`。
 
 | 设置页 | 字段 | 默认／语义 |
 | --- | --- | --- |
@@ -133,14 +133,14 @@
 | 外观 | `appearanceColors` | 默认 `{}`，仅保存显式设置的八项十六进制颜色（含选区背景／边框，支持 alpha）；空项目继续继承 CSS／主题 |
 | 外观 → 搜索选区 | `scopeAppearance` | 默认 `{ border: false, width: 1 }`；可选轮廓边框、粗细 1／2／3px，只改变呈现，不影响范围 |
 
-搜索选区有独立折叠分组与分组恢复：只清除 `scopeBackground`／`scopeBorder` 显式颜色并恢复边框开关／粗细，不改工具栏或匹配色；原颜色分组恢复不重置搜索选区。增加跨行预览，颜色草稿不写正文。轮廓从已渲染范围标记的矩形并集提取外边界，避免语法／匹配拆框及整体大矩形误导；分离多选区不连接，未渲染／空白片段不猜测整行边界。依据：`src/scope-outline.ts`、`src/search-scope.ts:scopeOutlineLayer`、`src/settings-tab.ts:scopeStyles()`、`src/appearance.ts`；宿主绘制待验证。
+搜索选区有独立折叠分组与分组恢复：只清除 `scopeBackground`／`scopeBorder` 显式颜色并恢复边框开关／粗细，不改工具栏或匹配色；原颜色分组恢复不重置搜索选区。增加跨行预览，颜色草稿不写正文。轮廓从已渲染范围标记的矩形并集提取外边界，避免语法／匹配拆框及整体大矩形误导；分离多选区不连接，未渲染／空白片段不猜测整行边界。依据：`src/shared/geometry/scope-outline.ts`、`src/platform/codemirror/search-scope.ts:scopeOutlineLayer`、`src/features/settings/ui/settings-view.ts:scopeStyles()`、`appearance-styles.ts`；宿主绘制待验证。
 
 搜索选区顺序为背景色、轮廓开关、关联边框色／粗细；仅开启边框才显示关联项，关闭保留取值并结束弹出面板／不可见焦点。外观页统一 32px 基础行高、8px 行间距及名称／操作列对齐，360px 窄宽采用上下布局；其他设置页不变。轮廓左右仅补偿半线宽、内缘贴近测得字符边界，上下保留约 2px 内侧视觉净距并考虑线宽；狭窄间隙按分离方向限制外扩，不增加留白设置、不改正文排版或允许写入坐标。依据：`scopeStyles()`、`paddedScopeOutlines()`、`src/styles/index.scss`。
 
-设置页控件是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现；预览挂载 `src/ToolbarPreview.svelte` 并复用 `src/Toolbar.svelte`。依据：`src/settings-tab.ts`。
+设置页控件是 Obsidian 原生 `PluginSettingTab`／`Setting` 和 DOM 实现；预览挂载 `src/features/settings/ui/ToolbarPreview.vue` 并复用 `src/features/finder/ui/FinderToolbar.vue`。依据：`src/app/settings-tab.ts`、`src/features/settings/ui/settings-view.ts`。
 
 ## 非能力
 
 没有实现阅读模式替换、跨行扩大整行或拖动调整面板宽度；`.nya-dragger` 注释不是产品承诺。未见跨 Vault 搜索或独立清空全部历史按钮。
 
-依据：`src/SearchBox.svelte` 的 `.nya-dragger`／范围逻辑、`src/editor-extension.ts:registerCommand()`、`src/HistoryList.svelte`。
+依据：`src/features/finder/ui/FinderPanel.vue` 的 `.nya-dragger`、`src/features/finder/application/search-scope.ts`、`src/app/workspace-commands.ts:registerWorkspaceCommands()`、`src/features/history/ui/HistoryList.vue`。

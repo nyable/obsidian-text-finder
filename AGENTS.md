@@ -22,7 +22,9 @@
 - 保留持久化字段、命令 ID、公开 CSS 类和变量、原生查找降级语义，除非获得明确变更授权。
 - 调整组件或插件生命周期时仍须释放订阅、事件、Observer、计时器及高亮所有权。
 
-依据：`src/editor-extension.ts` 的视图资源管理、`src/finder-session.ts` 的上下文校验／替换操作、`src/SearchBox.vue` 的展示、`src/ui/mount.ts` 的 owner-bound 渲染、`src/reading-search.ts`、`src/history.ts`、`src/main.ts`。
+入口：`src/app/` 装配与 owner 资源，`src/features/finder/application/` 会话／ports／替换，`src/features/finder/interaction/` DOM 效果，`src/features/reading/dom/` 阅读，`src/features/history/` 历史，`src/features/settings/` 设置；`src/shared/ui/mount-view.ts` 保证 owner-bound 渲染。按任务定位表见 development。
+
+依赖由 `.dependency-cruiser.cjs` 强制：core 纯算法，model／application 不依赖宿主／DOM，platform 只实现能力不挂载 UI；功能间经显式公共入口，不能反向取 app 服务。不要为过门禁引入万能 utils／services 或放宽规则。
 
 ## UI 命名与悬浮提示
 
@@ -31,17 +33,18 @@
 - 纯装饰／预览图标可用 `aria-hidden="true"`；真实操作控件与有意义的状态提示保留名称和必要说明，不为消除悬浮提示一刀切删除无障碍标签。
 - UI 变更须检查 `aria-label`、`title` 与 `setTooltip` 的提示范围及重复提示，并覆盖容器标签引用与真实控件名称回归；jsdom 标签检查不能代替 Obsidian 实机悬浮提示验收。
 
-依据：用户确认的“外观／设置分类”区域提示；`src/settings-tab.ts`、`src/color-picker.ts`、`src/Toolbar.vue`、`src/ToolbarPreview.vue`；具体规范与回归入口见 [development](docs/development.md#ui-命名与悬浮提示规范)。
+依据：用户确认的“外观／设置分类”区域提示；`src/features/settings/ui/settings-view.ts`、`color-picker.ts`、`ToolbarPreview.vue` 与 `src/features/finder/ui/FinderToolbar.vue`；具体规范与回归入口见 [development](docs/development.md#ui-命名与悬浮提示规范)。
 
 ## 工具与验证
 
 - Node 和 pnpm 版本以 `.node-version`、`package.json` 为准；依赖安装／更新使用 pnpm，不混用 npm 或 Yarn。
 - CodeMirror 由宿主提供；保留 Vite 的宿主 external 和 `pnpm-workspace.yaml` 的单版本约束。
 - 按变更范围运行测试、类型检查及构建；构建会写入 `dist/`，只读任务不要运行产物写入命令。
+- `pnpm verify` 是完整质量入口（包括浏览器 smoke）；Linux 严格视觉另用 `pnpm test:visual`。日常用 Vitest 目标套件，格式用 `pnpm format:check`，依赖用 `pnpm check:architecture`；不要自动接受截图差异。
 - 真实 Vue 组件测试与 TypeScript 控制器测试不同；jsdom 不能证明实机滚动、主题、高亮绘制或移动端兼容。宿主／CodeMirror 对象不得深度响应式代理；DOM 创建使用所属 Document，不借用默认 Vue renderer 的初始化 Document。
 - 报告实际执行的验证及阻塞原因；不能把未执行或加载失败写成通过。不要为消除阻塞擅自修改依赖或宿主环境。
 
-依据：`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`.github/workflows/ci.yml`、`tests/source-loader.mjs` 和 `docs/testing.md`。
+依据：`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`vitest.config.mjs`、`playwright.config.mjs`、`.github/workflows/ci.yml` 和 `docs/testing.md`。
 
 ## 知识维护
 

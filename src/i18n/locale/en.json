@@ -1,191 +1,218 @@
 {
-  "plugin": {
-    "name": "Text Finder"
-  },
-  "search": {
-	"menu": {
-		"OpenFind": "Text Finder: Open find",
-		"FindSelectedText": "Text Finder: Find selected text",
-		"FindInSelection": "Text Finder: Find in selection",
-		"CopySelection": "Copy selected text",
-		"CopyFailed": "Could not copy the selected text.",
-		"SelectionChanged": "The note or selection context changed. Select the text and open the menu again.",
-		"NativeQueryUnavailable": "Native search opened, but the selected text could not be filled in automatically."
+	"plugin": {
+		"name": "Text Finder"
 	},
-	"SelectionRequired": "Select searchable text in this note before enabling Find in selection. Wait for reading view to finish rendering, if needed.",
-	"WorkerCompatibility": "Worker unavailable. Using synchronous compatibility mode; complex regular expressions may block the interface.",
-	"WorkerFailed": "Search execution failed. Retry in a Worker, or explicitly retry synchronously (complex regex may block the interface).",
-	"MatchPending": "Searching… Close or cancel to stop the Worker.",
-	"SynchronousRetry": "Retry synchronously (may block)",
-	"CancelSearch": "Cancel and close",
-	"ReplacementPending": "Preparing replacement… No edit has been applied yet; close or cancel to stop.",
-	"ReplacementRematching": "Replacement applied. Updating matches… Cancelling will not undo the edit.",
-	"ReadingPending": "Preparing search…",
-	"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
-	"StatusError": "Find is temporarily unavailable",
-	"EditorFailed": "Could not update the editor position or mode. Try again after the view is ready.",
-	"ReplacedNavigationFailed": "Replacement was applied, but positioning failed. Check the text before replacing again.",
-	"Retry": "Retry",
-	"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
-	"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
-	"UseNativeFind": "Use native find",
-	"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
-    "tip": {
-      "More": "More actions",
-      "MoveFinder": "Drag to move finder; arrow keys move, Home restores position",
-      "ResetFinderPosition": "Restore finder position",
-      "DockFinder": "Collapse finder to edge",
-      "ExpandFinder": "Expand finder",
-      "NoResults": "No results",
-      "HasResults": "{{current}} of {{total}}",
-      "ToggleReplace": "Toggle replace",
-      "MatchCase": "Match case",
-      "MatchWholeWord": "Match whole word",
-      "FindInSelection": "Find in selection",
-      "FindInSelectionUnavailable": "Find in selection (selection unavailable; select again and run Open find in selection, or turn off the scope)",
-      "MoreActive": "Active modes in More: {{modes}}",
-      "UseRegularExpression": "Use regular expression",
-      "PreviousMatch": "Previous match",
-      "NextMatch": "Next match",
-      "Close": "Close (Escape)",
-      "Replace": "Replace",
-      "ReplaceAll": "Replace all",
-      "FindPlaceholder": "Find",
-      "ReplacePlaceholder": "Replace"
-    }
-  },
-  "commands": {
-    "FindInSelection": { "name": "Open find in selection" },
-    "ShowFind": {
-      "name": "Open search in current file"
-    },
-    "ShowFindAndReplace": {
-      "name": "Open search & replace in current file"
-    },
-    "HideFind": {
-      "name": "Hide finder"
-    },
-    "ToggleReplace": {
-      "name": "Toggle replacer"
-    },
-    "ToggleFind": {
-      "name": "Toggle finder"
-    },
-    "PreviousMatch": {
-      "name": "Previous match"
-    },
-    "NextMatch": {
-      "name": "Next match"
-    },
-    "Replace": {
-      "name": "Replace in current file"
-    },
-    "ReplaceAll": {
-      "name": "Replace all in current file"
-    },
-    "ShowSearchHistory": {
-      "name": "Show search history"
-    }
-  },
-  "settings": {
-    "Tabs": { "label": "Settings categories", "general": "General", "find": "Find", "replace": "Replace", "history": "Search history", "toolbar": "Appearance" },
-    "Appearance": {
-      "colors": "Colors", "panel": "Finder", "match": "Other matches", "current": "Current match",
-      "focusBorder": "Focus border", "accentStrip": "Accent strip",
-      "matchBackground": "Background", "matchText": "Text",
-      "currentMatchBackground": "Background", "currentMatchText": "Text",
-      "scope": "Search selection", "scopeBackground": "Background", "scopeBorder": "Border color",
-      "scopeBorderEnabled": "Show selection outline", "scopeBorderWidth": "Border width",
-      "apply": "Apply", "cancel": "Cancel",
-      "saturation": "Color saturation and brightness", "hue": "Hue", "alpha": "Opacity",
-      "hexHint": "Hex color: #RGB, #RGBA, #RRGGBB or #RRGGBBAA",
-      "resetColor": "Restore inherited color: {{name}}"
-    },
-    "Toolbar": {
-      "search": "Search toolbar", "replace": "Replace toolbar",
-      "inline": "Toolbar", "more": "More", "hidden": "Hidden",
-      "drag": "Drag to reorder: {{name}}", "placement": "Placement: {{name}}",
-      "up": "Move up: {{name}}", "down": "Move down: {{name}}",
-      "moved": "Moved {{name}}", "reset": "Restore default settings", "resetDone": "Default settings restored",
-      "preview": "Preview",
-      "defaultsDesc": "Default options apply when a finder is first created for a Markdown view. Reopening, switching files or changing modes keeps your manual choices; existing finders are not changed.",
-      "defaultEnabled": "Enabled by default",
-      "defaultEnabledLabel": "Enabled by default: {{name}}"
-    },
-    "ClearAfterHidden": {
-      "name": "Clear search and replacement text",
-      "desc": "Clear the search and replacement text when closing the finder. Match options are retained."
-    },
-    "FinderDockSide": {
-      "name": "Finder collapse edge",
-      "desc": "Collapse the finder to this edge of its note view. Search and highlights remain active; expanding the tab does not open the keyboard.",
-      "left": "Left", "right": "Right"
-    },
-    "FinderAutoDock": {
-      "name": "Collapse when dragged to an edge",
-      "desc": "Drag the move control near either edge and release. For near-full-width panels, drag clearly left or right; vertical movement does not collapse the finder. Replacement progress stays expanded."
-    },
-    "ShowFloatingFinderOnOpen": {
-      "name": "Show floating search entry when opening notes",
-      "desc": "Show a compact search icon when opening Markdown notes, without searching or taking focus. Click to expand or drag to move; enabling this also applies to notes already open."
-    },
-    "EnableInputHotkeys": {
-      "name": "Enable input box hotkey",
-      "desc": "Press Enter in the search box to jump to the next match, or in the replace box to replace once."
-    },
-    "SourceModeWhenSearch": {
-      "name": "Force source code mode during search",
-      "desc": "Use source mode while searching, so content that cannot be shown directly in Live Preview can still be located."
-    },
-    "MoveCursorToMatch": {
-      "name": "Move the cursor to the matching item",
-      "desc": "Move the cursor and select the current match when searching."
-    },
-    "UseSelectionAsSearch": {
-      "name": "Use selected text as search text",
-      "desc": "Use the currently selected text as the query when opening Find."
-    },
-    "UseEscapeCharInReplace": {
-      "name": "Support escape characters in replacement input box",
-      "desc": "In regex mode, the replacement box supports \\n and \\t for a line feed and a tab."
-    },
-    "EnableHistory": {
-      "name": "Enable Search History",
-      "desc": "Record exact queries and usage, and navigate history with Up/Down. Disabling keeps existing history but stops recording and usage statistics."
-    },
-    "HistoryMaxCount": {
-      "name": "Max History Count",
-      "desc": "1–200 items. Confirm with Enter or by leaving the field; lowering the limit immediately removes lower-priority items according to the selected sort order."
-    },
-    "HistorySortOrder": {
-      "name": "History Sort Order",
-      "desc": "Choose the sort order for history list",
-      "options": {
-        "createdAt": "Sort by Creation Time",
-        "count": "Sort by Usage Count",
-        "lastUsedAt": "Sort by Last Used Time"
-      }
-    }
-  },
-  "history": {
-    "Length": "Length",
-    "Characters": "{{count}} chars",
-    "Title": "Search History",
-    "ClearAll": "Clear All",
-    "Delete": "Delete",
-    "Copy": "Copy",
-    "Empty": "No history",
-    "DeleteSelected": "Delete Selected",
-    "SelectAll": "Select All",
-    "UnselectAll": "Unselect All",
-    "Created": "Created",
-    "LastUsed": "Last Used",
-    "Count": "Count",
-    "Details": "Details",
-    "Back": "Back",
-    "LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
-    "SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
-    "CopyFailed": "Text Finder could not copy the history text. Usage was not updated.",
-    "ReuseFailed": "Open a supported Markdown editing or reading view before reusing search history."
-  }
+	"search": {
+		"menu": {
+			"OpenFind": "Text Finder: Open find",
+			"FindSelectedText": "Text Finder: Find selected text",
+			"FindInSelection": "Text Finder: Find in selection",
+			"CopySelection": "Copy selected text",
+			"CopyFailed": "Could not copy the selected text.",
+			"SelectionChanged": "The note or selection context changed. Select the text and open the menu again.",
+			"NativeQueryUnavailable": "Native search opened, but the selected text could not be filled in automatically."
+		},
+		"SelectionRequired": "Select searchable text in this note before enabling Find in selection. Wait for reading view to finish rendering, if needed.",
+		"WorkerCompatibility": "Worker unavailable. Using synchronous compatibility mode; complex regular expressions may block the interface.",
+		"WorkerFailed": "Search execution failed. Retry in a Worker, or explicitly retry synchronously (complex regex may block the interface).",
+		"MatchPending": "Searching… Close or cancel to stop the Worker.",
+		"SynchronousRetry": "Retry synchronously (may block)",
+		"CancelSearch": "Cancel and close",
+		"ReplacementPending": "Preparing replacement… No edit has been applied yet; close or cancel to stop.",
+		"ReplacementRematching": "Replacement applied. Updating matches… Cancelling will not undo the edit.",
+		"ReadingPending": "Preparing search…",
+		"ReadingPendingDetail": "Waiting for reading text to finish rendering.",
+		"StatusError": "Find is temporarily unavailable",
+		"EditorFailed": "Could not update the editor position or mode. Try again after the view is ready.",
+		"ReplacedNavigationFailed": "Replacement was applied, but positioning failed. Check the text before replacing again.",
+		"Retry": "Retry",
+		"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
+		"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
+		"UseNativeFind": "Use native find",
+		"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
+		"tip": {
+			"More": "More actions",
+			"MoveFinder": "Drag to move finder; arrow keys move, Home restores position",
+			"ResetFinderPosition": "Restore finder position",
+			"DockFinder": "Collapse finder to edge",
+			"ExpandFinder": "Expand finder",
+			"NoResults": "No results",
+			"HasResults": "{{current}} of {{total}}",
+			"ToggleReplace": "Toggle replace",
+			"MatchCase": "Match case",
+			"MatchWholeWord": "Match whole word",
+			"FindInSelection": "Find in selection",
+			"FindInSelectionUnavailable": "Find in selection (selection unavailable; select again and run Open find in selection, or turn off the scope)",
+			"MoreActive": "Active modes in More: {{modes}}",
+			"UseRegularExpression": "Use regular expression",
+			"PreviousMatch": "Previous match",
+			"NextMatch": "Next match",
+			"Close": "Close (Escape)",
+			"Replace": "Replace",
+			"ReplaceAll": "Replace all",
+			"FindPlaceholder": "Find",
+			"ReplacePlaceholder": "Replace"
+		}
+	},
+	"commands": {
+		"FindInSelection": { "name": "Open find in selection" },
+		"ShowFind": {
+			"name": "Open search in current file"
+		},
+		"ShowFindAndReplace": {
+			"name": "Open search & replace in current file"
+		},
+		"HideFind": {
+			"name": "Hide finder"
+		},
+		"ToggleReplace": {
+			"name": "Toggle replacer"
+		},
+		"ToggleFind": {
+			"name": "Toggle finder"
+		},
+		"PreviousMatch": {
+			"name": "Previous match"
+		},
+		"NextMatch": {
+			"name": "Next match"
+		},
+		"Replace": {
+			"name": "Replace in current file"
+		},
+		"ReplaceAll": {
+			"name": "Replace all in current file"
+		},
+		"ShowSearchHistory": {
+			"name": "Show search history"
+		}
+	},
+	"settings": {
+		"Tabs": {
+			"label": "Settings categories",
+			"general": "General",
+			"find": "Find",
+			"replace": "Replace",
+			"history": "Search history",
+			"toolbar": "Appearance"
+		},
+		"Appearance": {
+			"colors": "Colors",
+			"panel": "Finder",
+			"match": "Other matches",
+			"current": "Current match",
+			"focusBorder": "Focus border",
+			"accentStrip": "Accent strip",
+			"matchBackground": "Background",
+			"matchText": "Text",
+			"currentMatchBackground": "Background",
+			"currentMatchText": "Text",
+			"scope": "Search selection",
+			"scopeBackground": "Background",
+			"scopeBorder": "Border color",
+			"scopeBorderEnabled": "Show selection outline",
+			"scopeBorderWidth": "Border width",
+			"apply": "Apply",
+			"cancel": "Cancel",
+			"saturation": "Color saturation and brightness",
+			"hue": "Hue",
+			"alpha": "Opacity",
+			"hexHint": "Hex color: #RGB, #RGBA, #RRGGBB or #RRGGBBAA",
+			"resetColor": "Restore inherited color: {{name}}"
+		},
+		"Toolbar": {
+			"search": "Search toolbar",
+			"replace": "Replace toolbar",
+			"inline": "Toolbar",
+			"more": "More",
+			"hidden": "Hidden",
+			"drag": "Drag to reorder: {{name}}",
+			"placement": "Placement: {{name}}",
+			"up": "Move up: {{name}}",
+			"down": "Move down: {{name}}",
+			"moved": "Moved {{name}}",
+			"reset": "Restore default settings",
+			"resetDone": "Default settings restored",
+			"preview": "Preview",
+			"defaultsDesc": "Default options apply when a finder is first created for a Markdown view. Reopening, switching files or changing modes keeps your manual choices; existing finders are not changed.",
+			"defaultEnabled": "Enabled by default",
+			"defaultEnabledLabel": "Enabled by default: {{name}}"
+		},
+		"ClearAfterHidden": {
+			"name": "Clear search and replacement text",
+			"desc": "Clear the search and replacement text when closing the finder. Match options are retained."
+		},
+		"FinderDockSide": {
+			"name": "Finder collapse edge",
+			"desc": "Collapse the finder to this edge of its note view. Search and highlights remain active; expanding the tab does not open the keyboard.",
+			"left": "Left",
+			"right": "Right"
+		},
+		"FinderAutoDock": {
+			"name": "Collapse when dragged to an edge",
+			"desc": "Drag the move control near either edge and release. For near-full-width panels, drag clearly left or right; vertical movement does not collapse the finder. Replacement progress stays expanded."
+		},
+		"ShowFloatingFinderOnOpen": {
+			"name": "Show floating search entry when opening notes",
+			"desc": "Show a compact search icon when opening Markdown notes, without searching or taking focus. Click to expand or drag to move; enabling this also applies to notes already open."
+		},
+		"EnableInputHotkeys": {
+			"name": "Enable input box hotkey",
+			"desc": "Press Enter in the search box to jump to the next match, or in the replace box to replace once."
+		},
+		"SourceModeWhenSearch": {
+			"name": "Force source code mode during search",
+			"desc": "Use source mode while searching, so content that cannot be shown directly in Live Preview can still be located."
+		},
+		"MoveCursorToMatch": {
+			"name": "Move the cursor to the matching item",
+			"desc": "Move the cursor and select the current match when searching."
+		},
+		"UseSelectionAsSearch": {
+			"name": "Use selected text as search text",
+			"desc": "Use the currently selected text as the query when opening Find."
+		},
+		"UseEscapeCharInReplace": {
+			"name": "Support escape characters in replacement input box",
+			"desc": "In regex mode, the replacement box supports \\n and \\t for a line feed and a tab."
+		},
+		"EnableHistory": {
+			"name": "Enable Search History",
+			"desc": "Record exact queries and usage, and navigate history with Up/Down. Disabling keeps existing history but stops recording and usage statistics."
+		},
+		"HistoryMaxCount": {
+			"name": "Max History Count",
+			"desc": "1–200 items. Confirm with Enter or by leaving the field; lowering the limit immediately removes lower-priority items according to the selected sort order."
+		},
+		"HistorySortOrder": {
+			"name": "History Sort Order",
+			"desc": "Choose the sort order for history list",
+			"options": {
+				"createdAt": "Sort by Creation Time",
+				"count": "Sort by Usage Count",
+				"lastUsedAt": "Sort by Last Used Time"
+			}
+		}
+	},
+	"history": {
+		"Length": "Length",
+		"Characters": "{{count}} chars",
+		"Title": "Search History",
+		"ClearAll": "Clear All",
+		"Delete": "Delete",
+		"Copy": "Copy",
+		"Empty": "No history",
+		"DeleteSelected": "Delete Selected",
+		"SelectAll": "Select All",
+		"UnselectAll": "Unselect All",
+		"Created": "Created",
+		"LastUsed": "Last Used",
+		"Count": "Count",
+		"Details": "Details",
+		"Back": "Back",
+		"LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
+		"SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
+		"CopyFailed": "Text Finder could not copy the history text. Usage was not updated.",
+		"ReuseFailed": "Open a supported Markdown editing or reading view before reusing search history."
+	}
 }

@@ -13,12 +13,20 @@
 	resize: none;
 	height: 28px;
 	scrollbar-width: none;
-	&:focus { border: 1px solid var(--nya-focus-border-color); }
+	&:focus {
+		border: 1px solid var(--nya-focus-border-color);
+	}
 }
 
 @mixin button($active: true) {
-	width: 24px; height: 24px; margin: 2px; padding: 4px;
-	display: flex; justify-content: center; align-items: center; border-radius: 2px;
+	width: 24px;
+	height: 24px;
+	margin: 2px;
+	padding: 4px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	border-radius: 2px;
 	@if $active {
 		&--active {
 			border: 1px solid var(--nya-focus-border-color);
@@ -29,12 +37,21 @@
 }
 
 @mixin focus($keyboardOnly: false) {
-	&:hover { background-color: rgba(90, 93, 94, 0.31); }
+	&:hover {
+		background-color: rgba(90, 93, 94, 0.31);
+	}
 	@if $keyboardOnly {
-		&:focus:not(:focus-visible) { outline: none; }
-		&:focus-visible { outline: 2px solid var(--nya-focus-border-color); outline-offset: 1px; }
+		&:focus:not(:focus-visible) {
+			outline: none;
+		}
+		&:focus-visible {
+			outline: 2px solid var(--nya-focus-border-color);
+			outline-offset: 1px;
+		}
 	} @else {
-		&:focus { box-shadow: 0 0 0 1px var(--nya-focus-border-color); }
+		&:focus {
+			box-shadow: 0 0 0 1px var(--nya-focus-border-color);
+		}
 	}
 }
 

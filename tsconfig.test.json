@@ -1,0 +1,14 @@
+{
+	"extends": "./tsconfig.vue.json",
+	"compilerOptions": { "types": ["node", "vitest/globals"] },
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.vue",
+		"src/**/*.d.ts",
+		"tests/unit/**/*.ts",
+		"tests/component/**/*.ts",
+		"tests/integration/**/*.ts",
+		"tests/support/**/*.ts"
+	],
+	"exclude": ["node_modules"]
+}

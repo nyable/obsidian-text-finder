@@ -3,7 +3,10 @@ import { embeddedBundle } from "./vite-build.mjs";
 // Bundle the unregistered library base inside an owner-window factory. This
 // supplies the globals used by the library without eval or changing its code.
 export async function colorPickerModule({ watch = () => {} } = {}) {
-	const result = await embeddedBundle({ source: "export { HexAlphaBase } from 'vanilla-colorful/lib/entrypoints/hex-alpha';", name: "PickerLibrary" });
+	const result = await embeddedBundle({
+		source: "export { HexAlphaBase } from 'vanilla-colorful/lib/entrypoints/hex-alpha';",
+		name: "PickerLibrary",
+	});
 	for (const path of Object.keys(result.modules)) if (!path.startsWith("\0")) watch(path);
 	return `export function createColorPicker(doc) {
 		const window = doc.defaultView;
