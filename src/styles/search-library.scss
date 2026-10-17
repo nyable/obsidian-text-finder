@@ -174,9 +174,10 @@
 		gap: 6px;
 	}
 	.nya-history-item {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: start;
+		gap: 6px 8px;
 		padding: 10px 4px;
 		border-bottom: 1px solid var(--background-modifier-border);
 	}
@@ -207,23 +208,23 @@
 		box-shadow: none;
 	}
 	.nya-history-meta {
+		grid-column: 2 / -1;
 		display: flex;
+		justify-content: flex-end;
 		flex-wrap: wrap;
 		gap: 3px 10px;
 		width: 100%;
 		color: var(--text-muted);
-		font-size: var(--font-ui-smaller, calc(1em - 1px));
+		font-size: max(10px, calc(var(--font-ui-smaller, calc(1em - 1px)) - 1px));
 		font-weight: normal;
 		line-height: 1.5;
-		text-align: start;
+		text-align: end;
 		.nya-history-usage,
 		.nya-history-length {
 			white-space: nowrap;
 		}
 		.nya-history-time-combined {
-			margin-inline-start: auto;
-			text-align: end;
-			font-size: max(10px, calc(1em - 1px));
+			font-size: inherit;
 			max-width: 100%;
 			overflow-wrap: anywhere;
 		}
@@ -275,6 +276,17 @@
 		border: 0;
 		padding: 0 4px;
 	}
+	button.nya-icon-btn.nya-library-delete-icon {
+		color: var(--text-error);
+		&:hover,
+		&:focus-visible {
+			color: var(--text-error);
+			background: transparent;
+			svg {
+				stroke-width: 2.5;
+			}
+		}
+	}
 	.nya-history-empty {
 		color: var(--text-muted);
 		padding: 24px 0;
@@ -288,7 +300,7 @@
 		padding: 0 8px 0 0;
 		border: 1px solid var(--background-modifier-border);
 		border-radius: 8px;
-		background: var(--background-secondary);
+		background: transparent;
 		position: relative;
 	}
 	.nya-preset-item:hover,

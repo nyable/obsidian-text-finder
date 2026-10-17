@@ -152,6 +152,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 		});
 		const errors = [];
 		const assertSecondaryButton = async (button) => {
+			await page.mouse.move(0, 0);
 			const normal = await button.evaluate((element) => {
 				const style = getComputedStyle(element);
 				return {
@@ -200,8 +201,8 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						`${base}/?scenario=${scenario}&theme=${dark ? "dark" : "light"}&mobile=${mobile}`,
 					);
 					await page.waitForFunction(() => window.baselineReady === true);
-					// The minimal theme omits this host semantic color; supply it for detail evidence.
-					if (scenario === "detail")
+					// Supply the host semantic color for destructive-action evidence.
+					if (["detail", "history", "presets"].includes(scenario))
 						await page
 							.locator("body")
 							.evaluate((element) =>
@@ -240,12 +241,51 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 							`${scenario}: modal width not bounded`,
 						);
 					}
+					if (["history", "presets"].includes(scenario)) {
+						await page.mouse.move(0, 0);
+						const remove = page.locator(".nya-library-delete-icon").first();
+						const normal = await remove.evaluate((element) => ({
+							color: getComputedStyle(element).color,
+							stroke: getComputedStyle(element.querySelector("svg")).strokeWidth,
+						}));
+						assert.equal(normal.color, "rgb(214, 69, 69)");
+						await remove.hover();
+						const hovered = await remove.evaluate((element) => ({
+							color: getComputedStyle(element).color,
+							stroke: getComputedStyle(element.querySelector("svg")).strokeWidth,
+							background: getComputedStyle(element).backgroundColor,
+						}));
+						assert.equal(hovered.color, normal.color);
+						assert.ok(
+							parseFloat(hovered.stroke) > parseFloat(normal.stroke),
+							"delete icon lacks distinct hover feedback",
+						);
+						assert.equal(
+							hovered.background,
+							"rgba(0, 0, 0, 0)",
+							"delete icon adds a second hover background",
+						);
+						await remove.focus();
+						await page.keyboard.press("Tab");
+						await page.keyboard.press("Shift+Tab");
+						assert.equal(
+							await remove.evaluate(
+								(element) => getComputedStyle(element).outlineStyle,
+							),
+							"solid",
+						);
+						await remove.evaluate((element) => element.blur());
+						await page.mouse.move(0, 0);
+						report.checks.push(
+							`${scenario}: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background`,
+						);
+					}
 					if (scenario === "history") {
 						const row = page.locator(".nya-history-item").first();
 						const metadata = await row.evaluate((element) => {
 							const query = element.querySelector(".nya-history-text");
 							const meta = element.querySelector(".nya-history-meta");
-							const content = element.querySelector(".nya-history-content");
+							const actions = element.querySelector(".nya-history-actions");
 							const box = meta.getBoundingClientRect();
 							return {
 								usage: meta.querySelector(".nya-history-usage").textContent,
@@ -260,6 +300,20 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 									.querySelector(".nya-history-time-combined")
 									.getBoundingClientRect().right,
 								metaRight: box.right,
+								actionsRight: actions.getBoundingClientRect().right,
+								statStyles: [
+									".nya-history-usage",
+									".nya-history-length",
+									".nya-history-time-combined",
+								].map((selector) => {
+									const style = getComputedStyle(meta.querySelector(selector));
+									return {
+										font: style.fontSize,
+										weight: style.fontWeight,
+										color: style.color,
+									};
+								}),
+								justify: getComputedStyle(meta).justifyContent,
 								labelHidden:
 									getComputedStyle(meta.querySelector(".nya-library-sr"))
 										.clipPath === "inset(50%)",
@@ -273,8 +327,8 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 								font: parseFloat(getComputedStyle(meta).fontSize),
 								queryFont: parseFloat(getComputedStyle(query).fontSize),
 								weight: getComputedStyle(meta).fontWeight,
-								withinContent:
-									box.right <= content.getBoundingClientRect().right + 1 &&
+								withinRow:
+									box.right <= element.getBoundingClientRect().right + 1 &&
 									meta.scrollWidth <= meta.clientWidth + 1,
 							};
 						});
@@ -282,8 +336,20 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						assert.equal(metadata.length, `${metadata.queryLength} chars`);
 						assert.equal(metadata.time, "fixed relative time");
 						assert.ok(
-							metadata.labelHidden && metadata.timeFont < metadata.font,
-							"time label is visible or time font is not smaller",
+							metadata.labelHidden && metadata.timeFont === metadata.font,
+							"time label is visible or statistics have inconsistent font sizes",
+						);
+						assert.deepEqual(metadata.statStyles[0], metadata.statStyles[1]);
+						assert.deepEqual(metadata.statStyles[0], metadata.statStyles[2]);
+						assert.equal(
+							metadata.font,
+							11,
+							"history statistics should be one pixel smaller in this fixture",
+						);
+						assert.equal(metadata.justify, "flex-end");
+						assert.ok(
+							Math.abs(metadata.metaRight - metadata.actionsRight) <= 1,
+							"statistics do not reach the action column right edge",
 						);
 						assert.ok(
 							Math.abs(metadata.timeRight - metadata.metaRight) <= 1,
@@ -296,9 +362,38 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 							"history metadata competes with the query",
 						);
 						assert.ok(
-							metadata.withinContent,
+							metadata.withinRow,
 							"history metadata overflows the query/action columns",
 						);
+						if (mobile) {
+							await page.setViewportSize({ width: 360, height: 844 });
+							const wrapped = await row.evaluate((element) => {
+								const meta = element.querySelector(".nya-history-meta");
+								const time = meta.querySelector(".nya-history-time-value");
+								const original = time.textContent;
+								time.textContent = "最后使用于一段较长的本地化相对时间";
+								const box = meta.getBoundingClientRect();
+								const timeBox = time.getBoundingClientRect();
+								const values = {
+									fits: meta.scrollWidth <= meta.clientWidth + 1,
+									right: Math.abs(box.right - timeBox.right) <= 1,
+									wraps:
+										timeBox.top >
+										meta
+											.querySelector(".nya-history-usage")
+											.getBoundingClientRect().top +
+											1,
+								};
+								time.textContent = original;
+								return values;
+							});
+							assert.deepEqual(
+								wrapped,
+								{ fits: true, right: true, wraps: true },
+								"narrow statistics fail to wrap/right-align",
+							);
+							await page.setViewportSize({ width: 390, height: 844 });
+						}
 						await page.mouse.move(0, 0);
 						const before = await row.evaluate(
 							(element) => getComputedStyle(element).backgroundColor,
@@ -332,7 +427,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 							);
 						}
 						report.checks.push(
-							"history: single row hover; quiet usage and exact length, smaller right-aligned relative time with screen-reader-only label; wrapping inside content column",
+							"history: single row hover; uniformly styled statistics below query, grouped right alignment to action column; hidden time label and no horizontal overflow",
 						);
 					}
 					if (scenario === "detail") {
@@ -499,7 +594,10 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 							await grip.evaluate((element) => getComputedStyle(element).cursor),
 							"grab",
 						);
-						const targets = [".nya-preset-actions button", ".nya-library-new"];
+						const targets = [
+							".nya-preset-actions button:not(.nya-library-delete-icon)",
+							".nya-library-new",
+						];
 						for (const selector of targets) {
 							await page.mouse.move(0, 0);
 							const target = page.locator(selector).first();
@@ -524,6 +622,25 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						}
 						await page.mouse.move(0, 0);
 						const firstCard = page.locator(".nya-preset-item").first();
+						const surfaces = await firstCard.evaluate((element) => {
+							const frame = element.querySelector(".nya-recipe-finder");
+							return {
+								card: getComputedStyle(element).backgroundColor,
+								frame: getComputedStyle(frame).backgroundColor,
+								border: getComputedStyle(frame).borderTopColor,
+								values: [...element.querySelectorAll(".nya-recipe-value")].map(
+									(value) => getComputedStyle(value).backgroundColor,
+								),
+							};
+						});
+						assert.equal(surfaces.card, "rgba(0, 0, 0, 0)");
+						assert.equal(surfaces.frame, "rgba(0, 0, 0, 0)");
+						assert.equal(surfaces.border, "rgba(0, 0, 0, 0)");
+						assert.ok(
+							surfaces.values.length > 0 &&
+								surfaces.values.every((color) => color !== "rgba(0, 0, 0, 0)"),
+							"preset values lost their light background",
+						);
 						const baseSurface = await firstCard.evaluate(
 							(element) => getComputedStyle(element).backgroundImage,
 						);

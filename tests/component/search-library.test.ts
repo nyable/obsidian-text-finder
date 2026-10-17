@@ -87,6 +87,14 @@ function fixture(initialRecipe?: SearchRecipe) {
 }
 
 describe("unified search library", () => {
+	it("marks only the preset delete icon as destructive without losing its name", () => {
+		const h = fixture();
+		const remove = h.target.querySelector<HTMLButtonElement>(".nya-library-delete-icon")!;
+		expect(remove.getAttribute("aria-label")).toBe("history.Delete");
+		expect(remove.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+		expect(h.target.querySelectorAll(".nya-library-delete-icon")).toHaveLength(1);
+		expect(h.button("library.Edit").classList.contains("nya-library-delete-icon")).toBe(false);
+	});
 	it("keeps secondary and discard text actions distinct across editor, naming and close protection", async () => {
 		const h = fixture(recipe);
 		for (const key of ["settings.Appearance.cancel", "library.SaveAs"])

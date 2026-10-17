@@ -214,7 +214,7 @@ onBeforeUnmount(() => cancel?.());
 					<Pencil :size="16" aria-hidden="true" /></button
 				><button
 					type="button"
-					class="nya-icon-btn"
+					class="nya-icon-btn nya-library-delete-icon"
 					:aria-label="i18n.t('history.Delete')"
 					@click="emit('delete', item)"
 				>

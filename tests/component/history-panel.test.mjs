@@ -418,6 +418,12 @@ for (const sortOrder of ["createdAt", "lastUsedAt", "count"]) {
 		h.plugin.history.notify();
 		await tick();
 		const row = h.row(text);
+		assert.ok(
+			row
+				.querySelector('[aria-label="history.Delete"]')
+				.classList.contains("nya-library-delete-icon"),
+		);
+		assert.equal(row.querySelectorAll(".nya-library-delete-icon").length, 1);
 		assert.equal(row.querySelector(".nya-history-usage").textContent, "history.UsageCount: 28");
 		assert.equal(
 			row.querySelector(".nya-history-length").textContent,
@@ -437,6 +443,15 @@ for (const sortOrder of ["createdAt", "lastUsedAt", "count"]) {
 		assert.deepEqual(globalThis.__historyDates, [sortOrder === "createdAt" ? 0 : 9]);
 		assert.equal(row.querySelector(".nya-history-meta").hasAttribute("aria-label"), false);
 		assert.equal(row.querySelector(".nya-history-meta").hasAttribute("title"), false);
+		const meta = row.querySelector(".nya-history-meta");
+		assert.equal(meta.parentElement, row);
+		assert.equal(row.querySelector(".nya-history-content .nya-history-meta"), null);
+		assert.equal(
+			row.ownerDocument.getElementById(
+				row.querySelector(".nya-history-content").getAttribute("aria-describedby"),
+			),
+			meta,
+		);
 		assert.equal(row.querySelectorAll(".nya-history-content button").length, 0);
 		const before = row.querySelector(".nya-history-meta").textContent;
 		await h.action(text, "Copy");
@@ -449,6 +464,29 @@ for (const sortOrder of ["createdAt", "lastUsedAt", "count"]) {
 		assert.equal(row.querySelector(".nya-history-usage").textContent, "history.UsageCount: 29");
 	});
 }
+
+test("history metadata descriptions stay unique across modals and valid after reorder", async (t) => {
+	const first = mount(t);
+	const second = mount(t, "lastUsedAt", [], first.plugin);
+	const check = () => {
+		const ids = [];
+		for (const h of [first, second])
+			for (const row of h.rows()) {
+				const query = row.querySelector(".nya-history-content");
+				const id = query.getAttribute("aria-describedby");
+				ids.push(id);
+				assert.equal(document.getElementById(id), row.querySelector(".nya-history-meta"));
+			}
+		assert.equal(new Set(ids).size, ids.length);
+	};
+	check();
+	first.plugin.history.record("C");
+	await tick();
+	check();
+	await first.action("B", "Delete");
+	await tick();
+	check();
+});
 
 test("detail keeps complete statistics outside the query scroller and uses named text actions with a destructive delete", async (t) => {
 	const text = " 😀\n\t ";

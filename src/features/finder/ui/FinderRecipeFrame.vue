@@ -64,6 +64,8 @@ const noop = () => {};
 @use "../../../styles/finder-primitives" as finder;
 .nya-recipe-finder {
 	@include finder.surface;
+	background: transparent;
+	border-color: transparent;
 	display: flex;
 	width: 100%;
 	min-width: 0;
