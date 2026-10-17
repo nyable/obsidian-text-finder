@@ -32,6 +32,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 - `src/features/finder/`：`model` 保存工具栏与查询身份，`application` 定义 ports 和用例，`interaction` 管 DOM 效果，`ui` 连接 Vue。
 - `src/features/reading/dom/`：明确依赖 DOM 的正文索引、数字端点、选区跟踪、覆盖层和阅读协调器；不伪装成纯领域算法。
 - `src/features/history/`：纯历史模型／控制器、窄 HistoryView 契约和列表／详情组件。
+- `src/features/presets/`：可移植 SearchRecipe／独立 ID 的 SearchPreset、规范化、PresetController 及草稿表单；经公共入口向 Finder 提供配置，功能层不获取宿主对象。
 - `src/features/settings/`：持久化 DTO、规范化、更新策略及控件／草稿／预览。设置 DTO 引用历史和工具栏公共模型，反向功能不导入设置服务。
 - `src/platform/`：Obsidian 私有能力检测／存储／日期、CodeMirror 文档与事务／高亮、浏览器 Worker 传输。
 - `src/app/`：连接具体宿主和功能，唯一允许同时知道插件、owner、适配器和视图工厂的装配层。
@@ -105,7 +106,11 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 - 布尔偏好：`clearAfterHidden`、`enableInputHotkeys`、`sourceModeWhenSearch`、`moveCursorToMatch`、`useSelectionAsSearch`、`useEscapeCharInReplace`、`enableHistory`、`defaultRegexMode`、`defaultCaseSensitive`、`defaultWholeWord`、`finderAutoDock`、`showFloatingFinderOnOpen`。
 - `historyMaxCount`：1–200 的整数；`historySortOrder`：createdAt／count／lastUsedAt。
+- `historyRetention`：同三种优先级，但仅控制容量裁剪，独立于显示顺序；新安装 lastUsedAt，旧对象缺失时继承合法原 historySortOrder。创建时间策略保留为兼容选项。
 - `searchHistory`：`{text, createdAt, lastUsedAt, count}[]`。精确文本身份、不 trim；时间戳为非负安全整数，次数为正安全整数并饱和递增。
+- `searchPresets`：`{id, name, search, options:{regexMode,caseSensitive,wholeWord}, replacement:null|{text,interpretEscapes}, collapse, order, createdAt, updatedAt}[]`。独立 ID、不按查询去重；名称去首尾空白，规则／替换原文不 trim。`collapse` 独立表示替换行是否收起，不删除保存的替换值；旧对象缺失时按 replacement 是否为空推导。`order` 为持久化非负整数顺序，规范化连续编号；旧数据无顺序时以原名称排序迁移，之后列表不再按名称重排。时间戳 0 有效，坏条目与重复 ID 过滤；归一化只保留配置字段，不保存宿主坐标或对象。
+
+预设 UI 的 FinderRecipeFrame 仅共享 Finder 的表现原语／静态 FinderToolbar，固定展示保存的三个匹配选项，不接收全局 searchToolbar／replaceToolbar 布局；不挂载实时 Finder／匹配引擎，不提供文档操作。摘要将首行展示／实际行数与精确原文分开，读屏和应用保留全文，展示截断不写回模型。PresetList 拖动状态及 pointer／键盘／自动滚动仅在 UI 生命周期内，松手才发基于 ID 的 move 到 PresetController；取消不落盘，模型按最新集合解析边界。编辑与重命名保位，新建追加，删除快照的 order 只用于显式撤销时恢复近似原位置，不覆盖同 ID 新对象。
 - `searchToolbar`／`replaceToolbar`：`{id: ToolbarAction, placement: inline|more|hidden}[]`；有效动作由 Finder 纯工具栏模型拥有。
 - `finderDockSide`：left／right，历史兼容字段，无设置控件，不覆盖合法值。
 - `appearanceColors`：八个已知键的可选规范化 hex RGB／RGBA；默认 {}，不写覆盖样式。
@@ -113,7 +118,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 `normalizeHistory()` 校验旧字符串／timestamp 对象及混合项，重复精确文本合并最早创建、最近使用和最大计数。`normalizeSettings()` 校验、裁剪并保持幂等及独立默认数组；忽略未知字段，退役的 useObsidianSearchInRead 删除后沿既有 changed 路径保存。工具栏仅对精确历史默认布局迁移，自定义合法顺序／placement 保留，新动作补默认值。
 
-`SettingsController` 是设置 UI 更新入口：同步修改／通知后请求保存，不暴露可写设置给 SettingsView。分组恢复只影响该组；颜色草稿仅在局部预览，应用才更新。HistoryController 同步更新与订阅通知，异步保存不阻塞导航；成功复制后 existing-only 统计，迟到完成不复活删除项。
+`SettingsController` 是设置 UI 更新入口：同步修改／通知后请求保存，不暴露可写设置给 SettingsView。分组恢复只影响该组；颜色草稿仅在局部预览，应用才更新。HistoryController／PresetController 同步更新与订阅通知，异步保存不阻塞导航；复制不再统计使用。预设名称通过纯模型 `presetNameTaken()` 按 trim 后区分大小写比较，UI 提前提示、控制器 put／restore 在提交前按最新集合阻止重名；更新排除自身 ID，归一化保留旧的不同 ID 同名配置，不引入数据迁移丢失。HistoryPanel 管理筛选／详情／编辑／撤销状态，不持久化；PresetEditor 使用独立浅响应式草稿，另存命名步骤保留原配置草稿，明确创建才提交新 ID。Finder 的 captureRecipe 返回复制快照，applyRecipe 原子装载配置、保留范围并匹配；替换转义覆盖是 owner 会话内状态，resetAll 清除，不改共享设置。
 
 `platform/obsidian/settings-storage.ts` 通过公开 stat／read／write 区分不存在、权限、损坏 JSON 和写入错误。按 App／路径的队列通过共享 realm Symbol 跨模块重载复用；排队前独立 JSON 快照，新实例 read 排在旧实例已接受写入之后。失败不阻断后续任务。卸载关闭新请求，但已接受任务继续；flush 不代表宿主退出会等待。
 

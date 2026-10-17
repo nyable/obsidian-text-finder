@@ -19,7 +19,14 @@ vi.mock("../../src/platform/obsidian/date-format", () => ({
 		return "relative";
 	},
 }));
-vi.mock("../../src/i18n", () => ({ i18n: { t: (key) => key } }));
+vi.mock("../../src/i18n", () => ({
+	i18n: {
+		t: (key, values) =>
+			["history.UsageCount", "history.Characters"].includes(key)
+				? `${key}: ${values.count}`
+				: key,
+	},
+}));
 const attachHistory = (plugin) => {
 	plugin.history = new HistoryController(
 		() => plugin.settings,
@@ -114,6 +121,7 @@ function mount(_t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlug
 		element.focus();
 		const event = new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
 		element.dispatchEvent(event);
+		if (!event.defaultPrevented && (key === "Enter" || key === " ")) element.click();
 		await tick();
 		return event;
 	};
@@ -130,23 +138,28 @@ function mount(_t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlug
 		errors,
 		saves: () => saves,
 		closes: () => closes,
-		select: (text) => click(row(text).querySelector('[role="checkbox"]')),
-		action: (text, name) => click(row(text).querySelector(`[title="history.${name}"]`)),
+		select: async (text) => {
+			await click(row(text).querySelector('[role="checkbox"]'));
+		},
+		action: (text, name) => click(row(text).querySelector(`[aria-label="history.${name}"]`)),
 		bulkDelete: () => click(target.querySelector(".nya-history-toolbar button.delete")),
-		selectAll: () => click(target.querySelector(".nya-history-toolbar button:not(.delete)")),
+		selectAll: async () => {
+			await click(target.querySelector(".nya-history-select-all"));
+		},
 		texts: () => plugin.settings.searchHistory.map((item) => item.text).sort(),
 	};
 }
 
 for (const sortOrder of ["lastUsedAt", "count"]) {
-	test(`selection and keyed DOM survive usage-driven ${sortOrder} sorting`, async (t) => {
+	test(`copy leaves usage and keyed DOM unchanged with ${sortOrder} sorting`, async (t) => {
 		const h = mount(t, sortOrder);
 		await h.select("A");
 		const originalA = h.row("A");
 		const originalB = h.row("B");
 		await h.action("B", "Copy");
 		assert.deepEqual(h.copied, ["B"]);
-		assert.equal(h.rows()[0], originalB);
+		assert.equal(h.rows()[0], originalA);
+		assert.equal(h.row("B"), originalB);
 		assert.equal(h.row("A"), originalA);
 		assert.equal(
 			h.row("A").querySelector('[role="checkbox"]').getAttribute("aria-checked"),
@@ -158,7 +171,7 @@ for (const sortOrder of ["lastUsedAt", "count"]) {
 		);
 		await h.bulkDelete();
 		assert.deepEqual(h.texts(), ["B", "C"]);
-		assert.equal(h.saves(), 2);
+		assert.equal(h.saves(), 1);
 		assert.equal(h.closes(), 0);
 	});
 }
@@ -207,12 +220,12 @@ test("selection uses exact text, including whitespace and special property names
 	assert.deepEqual(h.texts(), ["A", "__proto__"]);
 });
 
-test("detail copy can reorder the list without changing its selection", async (t) => {
+test("detail copy preserves the list selection without changing usage", async (t) => {
 	const h = mount(t);
 	await h.select("A");
 	await h.action("B", "Details");
-	await h.click(h.target.querySelector(".nya-history-detail-actions button:not(.delete)"));
-	await h.click(h.target.querySelector('[title="history.Back"]'));
+	await h.click(h.target.querySelector(".nya-history-detail .nya-library-actions button"));
+	await h.click(h.target.querySelector(".nya-library-header button"));
 	await h.bulkDelete();
 	assert.deepEqual(h.texts(), ["B", "C"]);
 });
@@ -220,13 +233,13 @@ test("detail copy can reorder the list without changing its selection", async (t
 for (const action of ["Details", "Copy", "Delete"]) {
 	test(`Enter on ${action} does not activate the parent search action`, async (t) => {
 		const h = mount(t);
-		const button = h.row("B").querySelector(`[title="history.${action}"]`);
+		const button = h.row("B").querySelector(`[aria-label="history.${action}"]`);
 		const event = await h.key(button);
 		assert.equal(h.closes(), 0);
 		assert.deepEqual(h.searched, []);
 		assert.equal(event.defaultPrevented, false, "native button activation remains available");
 		// jsdom does not synthesize the browser's keyboard-generated click.
-		await h.click(button);
+		// The helper synthesizes native button activation for jsdom.
 		assert.equal(h.closes(), 0);
 		assert.deepEqual(h.searched, []);
 		if (action === "Details") assert.ok(h.target.querySelector(".nya-history-detail"));
@@ -313,7 +326,7 @@ test("external shrink and sort notifications refresh modal capacity and selected
 	h.plugin.history.resize(1);
 	await tick();
 	assert.equal(h.rows().length, 1);
-	assert.match(h.target.querySelector("h2").textContent, /1\/1/);
+	assert.match(h.target.querySelector(".nya-history-toolbar").textContent, /1 \/ 1/);
 	assert.equal(h.target.querySelector(".nya-history-toolbar button.delete"), null);
 });
 
@@ -351,7 +364,7 @@ test("usage updates in another modal refresh an open detail view", async (t) => 
 	const first = mount(t);
 	const second = mount(t, "lastUsedAt", [], first.plugin);
 	await second.action("B", "Details");
-	await first.action("B", "Copy");
+	first.plugin.history.record("B");
 	await tick();
 	assert.match(second.target.querySelector(".nya-history-detail").textContent, /2/);
 	assert.equal(first.plugin.settings.searchHistory.find((i) => i.text === "B").count, 2);
@@ -360,7 +373,7 @@ test("usage updates in another modal refresh an open detail view", async (t) => 
 test("checkbox Space toggles once and does not reuse the query", async (t) => {
 	const h = mount(t);
 	const event = await h.key(h.row("A").querySelector('[role="checkbox"]'), " ");
-	assert.equal(event.defaultPrevented, true);
+	assert.equal(event.defaultPrevented, false, "native checkbox button activation is available");
 	assert.equal(
 		h.row("A").querySelector('[role="checkbox"]').getAttribute("aria-checked"),
 		"true",
@@ -394,4 +407,119 @@ test("list and detail preserve a valid epoch creation timestamp", async (t) => {
 	globalThis.__historyDates = [];
 	await h.action("A", "Details");
 	assert.ok(globalThis.__historyDates.includes(0));
+});
+
+for (const sortOrder of ["createdAt", "lastUsedAt", "count"]) {
+	test(`history metadata includes usage, exact UTF-16 length and labeled time with ${sortOrder} sorting`, async (t) => {
+		const text = " 😀\n\t ";
+		const h = mount(t, sortOrder, [text]);
+		h.plugin.settings.searchHistory[0] = { text, count: 28, createdAt: 0, lastUsedAt: 9 };
+		globalThis.__historyDates = [];
+		h.plugin.history.notify();
+		await tick();
+		const row = h.row(text);
+		assert.equal(row.querySelector(".nya-history-usage").textContent, "history.UsageCount: 28");
+		assert.equal(
+			row.querySelector(".nya-history-length").textContent,
+			`history.Characters: ${text.length}`,
+		);
+		assert.equal(
+			row.querySelector(".nya-history-time-combined").textContent.replace(/\s+/g, " ").trim(),
+			`${sortOrder === "createdAt" ? "history.Created" : "history.LastUsed"}: relative`,
+		);
+		assert.equal(row.querySelector(".nya-history-time-value").textContent, "relative");
+		assert.equal(
+			row
+				.querySelector(".nya-history-time-combined .nya-library-sr")
+				.getAttribute("aria-hidden"),
+			null,
+		);
+		assert.deepEqual(globalThis.__historyDates, [sortOrder === "createdAt" ? 0 : 9]);
+		assert.equal(row.querySelector(".nya-history-meta").hasAttribute("aria-label"), false);
+		assert.equal(row.querySelector(".nya-history-meta").hasAttribute("title"), false);
+		assert.equal(row.querySelectorAll(".nya-history-content button").length, 0);
+		const before = row.querySelector(".nya-history-meta").textContent;
+		await h.action(text, "Copy");
+		await h.select(text);
+		assert.equal(row.querySelector(".nya-history-meta").textContent, before);
+		assert.equal(h.saves(), 0);
+		assert.deepEqual(h.searched, []);
+		h.plugin.history.record(text);
+		await tick();
+		assert.equal(row.querySelector(".nya-history-usage").textContent, "history.UsageCount: 29");
+	});
+}
+
+test("detail keeps complete statistics outside the query scroller and uses named text actions with a destructive delete", async (t) => {
+	const text = " 😀\n\t ";
+	const h = mount(t, "lastUsedAt", [text]);
+	await h.action(text, "Details");
+	const detail = h.target.querySelector(".nya-history-detail");
+	const meta = detail.querySelector(".nya-history-detail-meta");
+	const body = detail.querySelector(".nya-history-detail-body");
+	assert.equal(meta.parentElement, detail);
+	assert.equal(body.previousElementSibling, meta);
+	assert.equal(body.querySelector("dl"), null);
+	assert.equal(body.querySelector("pre").textContent, text);
+	assert.equal(body.querySelector("pre").tabIndex, 0);
+	assert.deepEqual(
+		[...meta.querySelectorAll("dt")].map((e) => e.textContent),
+		["history.Count", "history.Length", "history.Created", "history.LastUsed"],
+	);
+	assert.deepEqual(
+		[...meta.querySelectorAll("dd")].map((e) => e.textContent),
+		["1", `history.Characters: ${text.length}`, "date", "date"],
+	);
+	const [copy, preset, remove] = detail.querySelectorAll(".nya-library-actions button");
+	assert.deepEqual(
+		[copy, preset, remove].map((e) => e.textContent),
+		["history.Copy", "library.Save", "history.Delete"],
+	);
+	assert.equal(detail.querySelector(".nya-library-actions svg"), null);
+	assert.ok(copy.classList.contains("nya-library-secondary"));
+	assert.ok(remove.classList.contains("mod-warning"));
+	assert.ok(remove.classList.contains("nya-library-danger"));
+	const back = h.target.querySelector(".nya-library-header button");
+	assert.ok(back.classList.contains("nya-library-secondary"));
+	assert.equal(document.activeElement, back);
+	await h.click(copy);
+	assert.deepEqual(h.copied, [text]);
+	assert.equal(h.saves(), 0);
+	assert.deepEqual(h.searched, []);
+	await h.click(remove);
+	assert.deepEqual(h.texts(), []);
+	assert.equal(h.target.querySelector(".nya-history-detail"), null);
+	assert.ok(
+		[...h.target.querySelectorAll("button")].some((e) => e.textContent === "library.Undo"),
+	);
+});
+
+test("history offers direct selection and keeps filtered select-all scoped to visible identities", async (t) => {
+	const h = mount(t);
+	assert.equal(h.target.querySelector(".nya-history-manage"), null);
+	assert.equal(h.target.querySelectorAll('[role="checkbox"]').length, 3);
+	await h.select("A");
+	const filter = h.target.querySelector('input[type="search"]');
+	filter.value = "B";
+	filter.dispatchEvent(new window.Event("input", { bubbles: true }));
+	await tick();
+	await h.selectAll();
+	assert.equal(
+		h.row("B").querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+		"true",
+	);
+	await h.selectAll();
+	filter.value = "";
+	filter.dispatchEvent(new window.Event("input", { bubbles: true }));
+	await tick();
+	assert.equal(
+		h.row("A").querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+		"true",
+	);
+	assert.equal(
+		h.row("B").querySelector('[role="checkbox"]').getAttribute("aria-checked"),
+		"false",
+	);
+	await h.click(h.target.querySelector(".nya-history-clear"));
+	assert.equal(h.target.querySelectorAll('[aria-checked="true"]').length, 0);
 });

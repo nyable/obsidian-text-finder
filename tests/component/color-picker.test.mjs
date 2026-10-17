@@ -8,7 +8,9 @@ import { readFileSync } from "node:fs";
 import { compileString } from "sass";
 
 test("picker integration preserves the library flex layout for saturation, hue and alpha", () => {
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	const rules = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
 		([, selector]) => selector.includes(".nya-color-library") && !selector.includes("::part"),
 	);

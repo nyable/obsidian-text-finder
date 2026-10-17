@@ -22,6 +22,7 @@ import { registerWorkspaceCommands } from "./workspace-commands";
 import { capturePreviewBody } from "../platform/obsidian/preview-renderer";
 import { eventMenuFor } from "../platform/obsidian/event-menu";
 import { editorContextFor } from "../platform/obsidian/editor-context";
+import type { SearchRecipe } from "../features/presets";
 
 export { CLS, searchCacheEffect } from "../platform/codemirror/search-highlight";
 
@@ -380,10 +381,13 @@ export class EditorSearch {
 	refreshToolbars() {
 		for (const [, resources] of this.owners.entries()) resources.finder?.refreshToolbar();
 	}
-	openHistory() {
+	openHistory(tab: "history" | "presets" = "history", recipe?: SearchRecipe) {
 		if (this.disposed) return;
-		const modal = new HistoryModal(this.plugin.app, this.plugin, () =>
-			this.historyModals.delete(modal),
+		const modal = new HistoryModal(
+			this.plugin.app,
+			this.plugin,
+			() => this.historyModals.delete(modal),
+			{ tab, recipe },
 		);
 		this.historyModals.add(modal);
 		modal.open();
@@ -416,7 +420,7 @@ export class EditorSearch {
 		this.disposed = true;
 		const scope = new Disposables();
 		scope.add(() => this.owners.dispose());
-		for (const modal of this.historyModals) scope.add(() => modal.close());
+		for (const modal of this.historyModals) scope.add(() => modal.close(true));
 		for (const menu of this.openMenus) scope.add(() => menu.hide());
 		this.openMenus.clear();
 		this.historyModals.clear();
@@ -601,6 +605,8 @@ export class EditorSearch {
 			useSelection: () => plugin.settings.useSelectionAsSearch,
 			showFinder: (view) => this.showFinder(view),
 			openHistory: () => this.openHistory(),
+			openPresets: () => this.openHistory("presets"),
+			savePreset: (view) => this.openHistory("presets", this.getFinder(view).captureRecipe()),
 			reportError: (error) => plugin.reportError("search.EditorFailed", error),
 		});
 	}

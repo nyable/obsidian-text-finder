@@ -55,6 +55,8 @@
 		}
 	},
 	"commands": {
+		"ApplyPreset": { "name": "应用查找／替换预设" },
+		"SavePreset": { "name": "将当前查找保存为预设" },
 		"FindInSelection": { "name": "在选定内容中打开查找" },
 		"ShowFind": {
 			"name": "在当前文件中：打开查找"
@@ -88,6 +90,15 @@
 		}
 	},
 	"settings": {
+		"HistoryRetention": {
+			"name": "历史容量不足时优先保留",
+			"desc": "与列表显示顺序独立；升级保留原淘汰偏好。预设不参与自动淘汰。",
+			"options": {
+				"lastUsedAt": "最近使用的查询",
+				"count": "高频使用的查询",
+				"createdAt": "最近创建的查询（旧版兼容）"
+			}
+		},
 		"Tabs": {
 			"label": "设置分类",
 			"general": "常规",
@@ -182,7 +193,7 @@
 		},
 		"HistoryMaxCount": {
 			"name": "历史记录最大数量",
-			"desc": "1–200 条。按 Enter 或离开输入框后确认；调低上限会立即按当前排序淘汰低优先级记录。"
+			"desc": "1–200 条。按 Enter 或离开输入框后确认；调低上限会按保留策略裁剪历史，不影响预设。"
 		},
 		"HistorySortOrder": {
 			"name": "历史记录排序方式",
@@ -194,7 +205,68 @@
 			}
 		}
 	},
+	"library": {
+		"DuplicateName": "已有同名预设，请使用其他名称。",
+		"LegacyDuplicateNames": "部分已有预设名称重复，配置已全部保留，请编辑并改为不同名称。",
+		"UndoNameConflict": "无法恢复此预设：名称或身份已被占用。现有预设未被修改。",
+		"NewName": "新预设名称",
+		"CreatePreset": "创建预设",
+		"BackToEditor": "返回编辑",
+		"OtherSettings": "其他设置",
+		"CollapseOnApply": "应用后收起替换行",
+		"ReplacementNotSaved": "替换文字会保留在草稿中，但不包含在保存的预设里。",
+		"SaveAction": "保存",
+		"FoldedReplacement": "替换配置已保存；应用后替换行保持收起。",
+		"Folded": "替换行收起",
+		"Expanded": "替换行展开",
+		"DragHelp": "拖动排序，或在手柄上按上下方向键、Home／End 移动；Escape 取消拖动。",
+		"ReorderPreset": "调整预设顺序：{{name}}",
+		"MovedPreset": "已移动预设：{{name}}",
+		"FilteredOrder": "清除筛选后可以调整预设顺序。",
+		"MatchOptions": "匹配选项",
+		"Enabled": "开启",
+		"Disabled": "关闭",
+		"SelectedCount": "已选 {{count}} 项",
+		"ClearSelection": "取消选择",
+		"PresetCount": "{{count}} 个预设",
+		"Title": "历史与预设",
+		"LineCount": "{{count}} 行",
+		"Presets": "预设",
+		"Name": "名称",
+		"Filter": "筛选名称或查询…",
+		"New": "新建预设",
+		"Save": "保存预设",
+		"Edit": "编辑预设",
+		"Update": "更新预设",
+		"SaveAs": "另存为预设",
+		"Reuse": "复用查询",
+		"Manage": "管理",
+		"Done": "完成",
+		"IncludeReplacement": "包含替换值",
+		"EmptyReplacement": "空替换值表示删除匹配内容，与“仅查找预设”不同。",
+		"Escapes": "正则替换中解析反斜杠转义",
+		"EmptyValue": "空字符串（删除匹配）",
+		"FindReplace": "查找与替换",
+		"FindOnly": "仅查找",
+		"Literal": "普通文本",
+		"IgnoreCase": "忽略大小写",
+		"ApplyHint": "应用仅填入配置并查找，不自动替换正文。",
+		"ReadingHint": "阅读模式仅应用查找配置；替换需要编辑模式。",
+		"HistoryHint": "历史仅恢复查询文字；复制不改变使用统计。",
+		"SaveHint": "仅保存配置，不修改笔记。",
+		"EmptyPresets": "暂无预设。可以保存当前查找，或新建一个有名字的规则。",
+		"NoResults": "没有匹配的条目，请尝试其他筛选词。",
+		"SaveConflict": "此预设已被删除。可以选择“另存为预设”以保留草稿。",
+		"SelectQuery": "选择查询：{{text}}",
+		"WhitespaceQuery": "纯空白查询（{{count}} 个字符）",
+		"Deleted": "已删除 {{count}} 条记录",
+		"Undo": "撤销",
+		"Unsaved": "预设有未保存的修改，是否丢弃？",
+		"KeepEditing": "继续编辑",
+		"Discard": "丢弃修改"
+	},
 	"history": {
+		"UsageCount": "使用 {{count}} 次",
 		"Length": "长度",
 		"Characters": "{{count}} 字符",
 		"Title": "搜索历史",
@@ -212,7 +284,7 @@
 		"Back": "返回",
 		"LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
 		"SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
-		"CopyFailed": "Text Finder 无法复制历史文本，使用次数未更新。",
+		"CopyFailed": "Text Finder 无法复制查询文字。",
 		"ReuseFailed": "请先打开支持查找的 Markdown 编辑或阅读视图，再复用搜索历史。"
 	}
 }

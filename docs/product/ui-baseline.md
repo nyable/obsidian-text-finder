@@ -49,10 +49,13 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 选区范围 | `TextSelect`／`text-select` 图标，默认在 More，可配置常驻／隐藏，无默认开启；编辑／阅读均可用。以按钮激活态表达，计数旁无文字标记；空／失效范围仍激活，操作按钮提示恢复方式；隐藏按钮不增加替代标记。正文 `.nya-text-finder-scope` 默认主题淡背景，可自定义及开启独立外轮廓，无下划线，不覆盖匹配颜色；保留既有公开 CSS 变量 | `src/platform/codemirror/search-scope.ts`、`src/shared/geometry/scope-outline.ts`、`src/features/finder/ui/FinderToolbar.vue`、`FinderPanel.vue`、`src/styles/index.scss`；主题对比及实机范围绘制待验收 |
 | 查找状态 | 编辑／阅读均使用面板外部提示，空间不足时上翻；等待文案不拦截指针，取消／重试／同步重试操作可点击 | `src/features/finder/ui/SearchStatus.vue:position()` 及样式 |
 | 替换状态 | 候选计算显示尚未写入；提交后重算显示已完成、取消不撤销；失败文案区分提交前和提交后 | `src/features/finder/application/finder-session.ts:replaceMatches()`、`ui/SearchStatus.vue` |
-| 历史 | 容器 70vh／padding 24px；列表内部滚动、查询两行截断、选中高亮；操作在 hover／focus-within 显示，无 hover 设备常显 | `src/app/history-modal.ts`、`src/features/history/ui/HistoryPanel.vue`、`HistoryList.vue` |
-| 历史详情 | 响应式元数据 Grid；正文 pre-wrap、等宽字体、可选中、独立滚动 | `src/features/history/ui/HistoryDetail.vue` |
+| 历史／预设弹窗 | 宿主 Modal 限定 640px 及可用视口宽高；外壳目标高度 560px，按 owner visualViewport／动态视口减 80px 限制（窄屏减 64px），不随内容量变化，不设高度动画；20px 留白（窄屏 16px）。列表去掉可见标题及其占位行，保留唯一读屏文本用于分类命名；Tab 与插件设置共用 compact-tabs 样式（32px／触屏或窄屏 36px，左右 12px／上下 5px 内边距，4px 间距，5px 圆角 hover，独立下划线）。分类、筛选、等高工具条固定，中间列表 flex 填满并独立滚动，分类各自保留滚动位置。新建加号与计数在预设工具条内左对齐，历史不显示。列表底部不设常驻说明或空占位栏；删除撤销为弹窗内短暂浮层，不挤压列表。常显复选框，无管理模式，无大片 aria-label 提示；编辑／详情的内部标题不受影响 | `src/app/history-modal.ts`、`src/features/history/ui/HistoryPanel.vue`、`HistoryList.vue`、`HistorySelectionBar.vue`、`src/styles/search-library.scss`、`src/styles/_compact-tabs.scss` |
+| 历史详情 | 顶部固定紧凑双列统计（次数、长度、创建和最后使用完整时间），下方淡分隔线；中间等宽 pre-wrap 完整原文可选中、独立滚动，底部文字操作固定，低高度也不改为整页滚动。复制／保存预设为轻填充细边框，删除为主题错误色文字及边框（保留 mod-warning），hover 有主题反馈；复用保留主操作。返回恢复列表上下文 | `src/features/history/ui/HistoryDetail.vue`、`src/styles/search-library.scss`；组件结构与浏览器普通／400px 高度滚动回归 |
+| 历史列表反馈／统计 | 整行 hover／selected 统一主题背景，查询按钮、复选框及行内操作不叠 hover 底色或阴影，图标保留颜色反馈、各控件保留键盘焦点和独立操作。查询下方满宽 flex-wrap 统计组，次数／UTF-16 长度在左，相对时间靠内容区右侧；不显示时间字段前缀，读屏专用文字保留含义。小字号（主题 smaller，缺失时比正文小 1px）、次级文字色、正常字重，无徽章／加粗；时间再小 1px、最小 10px。横向间距 10px、换行间距 3px，窄屏时间另起行仍右对齐，可内部换行，不挤出列边界；原文两行预览不变 | `src/features/history/ui/HistoryList.vue`、`src/styles/search-library.scss`；`tests/component/history-panel.test.mjs`、`tests/browser/harness.mjs` |
+| 预设列表 | 独立次级背景卡片、淡边界与 12px 间隔，无上浮／重阴影；左侧拖动区贯穿卡片内高且不越出自身列，抓取指针／无悬浮文字提示，读屏名称引用唯一隐藏文本。中心顶部为名称、下方为 Finder 风格配置摘要，右侧竖排编辑／删除；整卡 hover／键盘 focus-visible 覆盖统一背景及边界，中间按钮透明／无独立 hover 内框，不新增持久选中状态。应用区及真实操作按钮使用手形指针，操作目标不合并。FinderRecipeFrame 共用 Finder 表现原语与三个静态匹配图标，不受真实工具栏配置影响，不放导航／替换／历史／More／选区。随保存折叠状态显示查找／替换行；两值区共享列宽，固定 28px 单行，显示首行、超长省略，多行在右端显示换行图标及实际行数，首行空白不跳过；读屏及应用仍用精确全文。空替换显示为空，不塞解释文案；窄容器匹配图标另起一行，不横向挤出 | `src/features/finder/ui/FinderRecipeFrame.vue`、`src/features/presets/ui/PresetList.vue`、`src/styles/search-library.scss` |
+| 预设编辑 | 与列表预览分开设计：名称、独立匹配图标区域、查找 textarea、替换 textarea、底部独立其他设置区域。两个 textarea 均固定 4 行（1.5 行高＋上下内边距），禁止 resize，超出内容内部滚动；输入保留空白／换行。折叠配置不隐藏编辑输入框，不包含替换时仍可编辑草稿但不保存其值。其他设置集中包含替换、应用后收起、转义解释；无意义的转义开关禁用但不挪位。编辑底部为保存／取消／另存为预设；另存切换为同壳命名步骤（预填／全选、名称下重名提示），底部改为创建预设／返回编辑；不新增嵌套弹窗，配置草稿保留。字段滚动、操作固定，保留低高度整页滚动降级 | `src/features/presets/ui/PresetEditor.vue`、`src/shared/ui/MatchOptions.vue`、`src/styles/search-library.scss` |
 | 设置 | 原生 Obsidian 控件；分类顺序常规／查找／替换／搜索历史／外观，默认常规。常规页仅放自动悬浮入口、拖边自动收起，移除恢复位置按钮；查找页不再显示阅读原生查找开关。沿用原生开关，不增加提示容器或新装饰。分类 tabs、拖动半透明及插入线限定在 `.nya-settings` | `src/features/settings/ui/settings-view.ts`、`src/styles/index.scss` |
-| 设置分类交互 | Tab 最小 32px 高；悬停为主题 hover 背景／正文色，当前项为 2px 主题色下划线／主题色文字，按下为主题 active-hover 背景（缺失时回退 hover），键盘 focus-visible 保留 2px 焦点框；不添加悬浮容器标签、不改其他宿主 Tab | `src/styles/index.scss`；`tests/unit/appearance.test.mjs`；真实主题与触屏反馈待验收 |
+| 设置分类交互 | 与历史／预设分类共用局部 compact-tabs mixin：最小 32px 高、触屏或 480px 以下 36px；上下 5px／左右 12px 内边距、4px 间距、5px 圆角。悬停为主题 hover 背景／正文色，当前项为独立 2px 主题色下划线／主题色文字，按下为主题 active-hover 背景（缺失时回退 hover），键盘 focus-visible 保留 2px 焦点框；设置分类较多时横向滚动，距内容 12px。不添加悬浮容器标签、不改其他宿主 Tab | `src/styles/_compact-tabs.scss`、`src/styles/index.scss`、`src/styles/search-library.scss`；`tests/unit/appearance.test.mjs`、`tests/browser/harness.mjs`；真实主题与触屏反馈待验收 |
 | 外观配置标题 | 颜色／搜索选区／搜索工具栏／替换工具栏四个分组独立折叠，默认全收起；分组底部间距 8px、标题无额外上下 margin，展开正文距标题 6px，标题及恢复图标仍有 32px 点击高度；标题前 16px 箭头，折叠时朝右，标题与恢复按钮分离；`undo-2` 回退图标紧邻标题，16px 图标／32px 点击区域，常显，提示“恢复默认设置”。内容 hidden 时 display none，无折叠动画；顶部预览不折叠。恢复直接执行，无确认框，统一 2 秒 Notice“已恢复默认设置”；容器通过 `aria-labelledby` 命名，避免 Obsidian 的 `aria-label` 自动提示覆盖整个区域 | `src/features/settings/ui/settings-view.ts:section()`／`reset()`、`src/styles/index.scss`；`tests/integration/main-settings.test.mjs`；宿主提示、触屏与布局待实测 |
 | 工具栏配置块 | 各按钮使用主题次级背景、8px 圆角、10px 块间距，无列表分割线和阴影；左侧整高 32px 拖动区，上层图标／名称／排序，下层自定义位置下拉／默认开关；上下行 min-height 32px、行间 8px，统一左右边界及居中，360px 以下下层纵向排列；下拉用 sm／content：触发器 28px 高，宽度按最长选项及内边距／图标占位确定，不固定 96px；透明背景／主题细边框、5px 圆角，展开为主题主背景／主题色边框，不重复显示位置标签；“默认开启”的 Setting、文字区与控件区采用局部 flex 居中，名称 margin 清零／1.4 行高，保留宿主开关外观；不显示说明段落 | `src/features/settings/ui/settings-view.ts`、`src/styles/index.scss`；`tests/unit/appearance.test.mjs`；真实主题垂直对齐待验收 |
 | 位置下拉列表 | owner Document body 中的 fixed 列表，不被配置滚动区裁切；默认与触发器同宽，仅超出视口时限制宽度，可上翻／内部滚动；8px 外圆角、主题细边框／主背景／轻阴影、4px 内边距；文字左侧起点与触发器相同，箭头／勾选共享图标占位；导航高亮用主题 hover 背景，当前项用主题色勾选标识，不使用固定蓝底白字 | `src/features/settings/ui/settings-select.ts`、`src/styles/index.scss`；`tests/component/settings-select.test.mjs`；宿主视口、主题、触屏与读屏行为待实测 |
@@ -71,11 +74,15 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 外观行布局统一：颜色组 12px 内边距、Grid 8px 行距；颜色行／轮廓开关 min-height 32px、列距 12px，名称左对齐、操作右对齐，色块／104px 颜色值／恢复按钮纵向对齐且内部间距 8px；颜色值用 UI 字体和 tabular-nums。轮廓开关在依赖组之前，关闭 hidden 不占空间；依赖名称缩进 12px，窄宽回到同一左边界。原生 Setting 默认 margin／padding 在局部清除；360px 以下颜色行、轮廓开关及工具栏配置均采用上下布局，不影响其他设置页。轮廓左右仅半线宽外扩（内缘贴近测得字符边界），上下仍 2px + 半线宽外扩；紧间隙沿分离轴限制，水平方向收紧不取消上下净距，不增加留白设置项。正文／设置预览共用几何，不改跨行阶梯及空行连接语义。几何／样式依据 `src/shared/geometry/scope-outline.ts:paddedScopeOutlines()`、`src/styles/index.scss`；实际字体和主题对齐仍需实测。
 
-本地化资源为英文／简体中文，历史长度与使用次数文案也通过翻译键显示。列表时间格式为 `YY-MM-DD HH:mm:ss`，详情为 `YYYY-MM-DD HH:mm:ss`，同时显示 moment 相对时间；合法的时间戳 0 不回退到其他字段。触屏／键盘可发现性仍需实测。依据：`src/features/history/ui/HistoryList.vue` 的元数据／操作样式、`HistoryDetail.vue`、`src/platform/obsidian/date-format.ts`、`src/i18n/index.ts`。
+本地化资源为英文／简体中文，历史长度与使用次数文案通过翻译键显示。列表集中显示次数、长度及无可见字段前缀的 moment 相对时间；创建排序取创建时间，其他排序取最后使用，以读屏文本区分含义，不增加悬浮提示。详情顶部固定完整时间 `YYYY-MM-DD HH:mm:ss`、次数及长度。长度沿用原文 `.length`（UTF-16，包含空白和换行），合法的时间戳 0 不回退到其他字段。触屏／键盘可发现性仍需实测。依据：`src/features/history/ui/HistoryList.vue`、`HistoryDetail.vue`、`src/platform/obsidian/date-format.ts`、`src/i18n/index.ts`。
 
 编辑高亮用 CodeMirror class，阅读高亮用 CSS Custom Highlight API；共享颜色变量，但阅读 API 不支持编辑 class 的全部边框／圆角效果。阅读新增 `::highlight(nya-reading-scope)`（低优先级背景）和 `.nya-reading-overlay`（owner body 独立 fixed、非交互、读屏隐藏、按 owner／裁切祖先限制）；SVG 轮廓复用左右半线宽／上下 2px 净距，换行复用 `↵` 普通／当前颜色。只画挂载正文，不包裹节点，不把段落空隙补成大矩形；几何缺失时不猜测，滚动先隐藏旧位置再重测。阅读工具栏也显示范围按钮及 More 激活／失效反馈，不新增状态栏。依据：`src/styles/index.scss`、`src/platform/codemirror/search-highlight.ts`、`src/features/reading/dom/reading-search.ts:updateRegistry()`、`reading-overlay.ts`；实际叠层、裁切、主题、RTL、分屏和移动待实机验收。
 
 ## 应覆盖的截图分类
+
+历史／预设弹窗的文字输入使用主题次级背景的轻填充，不照搬宿主表单边框；默认透明 1px 边框仅保留几何，6px 圆角及 8×12px 内边距。悬停用一圈内侧细线，聚焦只用 1px 强调色 inset 线，局部覆盖宿主 focus border／外发光／outline，不叠双框；按钮与复选框仍保留键盘外框，强制颜色模式为文本框恢复系统色边框及 focus-visible 轮廓。作用域仅 `.nya-library`，不改真实 Finder／设置页。依据：`src/styles/search-library.scss`；浏览器回归 `tests/browser/harness.mjs` 检查覆盖模拟宿主的聚焦规则。
+
+弹窗次要文字操作（返回、取消、返回编辑、继续编辑等）显式使用主题次级背景、1px 主题边框、5px 圆角及 5×12px 内边距，hover 加强边框和背景，与页面区分；删除／丢弃以主题错误色文字和边框标明危险操作。仅通过局部专用类覆盖，不影响图标、分类 Tab、主操作及真实 Finder。组件回归覆盖类名和文字操作，浏览器覆盖主题反馈、固定详情滚动及键盘焦点；真实 Obsidian 主题对比度仍待验收。
 
 | 分类 | 主要状态 | 源码依据 |
 | --- | --- | --- |
@@ -86,6 +93,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 | 阅读状态 | 等待标记、延迟提示、失败、超时、不支持；提示上翻及操作按钮 | `src/features/finder/ui/SearchStatus.vue` |
 | 历史列表 | 空态、普通／hover、部分选中／全选、长查询截断、内部滚动 | `src/features/history/ui/HistoryList.vue` |
 | 历史详情 | 长多行正文、元数据、内部滚动、可选择文本 | `src/features/history/ui/HistoryDetail.vue` |
+| 预设 | 列表、仅查找／空替换、编辑草稿、未保存确认、删除撤销、筛选无结果 | `src/features/history/ui/HistoryPanel.vue`、`src/features/presets/ui/PresetEditor.vue` |
 | 设置分类 | 五分类（常规在首位）、Tab focus、工具栏边界禁用／拖动插入标记 | `src/features/settings/ui/settings-view.ts` |
 | 视图环境 | 窄分屏、同文件双分屏、弹出窗口；各自高亮和面板 | `src/app/workspace-runtime.ts`、`src/features/reading/dom/reading-search.ts` |
 | 移动布局 | 查找、展开替换、More、阅读错误、历史列表／详情 | `src/features/finder/ui/FinderPanel.vue` 的移动分支及历史组件 |

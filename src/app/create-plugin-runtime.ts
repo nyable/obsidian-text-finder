@@ -8,12 +8,19 @@ import { SettingTab } from "./settings-tab";
 import { AppearanceStyles } from "../features/settings/ui";
 import { Disposables } from "../shared/lifecycle/disposables";
 import type { TranslationKey } from "../i18n/keys";
+import { PresetController } from "../features/presets";
+import { generateUniqueId } from "../shared/lifecycle/unique-id";
 
 export default class TextFinderPlugin extends Plugin {
 	settings!: PluginSettings;
 	history = new HistoryController(
 		() => this.settings,
 		() => this.saveSettings(),
+	);
+	presets = new PresetController(
+		() => this.settings,
+		() => this.saveSettings(),
+		generateUniqueId,
 	);
 	private storage?: SettingsStorage;
 	private unloaded = false;
@@ -88,6 +95,7 @@ export default class TextFinderPlugin extends Plugin {
 			this.settings = defaultSettings();
 			this.appearance.refresh();
 			this.history.notify();
+			this.presets.notify();
 			this.reportError("history.LoadFailed", error);
 			return;
 		}
@@ -95,6 +103,7 @@ export default class TextFinderPlugin extends Plugin {
 		this.settings = settings;
 		this.appearance.refresh();
 		this.history.notify();
+		this.presets.notify();
 		if (changed) await this.saveSettings().catch(() => {});
 	}
 

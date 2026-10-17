@@ -4,6 +4,7 @@ import type { HistorySortOrderType } from "../model/history-order";
 interface HistorySettings {
 	searchHistory: SearchHistoryItem[];
 	historySortOrder: HistorySortOrderType;
+	historyRetention?: HistorySortOrderType;
 	historyMaxCount: number;
 	enableHistory: boolean;
 }
@@ -56,7 +57,7 @@ export class HistoryController {
 			trimHistory(
 				[...settings.searchHistory.filter((item) => item.text !== text), next],
 				settings.historyMaxCount,
-				settings.historySortOrder,
+				settings.historyRetention ?? settings.historySortOrder,
 			),
 		);
 		return true;
@@ -66,11 +67,43 @@ export class HistoryController {
 		const next = current.filter((item) => !texts.has(item.text));
 		if (next.length !== current.length) this.commit(next);
 	}
+	/** Merge deleted snapshots without overwriting later usage of the same exact text. */
+	restore(items: SearchHistoryItem[]) {
+		const settings = this.settings();
+		const current = new Map(settings.searchHistory.map((item) => [item.text, item]));
+		for (const item of items) {
+			const newer = current.get(item.text);
+			current.set(
+				item.text,
+				newer
+					? {
+							text: item.text,
+							createdAt: Math.min(item.createdAt, newer.createdAt),
+							lastUsedAt: Math.max(item.lastUsedAt, newer.lastUsedAt),
+							count: Math.max(item.count, newer.count),
+						}
+					: { ...item },
+			);
+		}
+		this.commit(
+			trimHistory(
+				[...current.values()],
+				settings.historyMaxCount,
+				settings.historyRetention ?? settings.historySortOrder,
+			),
+		);
+	}
 	resize(limit: number) {
 		if (!Number.isInteger(limit) || limit < 1 || limit > 200) return;
 		const settings = this.settings();
 		if (settings.historyMaxCount === limit && settings.searchHistory.length <= limit) return;
 		settings.historyMaxCount = limit;
-		this.commit(trimHistory(settings.searchHistory, limit, settings.historySortOrder));
+		this.commit(
+			trimHistory(
+				settings.searchHistory,
+				limit,
+				settings.historyRetention ?? settings.historySortOrder,
+			),
+		);
 	}
 }

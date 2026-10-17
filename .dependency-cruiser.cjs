@@ -8,7 +8,7 @@ module.exports = {
 				path: "^(src/(app|platform)/|(?:node_modules/)?(?:vue|obsidian|@codemirror)(?:/|$))",
 			},
 		},
-		...["finder", "reading", "history", "settings"].map((feature) => ({
+		...["finder", "reading", "history", "settings", "presets"].map((feature) => ({
 			name: `${feature}-public-api-only`,
 			severity: "error",
 			from: { path: "^src/(?:app|features|platform)/", pathNot: `^src/features/${feature}/` },

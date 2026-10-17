@@ -30,6 +30,7 @@ test("translation key sets and static calls stay synchronized", () => {
 		"features/finder/ui/SearchStatus.vue",
 		"features/finder/ui/FinderToolbar.vue",
 		"features/history/ui/HistoryPanel.vue",
+		"features/presets/ui/PresetEditor.vue",
 		"features/settings/ui/ToolbarPreview.vue",
 		"app/create-plugin-runtime.ts",
 		"app/workspace-runtime.ts",
@@ -65,7 +66,7 @@ test("Style Settings example and documented CSS defaults agree with the styleshe
 		doc = read("docs/product/ui-baseline.md");
 	// Only body defaults are the public Style Settings interface. Component-local
 	// select sizing tokens are implementation details, not user-facing settings.
-	const defaults = read("src/styles/index.scss").match(/^body\s*\{([^}]+)\}/)[1];
+	const defaults = read("src/styles/index.scss").match(/^body\s*\{([^}]+)\}/m)[1];
 	for (const [, name, value] of defaults.matchAll(/--(nya-[\w-]+):\s*([^;]+);/g)) {
 		const item = example.match(new RegExp(`id: ${name}\\n([\\s\\S]*?)(?=\\n    -|\\*\\/)`));
 		assert.ok(item, `missing example variable ${name}`);

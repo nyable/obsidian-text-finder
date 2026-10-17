@@ -132,9 +132,19 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 -   Run “Show search history” to view, reuse, copy or delete queries. Use Up/Down in the search field to browse history.
 -   Leading/trailing spaces, newlines and tabs are preserved. Continuous navigation with the same query counts as one use.
 -   If the query being browsed is deleted, browsing moves to the next surviving neighbour, or the previous one at the end. Empty history restores the input from before browsing.
--   Keep 1–200 entries and sort by creation time, last use or usage count. Lowering the limit removes lower-priority entries.
+-   Keep 1–200 entries. Display sorting and retention are independent: retain recent, frequent or newly created queries (legacy). Upgrades inherit the old sorting preference for retention; changing display order no longer changes eviction.
+-   A stable-height dialog keeps content scrolling independently. Filter queries, select rows directly for batch deletion, and inspect exact text in Details. Copying no longer changes usage. Undo the most recent deletion within 8 seconds in the same dialog.
 -   Disabling history preserves existing entries but stops recording new queries, updating usage and Up/Down history navigation.
 -   Read/save failures display a notice. Follow its instructions; unsaved changes may be lost on exit.
+
+## Find and replace presets
+
+- Run **Save current find as preset** to name the current view's rule. The replacement row's fold state is saved separately from its value and regex escape interpretation, so folding never discards a saved replacement. Creating from history copies only the query, so review the options before saving.
+- Run **Apply find / replace preset**, filter by name or rule, and select an entry. Applying fills the finder and searches; **it never replaces note text automatically**. Existing selection restrictions, including invalid scopes, remain in effect; coordinates are never saved.
+- An empty replacement deletes matches; it is not a find-only preset. Application clears any old replacement if none is saved and restores the saved row fold state. Reading mode applies only find options, without changing mode or retaining replacement text for later.
+- Each preset card previews the Finder with its saved fold state. Apply from the middle; edit or delete with the icons on the right. Reorder with the left handle (drag or Up/Down, Home/End); clear filtering first. Order persists, renaming keeps position, and new presets append.
+- Edit, rename, save as new, delete or briefly undo deletion. Finder edits do not update saved presets automatically. Modified drafts require explicit discard before closing. Presets are independent of history recording and capacity.
+- Assign shortcuts to these two commands in Obsidian. Per-preset commands are not registered.
 
 ## Appearance settings
 

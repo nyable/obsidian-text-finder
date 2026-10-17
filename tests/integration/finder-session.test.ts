@@ -92,6 +92,90 @@ function environment() {
 }
 
 describe("Finder application with explicit owner ports", () => {
+	it("restores a folded replacement, captures hidden text, and never executes it on application", () => {
+		const h = environment();
+		const recipe = {
+			search: "cat",
+			options: { regexMode: true, caseSensitive: false, wholeWord: false },
+			replacement: { text: "\\n", interpretEscapes: false },
+			collapse: true,
+		};
+		expect(h.session.applyRecipe(recipe)).toBe(true);
+		expect(h.session.getSearchCache().collapse).toBe(true);
+		expect(h.session.captureRecipe()).toEqual(recipe);
+		expect(h.writes).toHaveLength(0);
+		h.session.showReplace();
+		expect(h.session.getSearchCache().replace).toBe("\\n");
+		h.session.replaceAllMatchedText("\\n");
+		expect(h.source()).toBe("\\n \\n");
+		h.dispose();
+	});
+	it("captures manually folded replacement values, including explicitly applied empty replacements", () => {
+		const h = environment();
+		h.session.showReplace("cat");
+		h.session.setCollapse(true);
+		expect(h.session.captureRecipe()).toMatchObject({
+			collapse: true,
+			replacement: { text: "" },
+		});
+		h.session.showReplace();
+		h.session.setReplacementText("dog");
+		h.session.setCollapse(true);
+		expect(h.session.captureRecipe()).toMatchObject({
+			collapse: true,
+			replacement: { text: "dog" },
+		});
+		h.session.applyRecipe({
+			search: "cat",
+			options: { regexMode: false, caseSensitive: false, wholeWord: false },
+			replacement: { text: "", interpretEscapes: true },
+			collapse: true,
+		});
+		expect(h.session.captureRecipe()).toMatchObject({
+			collapse: true,
+			replacement: { text: "" },
+		});
+		h.dispose();
+	});
+	it("applies a portable recipe once without writing or changing global defaults", () => {
+		const h = environment();
+		const matcher = synchronousMatcher();
+		const match = vi.spyOn(matcher, "match");
+		h.host.matcher = () => matcher;
+		const recipe = {
+			search: "cat",
+			options: { regexMode: true, caseSensitive: true, wholeWord: false },
+			replacement: { text: "\\n", interpretEscapes: false },
+		};
+		expect(h.session.applyRecipe(recipe)).toBe(true);
+		expect(match).toHaveBeenCalledTimes(1);
+		expect(h.writes).toHaveLength(0);
+		expect(h.session.captureRecipe()).toEqual({ ...recipe, collapse: false });
+		expect(h.host.preferences().useEscapeCharInReplace).toBe(true);
+		expect(h.host.history.sorted()[0]?.count).toBe(1);
+		h.session.toNextMatch();
+		expect(h.host.history.sorted()[0]?.count).toBe(1);
+		h.session.replaceAllMatchedText("\\n");
+		expect(h.source()).toBe("\\n \\n");
+		h.dispose();
+	});
+	it("find-only recipes clear old replacement configuration, and reject closed owners", () => {
+		const h = environment();
+		h.session.showReplace("cat");
+		h.session.setReplacementText("dangerous old replacement");
+		const recipe = {
+			search: "cat",
+			options: { regexMode: false, caseSensitive: false, wholeWord: true },
+			replacement: null,
+		};
+		expect(h.session.applyRecipe(recipe)).toBe(true);
+		expect(h.session.captureRecipe()).toEqual({ ...recipe, collapse: true });
+		expect(h.session.getSearchCache().replace).toBe("");
+		h.closeOwner();
+		expect(h.session.applyRecipe({ ...recipe, search: "other" })).toBe(false);
+		expect(h.session.captureRecipe().search).toBe("cat");
+		h.dispose();
+	});
 	it("releases history subscription even when presentation cleanup throws", () => {
 		const h = environment();
 		const unsubscribe = vi.fn();
@@ -115,6 +199,51 @@ describe("Finder application with explicit owner ports", () => {
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
 		expect(() => cleanup?.()).not.toThrow();
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
+		h.dispose();
+	});
+	it("does not widen an invalidated selection when applying a preset", () => {
+		const h = environment();
+		h.session.state.scopeBlocked = true;
+		h.session.applyRecipe({
+			search: "cat",
+			options: { regexMode: false, caseSensitive: false, wholeWord: false },
+			replacement: { text: "dog", interpretEscapes: true },
+		});
+		expect(h.session.hasSelectionScope()).toBe(true);
+		expect(h.session.getSearchCache().matches).toEqual([]);
+		h.session.replaceAllMatchedText("dog");
+		expect(h.writes).toHaveLength(0);
+		h.dispose();
+	});
+	it("reading applies only find options and never leaves a hidden replacement for later editing", () => {
+		const h = environment();
+		h.host.mode = () => "preview";
+		h.host.canRead = () => true;
+		const search = vi.fn();
+		h.host.reading = () => ({
+			search,
+			setScope: () => false,
+			clearScope() {},
+			blockScope() {},
+			pauseNavigation() {},
+			retrySynchronously() {},
+		});
+		const options = { regexMode: true, caseSensitive: false, wholeWord: false };
+		expect(
+			h.session.applyRecipe({
+				search: "cat",
+				options,
+				replacement: { text: "danger", interpretEscapes: false },
+			}),
+		).toBe(true);
+		expect(search).toHaveBeenCalledTimes(1);
+		expect(h.session.captureRecipe()).toEqual({
+			search: "cat",
+			options,
+			replacement: null,
+			collapse: true,
+		});
+		expect(h.writes).toHaveLength(0);
 		h.dispose();
 	});
 	it("recomputes hidden replacement coordinates against the current snapshot", () => {

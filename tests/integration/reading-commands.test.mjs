@@ -104,6 +104,29 @@ test("reading ShowFind checks without side effects and opens the plugin without 
 	h.search.dispose();
 });
 
+test("preset commands preserve IDs, do not create a Finder during availability checks, and capture the exact owner", () => {
+	const h = environment();
+	const save = h.commands.get("text-finder-save-preset");
+	assert.equal(save.checkCallback(true), true);
+	assert.equal(h.created(), 0);
+	const recipe = {
+		search: "exact",
+		options: { regexMode: false, caseSensitive: true, wholeWord: false },
+		replacement: null,
+	};
+	const finder = h.search.getFinder(h.view);
+	finder.captureRecipe = () => recipe;
+	const opened = [];
+	h.search.openHistory = (...args) => opened.push(args);
+	save.checkCallback(false);
+	assert.deepEqual(opened[0], ["presets", recipe]);
+	h.commands.get("text-finder-apply-preset").callback();
+	assert.deepEqual(opened[1], ["presets"]);
+	h.close();
+	assert.equal(save.checkCallback(true), false);
+	h.search.dispose();
+});
+
 test("reset-position command operates on an existing owner only and sets no default shortcut", () => {
 	const h = environment(),
 		command = h.commands.get("text-finder-reset-position");
@@ -409,7 +432,7 @@ test("late layout callbacks do not initialize unloaded plugins and initializatio
 	unloaded = false;
 	callback();
 	callback();
-	assert.equal(commands, 12);
+	assert.equal(commands, 14);
 	assert.equal(extensions, 1);
 	plugin.editorSearch.dispose();
 });

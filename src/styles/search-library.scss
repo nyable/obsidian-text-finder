@@ -1,0 +1,621 @@
+@use "compact-tabs";
+
+// Search library only. Host modal/menu behavior and public Finder CSS stay intact.
+.nya-library-host {
+	width: min(640px, calc(100vw - 32px));
+	max-height: calc(100dvh - 32px);
+	.modal-content {
+		min-height: 0;
+		overflow: hidden;
+		padding: 0;
+		display: flex;
+	}
+}
+.nya-library {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 0;
+	height: min(560px, calc(var(--nya-library-viewport-height, 100dvh) - 80px));
+	display: flex;
+	flex-direction: column;
+	padding: 20px;
+	position: relative;
+	gap: 12px;
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+	button {
+		box-shadow: none;
+	}
+	button,
+	input[type="checkbox"] {
+		&:focus-visible {
+			outline: 2px solid var(--interactive-accent);
+			outline-offset: 2px;
+		}
+	}
+	button {
+		min-height: 28px;
+		cursor: pointer;
+		&:disabled {
+			cursor: default;
+		}
+	}
+	button.nya-library-secondary,
+	button.nya-library-danger {
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 5px;
+		padding: 5px 12px;
+		background: var(--background-secondary);
+		color: var(--text-normal);
+		&:hover {
+			border-color: var(--text-muted);
+			background: var(--background-modifier-hover);
+		}
+	}
+	button.nya-library-danger {
+		color: var(--text-error);
+		border-color: var(--text-error);
+		&:hover {
+			color: var(--text-error);
+			border-color: var(--text-error);
+			background: var(--background-modifier-error-hover, var(--background-modifier-hover));
+		}
+	}
+	input:not([type="checkbox"]),
+	textarea {
+		box-sizing: border-box;
+		color: var(--text-normal);
+		background: var(--background-secondary);
+		border: 1px solid transparent;
+		border-radius: 6px;
+		padding: 8px 12px;
+		font: inherit;
+		outline: none;
+		box-shadow: none;
+		&:hover {
+			background: var(--background-secondary);
+			box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+		}
+		&:focus,
+		&:focus-visible {
+			// One inset edge replaces both the host focus shadow and outer outline.
+			border-color: transparent;
+			outline: none;
+			box-shadow: inset 0 0 0 1px var(--interactive-accent);
+		}
+		&::placeholder {
+			color: var(--text-faint);
+			opacity: 1;
+		}
+	}
+	.nya-library-header {
+		min-height: 36px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		flex-shrink: 0;
+	}
+	.nya-library-browser {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		flex: 1;
+		gap: 12px;
+	}
+	h2 {
+		margin: 0;
+		font-size: var(--font-ui-medium);
+		font-weight: var(--font-semibold);
+	}
+	p {
+		margin: 0;
+	}
+	.nya-library-tabs {
+		@include compact-tabs.tabs;
+	}
+	.nya-library-filter {
+		display: block;
+		flex-shrink: 0;
+	}
+	.nya-library-filter input {
+		width: 100%;
+	}
+	.nya-library-content {
+		min-height: 0;
+		flex: 1;
+		overflow-y: auto;
+		scrollbar-gutter: stable;
+		overscroll-behavior: contain;
+	}
+	.nya-library-hint,
+	.nya-history-time-combined {
+		color: var(--text-muted);
+		font-size: var(--font-ui-smaller);
+		line-height: 1.5;
+	}
+	.nya-library-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+	}
+	.nya-library-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 12px;
+		border-top: 1px solid var(--background-modifier-border);
+		padding-top: 12px;
+		flex-shrink: 0;
+		min-height: 49px;
+	}
+	.nya-history-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		min-height: 32px;
+		flex-shrink: 0;
+	}
+	.nya-history-toolbar-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+		flex-wrap: nowrap;
+	}
+	.nya-preset-toolbar {
+		justify-content: flex-start;
+	}
+	.nya-history-select-all {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.nya-history-item {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		padding: 10px 4px;
+		border-bottom: 1px solid var(--background-modifier-border);
+	}
+	.nya-history-item:last-child {
+		border-bottom: 0;
+	}
+	.nya-history-item:hover,
+	.nya-history-item.selected {
+		background: var(--background-modifier-hover);
+	}
+	.nya-history-content {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		height: auto;
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 6px;
+		padding: 0;
+		border: 0;
+		background: transparent;
+		text-align: start;
+		color: var(--text-normal);
+	}
+	.nya-history-content:hover,
+	.nya-history-content:active {
+		background: transparent;
+		box-shadow: none;
+	}
+	.nya-history-meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 3px 10px;
+		width: 100%;
+		color: var(--text-muted);
+		font-size: var(--font-ui-smaller, calc(1em - 1px));
+		font-weight: normal;
+		line-height: 1.5;
+		text-align: start;
+		.nya-history-usage,
+		.nya-history-length {
+			white-space: nowrap;
+		}
+		.nya-history-time-combined {
+			margin-inline-start: auto;
+			text-align: end;
+			font-size: max(10px, calc(1em - 1px));
+			max-width: 100%;
+			overflow-wrap: anywhere;
+		}
+	}
+	.nya-history-text,
+	.nya-rule-text {
+		font-family: var(--font-monospace);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		tab-size: 4;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		min-height: 1.5em;
+		line-height: 1.5;
+	}
+	.nya-history-actions {
+		display: flex;
+		gap: 4px;
+	}
+	.nya-icon-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		padding: 4px;
+		border: 0;
+		background: transparent;
+		color: var(--text-muted);
+	}
+	.nya-icon-btn:hover {
+		background: var(--background-modifier-hover);
+		color: var(--text-normal);
+	}
+	.nya-history-actions .nya-icon-btn:hover,
+	.nya-history-checkbox:hover {
+		background: transparent;
+		color: var(--text-normal);
+	}
+	.nya-history-checkbox {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		width: 28px;
+		background: transparent;
+		border: 0;
+		padding: 0 4px;
+	}
+	.nya-history-empty {
+		color: var(--text-muted);
+		padding: 24px 0;
+		text-align: center;
+	}
+	.nya-preset-item {
+		display: grid;
+		grid-template-columns: 28px minmax(0, 1fr) 28px;
+		align-items: center;
+		gap: 8px;
+		padding: 0 8px 0 0;
+		border: 1px solid var(--background-modifier-border);
+		border-radius: 8px;
+		background: var(--background-secondary);
+		position: relative;
+	}
+	.nya-preset-item:hover,
+	.nya-preset-item:has(:focus-visible) {
+		background-image: linear-gradient(
+			var(--background-modifier-hover),
+			var(--background-modifier-hover)
+		);
+		border-color: var(--interactive-accent);
+	}
+	.nya-preset-list {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		padding: 3px;
+	}
+	.nya-preset-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.nya-preset-grip {
+		touch-action: none;
+		cursor: grab;
+		align-self: stretch;
+		height: auto;
+		width: 100%;
+		border-right: 1px solid var(--background-modifier-border);
+		border-radius: 7px 0 0 7px;
+	}
+	.nya-preset-grip:disabled {
+		cursor: default;
+		opacity: 0.35;
+	}
+	.nya-preset-list.is-dragging {
+		user-select: none;
+	}
+	.nya-preset-item.is-dragged {
+		opacity: 0.45;
+	}
+	.nya-preset-item.is-drop-before::before {
+		content: "";
+		position: absolute;
+		top: -8px;
+		height: 3px;
+		left: 0;
+		right: 0;
+		border-radius: 2px;
+		background: var(--interactive-accent);
+	}
+	.nya-preset-drop-end {
+		height: 3px;
+		background: var(--interactive-accent);
+		border-radius: 2px;
+	}
+	.nya-preset-apply {
+		display: flex;
+		align-items: flex-start;
+		flex-direction: column;
+		flex: 1;
+		min-width: 0;
+		gap: 6px;
+		height: auto;
+		border: 0;
+		padding: 12px 0;
+		background: transparent;
+		text-align: start;
+	}
+	.nya-preset-apply:hover {
+		background: transparent;
+		box-shadow: none;
+	}
+	.nya-preset-name {
+		font-weight: var(--font-semibold);
+		overflow-wrap: anywhere;
+	}
+	.nya-recipe-form {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 14px;
+		min-height: 0;
+	}
+	.nya-recipe-fields {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		gap: 14px;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
+		padding: 3px;
+		> * {
+			flex-shrink: 0;
+		}
+	}
+	.nya-recipe-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.nya-recipe-copy h3 {
+		margin: 0;
+		font: inherit;
+		font-weight: var(--font-semibold);
+	}
+	.nya-recipe-field input,
+	.nya-recipe-field textarea {
+		width: 100%;
+	}
+	.nya-recipe-field textarea {
+		height: calc(6em + 18px);
+		min-height: calc(6em + 18px);
+		max-height: calc(6em + 18px);
+		resize: none;
+		overflow: auto;
+		line-height: 1.5;
+		font-family: var(--font-monospace);
+		white-space: pre;
+	}
+	.nya-recipe-options,
+	.nya-recipe-other {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 16px;
+		border-radius: 8px;
+		background: var(--background-secondary);
+	}
+	.nya-recipe-options h3,
+	.nya-recipe-other h3 {
+		margin: 0;
+		font: inherit;
+		font-weight: var(--font-semibold);
+	}
+	.nya-recipe-check input {
+		flex-shrink: 0;
+	}
+	.nya-match-options {
+		display: inline-flex;
+		gap: 4px;
+		align-items: center;
+	}
+	.nya-match-option {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		padding: 4px;
+		border: 0;
+		border-radius: 5px;
+		background: transparent;
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+	button.nya-match-option:hover {
+		background: var(--background-modifier-hover);
+	}
+	.nya-match-option.is-active,
+	.nya-match-option[aria-pressed="true"] {
+		color: var(--text-on-accent);
+		background: var(--interactive-accent);
+	}
+	button.nya-match-option[aria-pressed="true"]:hover {
+		background: var(--interactive-accent-hover, var(--interactive-accent));
+	}
+	.nya-recipe-check {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.nya-history-detail {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		gap: 12px;
+		min-height: 0;
+	}
+	.nya-history-detail-body {
+		min-height: 0;
+		flex: 1;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-gutter: stable;
+		padding: 3px;
+	}
+	.nya-history-detail-text {
+		font-family: var(--font-monospace);
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		padding: 12px;
+		background: var(--background-secondary);
+		border-radius: 8px;
+		margin: 0;
+		user-select: text;
+	}
+	.nya-history-detail-meta {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 4px 16px;
+		margin: 0;
+		padding-bottom: 12px;
+		border-bottom: 1px solid var(--background-modifier-border);
+		flex-shrink: 0;
+		color: var(--text-muted);
+		font-size: var(--font-ui-smaller, calc(1em - 1px));
+	}
+	.nya-history-detail-meta dd {
+		margin: 0;
+		overflow-wrap: anywhere;
+	}
+	.nya-library-confirm,
+	.nya-library-undo {
+		padding: 12px;
+		border-radius: 8px;
+		background: var(--background-secondary);
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 12px;
+		flex-shrink: 0;
+	}
+	.nya-library-footer .nya-library-undo {
+		width: 100%;
+		padding: 0;
+		background: transparent;
+	}
+	.nya-library-list-feedback {
+		position: absolute;
+		bottom: 20px;
+		left: 20px;
+		right: 20px;
+		z-index: 1;
+		pointer-events: none;
+	}
+	.nya-library-list-feedback .nya-library-undo {
+		pointer-events: auto;
+		border: 1px solid var(--background-modifier-border);
+	}
+	&.nya-library--compact {
+		.nya-recipe-form {
+			overflow-y: auto;
+		}
+		.nya-recipe-fields {
+			flex: none;
+			overflow: visible;
+		}
+	}
+	.nya-library-error {
+		color: var(--text-error);
+	}
+	.nya-library-sr {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+}
+@media (forced-colors: active) {
+	.nya-library input:not([type="checkbox"]),
+	.nya-library textarea {
+		border-color: ButtonText;
+		&:focus-visible {
+			outline: 2px solid Highlight;
+			outline-offset: 2px;
+		}
+	}
+}
+@media (max-width: 480px) {
+	.nya-library {
+		padding: 16px;
+		height: min(560px, calc(var(--nya-library-viewport-height, 100dvh) - 64px));
+	}
+	.nya-library button {
+		min-height: 36px;
+	}
+	.nya-library .nya-icon-btn {
+		width: 36px;
+		height: 36px;
+	}
+	.nya-library .nya-history-toolbar {
+		min-height: 36px;
+	}
+	.nya-library .nya-match-option,
+	.nya-library .nya-history-checkbox {
+		width: 36px;
+		height: 36px;
+	}
+	.nya-library .nya-preset-item {
+		grid-template-columns: 28px minmax(0, 1fr) 28px;
+		padding: 0 8px 0 0;
+		gap: 4px;
+	}
+	.nya-library .nya-preset-actions .nya-icon-btn {
+		width: 28px;
+		height: 36px;
+	}
+	.nya-library .nya-icon-btn.nya-preset-grip {
+		width: 100%;
+		height: auto;
+	}
+	.nya-library .nya-library-list-feedback {
+		bottom: 16px;
+		left: 16px;
+		right: 16px;
+	}
+	.nya-library .nya-recipe-field input,
+	.nya-library .nya-recipe-field textarea,
+	.nya-library .nya-library-filter input {
+		font-size: 16px;
+	}
+}
+// The editor falls back to whole-form scrolling; details keep metadata/actions
+// fixed and scroll only the original query text.
+@media (max-height: 420px) {
+	.nya-library .nya-recipe-form {
+		overflow-y: auto;
+	}
+	.nya-library .nya-recipe-fields {
+		flex: none;
+		overflow: visible;
+	}
+}

@@ -459,7 +459,9 @@ test("real CodeMirror owns the newline layer and removes it on destroy; decorati
 		Object.assign(globalThis, previous);
 		h.dom.window.close();
 	}
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	assert.match(
 		css,
 		/\.nya-newline-layer,\s*\.nya-newline-match\s*\{[^}]*pointer-events: none[^}]*user-select: none/s,

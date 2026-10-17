@@ -6,6 +6,7 @@ import {
 	type SearchHistoryItem,
 } from "../../history";
 import { defaultToolbar, normalizeToolbar, type ToolbarItem } from "../../finder";
+import { normalizePresets, type SearchPreset } from "../../presets";
 import {
 	normalizeAppearanceColors,
 	defaultScopeAppearance,
@@ -24,7 +25,9 @@ export interface PluginSettings {
 	enableHistory: boolean;
 	historyMaxCount: number;
 	historySortOrder: HistorySortOrderType;
+	historyRetention: HistorySortOrderType;
 	searchHistory: SearchHistoryItem[];
+	searchPresets: SearchPreset[];
 	searchToolbar: ToolbarItem[];
 	replaceToolbar: ToolbarItem[];
 	defaultRegexMode: boolean;
@@ -48,7 +51,9 @@ export function defaultSettings(): PluginSettings {
 		enableHistory: true,
 		historyMaxCount: 10,
 		historySortOrder: HistorySortOrder.LAST_USED_AT,
+		historyRetention: HistorySortOrder.LAST_USED_AT,
 		searchHistory: [],
+		searchPresets: [],
 		searchToolbar: defaultToolbar("search"),
 		replaceToolbar: defaultToolbar("replace"),
 		defaultRegexMode: false,
@@ -94,10 +99,17 @@ export function normalizeSettings(raw: unknown, now = Date.now()) {
 	if (Object.values(HistorySortOrder).includes(input.historySortOrder as HistorySortOrderType)) {
 		settings.historySortOrder = input.historySortOrder as HistorySortOrderType;
 	}
+	// Keep the old eviction behavior on upgrade, including legacy createdAt preference.
+	settings.historyRetention = Object.values(HistorySortOrder).includes(
+		input.historyRetention as HistorySortOrderType,
+	)
+		? (input.historyRetention as HistorySortOrderType)
+		: settings.historySortOrder;
+	settings.searchPresets = normalizePresets(input.searchPresets, now);
 	settings.searchHistory = trimHistory(
 		normalizeHistory(input.searchHistory, now),
 		settings.historyMaxCount,
-		settings.historySortOrder,
+		settings.historyRetention,
 	);
 	settings.searchToolbar = normalizeToolbar(input.searchToolbar, "search");
 	if (input.finderDockSide === "left" || input.finderDockSide === "right")

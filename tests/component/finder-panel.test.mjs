@@ -205,6 +205,27 @@ function setReplacement(h, value) {
 	input.dispatchEvent(new input.ownerDocument.defaultView.Event("input", { bubbles: true }));
 }
 
+test("preset application preserves exact scope, does not write, and captures local escape semantics", async (t) => {
+	const h = mount(t, undefined, { useEscapeCharInReplace: true });
+	await tick();
+	selectScope(h, [{ from: 4, to: 7 }]);
+	h.component.findInSelection();
+	const recipe = {
+		search: "cat",
+		options: { regexMode: true, caseSensitive: true, wholeWord: false },
+		replacement: { text: "\\n", interpretEscapes: false },
+	};
+	assert.equal(h.component.applyRecipe(recipe), true);
+	await tick();
+	assert.equal(h.view.editor.getValue(), "cat cat");
+	assert.equal(h.component.hasSelectionScope(), true);
+	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 4, to: 7, index: 0 }]);
+	assert.deepEqual(h.component.captureRecipe(), { ...recipe, collapse: false });
+	assert.equal(h.plugin.settings.useEscapeCharInReplace, true);
+	h.component.replaceAllMatchedText("\\n");
+	assert.equal(h.view.editor.getValue(), "cat \\n");
+});
+
 test("selection command preserves query, locks exact multiline characters and navigation cannot shrink scope", async (t) => {
 	const h = mount(t);
 	await tick();
@@ -4074,7 +4095,9 @@ test("failed selection activation keeps More open but not active, and invalid sc
 });
 
 test("scope text marks keep background-only styling and separate outlines never override match colors", () => {
-	const styles = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const styles = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	const scopeRules = styles.match(/\.nya-text-finder-scope[^{}]*\{[^}]*\}/g);
 	assert.ok(scopeRules?.length);
 	assert.ok(scopeRules.every((rule) => !/box-shadow|text-decoration|border-bottom/.test(rule)));

@@ -217,7 +217,7 @@ test("appearance defaults agree with public variables and pinned preview has a s
 	const source = readFileSync("src/styles/index.scss", "utf8");
 	for (const definition of Object.values(appearanceColors))
 		assert.ok(source.includes(`${definition.variable}: ${definition.default};`));
-	const css = compileString(source).css;
+	const css = compileString(source, { loadPaths: ["src/styles"] }).css;
 	assert.match(
 		css,
 		/\.nya-settings\.nya-settings--appearance\s*\{[^}]*height: 100%[^}]*overflow: hidden/s,
@@ -240,14 +240,20 @@ test("appearance defaults agree with public variables and pinned preview has a s
 });
 
 test("settings tabs have scoped hover, selected, pressed and focus styles; folded sections keep compact spacing", () => {
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	assert.match(
 		css,
 		/\.nya-settings \.nya-settings-tabs button:hover\s*\{[^}]*background: var\(--background-modifier-hover\)[^}]*color: var\(--text-normal\)/s,
 	);
 	assert.match(
 		css,
-		/\.nya-settings \.nya-settings-tabs button\[aria-selected=(?:"true"|true)\]\s*\{[^}]*border-bottom-color: var\(--interactive-accent\)[^}]*color: var\(--text-accent\)/s,
+		/\.nya-settings \.nya-settings-tabs button\[aria-selected=(?:"true"|true)\]\s*\{[^}]*color: var\(--interactive-accent\)/s,
+	);
+	assert.match(
+		css,
+		/\.nya-settings \.nya-settings-tabs button\[aria-selected=(?:"true"|true)\]::after\s*\{[^}]*height: 2px[^}]*background: var\(--interactive-accent\)/s,
 	);
 	assert.match(
 		css,
@@ -270,8 +276,53 @@ test("settings tabs have scoped hover, selected, pressed and focus styles; folde
 	assert.match(css, /\.nya-settings-section-body\s*\{[^}]*padding-top: 6px/s);
 });
 
+test("settings and library tabs share compact geometry, underline and interaction rules", () => {
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
+	const library = compileString(readFileSync("src/styles/search-library.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
+	for (const [output, selector] of [
+		[css, ".nya-settings .nya-settings-tabs"],
+		[library, ".nya-library .nya-library-tabs"],
+	]) {
+		const escaped = selector.replaceAll(".", "\\.");
+		assert.match(
+			output,
+			new RegExp(
+				`${escaped}\\s*\\{[^}]*gap: 4px[^}]*overflow-x: auto[^}]*padding: 2px 0 4px`,
+				"s",
+			),
+		);
+		assert.match(
+			output,
+			new RegExp(
+				`${escaped} button\\s*\\{[^}]*border-radius: 5px[^}]*min-height: 32px[^}]*padding: 5px 12px`,
+				"s",
+			),
+		);
+		assert.match(
+			output,
+			new RegExp(
+				`${escaped} button\\[aria-selected=(?:"true"|true)\\]::after\\s*\\{[^}]*bottom: -5px[^}]*left: 12px[^}]*right: 12px`,
+				"s",
+			),
+		);
+		assert.match(
+			output,
+			new RegExp(
+				`@media[^{}]*pointer: coarse[^{}]*\\{\\s*${escaped} button\\s*\\{[^}]*min-height: 36px`,
+				"s",
+			),
+		);
+	}
+});
+
 test("custom settings selects use theme popovers and default option label/control have centered margin-free layout", () => {
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	assert.match(
 		css,
 		/\.nya-settings-select\s*\{[^}]*display: grid[^}]*align-items: center[^}]*height: var\(--nya-select-height\)/s,
@@ -308,7 +359,9 @@ test("custom settings selects use theme popovers and default option label/contro
 });
 
 test("select trigger and options share size/typography, intrinsic sizing, padding and icon space without fixed widths", () => {
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	assert.match(
 		css,
 		/\.nya-settings-select,\s*\.nya-settings-select-popover\s*\{[^}]*--nya-select-height: 28px[^}]*--nya-select-option-height: 32px[^}]*font-family: var\(--font-interface\)[^}]*font-size: var\(--font-ui-small\)[^}]*line-height: 1.4/s,
@@ -335,7 +388,9 @@ test("select trigger and options share size/typography, intrinsic sizing, paddin
 });
 
 test("appearance rows share alignment, spacing and a consistent narrow layout without styling other pages", () => {
-	const css = compileString(readFileSync("src/styles/index.scss", "utf8")).css;
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
 	assert.match(
 		css,
 		/\.nya-settings \.nya-color-group\s*\{[^}]*display: grid[^}]*gap: 8px[^}]*padding: 12px/s,

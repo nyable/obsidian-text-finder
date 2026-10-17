@@ -55,6 +55,8 @@
 		}
 	},
 	"commands": {
+		"ApplyPreset": { "name": "Apply find / replace preset" },
+		"SavePreset": { "name": "Save current find as preset" },
 		"FindInSelection": { "name": "Open find in selection" },
 		"ShowFind": {
 			"name": "Open search in current file"
@@ -88,6 +90,15 @@
 		}
 	},
 	"settings": {
+		"HistoryRetention": {
+			"name": "When history is full, keep",
+			"desc": "Independent of display order. Upgrades retain the previous eviction preference. Presets are never evicted.",
+			"options": {
+				"lastUsedAt": "Recently used queries",
+				"count": "Frequently used queries",
+				"createdAt": "Recently created queries (legacy)"
+			}
+		},
 		"Tabs": {
 			"label": "Settings categories",
 			"general": "General",
@@ -182,7 +193,7 @@
 		},
 		"HistoryMaxCount": {
 			"name": "Max History Count",
-			"desc": "1–200 items. Confirm with Enter or by leaving the field; lowering the limit immediately removes lower-priority items according to the selected sort order."
+			"desc": "1–200 items. Confirm with Enter or by leaving the field. Lowering the limit trims history using the retention policy; presets are unaffected."
 		},
 		"HistorySortOrder": {
 			"name": "History Sort Order",
@@ -194,7 +205,68 @@
 			}
 		}
 	},
+	"library": {
+		"DuplicateName": "A preset with this name already exists. Choose a different name.",
+		"LegacyDuplicateNames": "Some saved presets share a name. Their configurations are preserved; rename them to use unique names.",
+		"UndoNameConflict": "Cannot restore this preset: its name or identity is already in use. Existing presets were not changed.",
+		"NewName": "New preset name",
+		"CreatePreset": "Create preset",
+		"BackToEditor": "Back to editing",
+		"OtherSettings": "Other settings",
+		"CollapseOnApply": "Fold replacement row when applied",
+		"ReplacementNotSaved": "Replacement text stays in this draft but is not included in the preset.",
+		"SaveAction": "Save",
+		"FoldedReplacement": "Replacement is saved; its row will stay folded when applied.",
+		"Folded": "Replacement row folded",
+		"Expanded": "Replacement row expanded",
+		"DragHelp": "Drag to reorder, or use Up/Down, Home/End on the handle. Escape cancels a drag.",
+		"ReorderPreset": "Reorder preset: {{name}}",
+		"MovedPreset": "Moved preset: {{name}}",
+		"FilteredOrder": "Clear the filter to reorder presets.",
+		"MatchOptions": "Match options",
+		"Enabled": "On",
+		"Disabled": "Off",
+		"SelectedCount": "{{count}} selected",
+		"ClearSelection": "Clear selection",
+		"PresetCount": "{{count}} presets",
+		"Title": "History and presets",
+		"LineCount": "{{count}} lines",
+		"Presets": "Presets",
+		"Name": "Name",
+		"Filter": "Filter names or queries…",
+		"New": "New preset",
+		"Save": "Save preset",
+		"Edit": "Edit preset",
+		"Update": "Update preset",
+		"SaveAs": "Save as preset",
+		"Reuse": "Use query",
+		"Manage": "Manage",
+		"Done": "Done",
+		"IncludeReplacement": "Include replacement",
+		"EmptyReplacement": "An empty replacement deletes matched text. It is different from a find-only preset.",
+		"Escapes": "Interpret backslash escapes in regex replacements",
+		"EmptyValue": "Empty string (delete matches)",
+		"FindReplace": "Find and replace",
+		"FindOnly": "Find only",
+		"Literal": "Plain text",
+		"IgnoreCase": "Ignore case",
+		"ApplyHint": "Applying fills the finder and searches. It never replaces text automatically.",
+		"ReadingHint": "Reading view applies find options only. Replacement requires editing view.",
+		"HistoryHint": "History restores query text only. Copying does not change usage statistics.",
+		"SaveHint": "Saves configuration only; does not edit the note.",
+		"EmptyPresets": "No presets yet. Save your current find, or create a named rule.",
+		"NoResults": "No matching entries. Try a different filter.",
+		"SaveConflict": "This preset was deleted. Choose Save as preset to keep your draft.",
+		"SelectQuery": "Select query: {{text}}",
+		"WhitespaceQuery": "Whitespace-only query ({{count}} characters)",
+		"Deleted": "Deleted {{count}} entries",
+		"Undo": "Undo",
+		"Unsaved": "This preset has unsaved changes. Discard them?",
+		"KeepEditing": "Keep editing",
+		"Discard": "Discard changes"
+	},
 	"history": {
+		"UsageCount": "Uses: {{count}}",
 		"Length": "Length",
 		"Characters": "{{count}} chars",
 		"Title": "Search History",
@@ -212,7 +284,7 @@
 		"Back": "Back",
 		"LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
 		"SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
-		"CopyFailed": "Text Finder could not copy the history text. Usage was not updated.",
+		"CopyFailed": "Text Finder could not copy the query text.",
 		"ReuseFailed": "Open a supported Markdown editing or reading view before reusing search history."
 	}
 }

@@ -105,6 +105,7 @@ for (const [order, expected] of [
 	test(`shrinking history applies ${order} priority in one save`, () => {
 		const c = controller({
 			historySortOrder: order,
+			historyRetention: order,
 			searchHistory: [item("A", 1, 20, 30), item("B", 2, 30, 10), item("C", 3, 10, 20)],
 		});
 		c.history.resize(2);

@@ -2,6 +2,7 @@ import type { FinderHost, FinderPreferences, ScopeSelection } from "./finder-hos
 import type { EditorPort, EditingSnapshot as EditorContext } from "./editor-port";
 import { findTextOffsets } from "../../../core/search/text-matching";
 import { HistoryNavigation } from "../../history";
+import { copyRecipe, type SearchRecipe } from "../../presets";
 import type { MatchResult } from "../../../core/search/match-protocol";
 import type { ReplaceResult, SearchCache } from "../../../core/search/types";
 import { defaultToolbar, type ToolbarAction } from "../model/toolbar";
@@ -57,6 +58,11 @@ export interface FinderState {
 /** One owner-local session. Host objects retain raw identity; only presentation state is observable. */
 export function createFinderSession(editorSearch: FinderHost, runtime: FinderRuntime) {
 	const preferences = editorSearch.preferences();
+	// Presets carry replacement semantics locally; never mutate the global preference.
+	let replacementEscapes: boolean | undefined;
+	let recipeIncludesReplacement = false;
+	const interpretEscapes = () =>
+		replacementEscapes ?? editorSearch.preferences().useEscapeCharInReplace;
 	const cache: SearchCache = runtime.reactive({
 		search: "",
 		replace: "",
@@ -349,6 +355,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		searchText?: string,
 		historyIndexOverride?: number,
 		focusTarget: "search" | "replace" = "search",
+		preserveScope = false,
 	) {
 		runtime.presentation.hideMenu();
 		const wasDocked = uiState.docked;
@@ -360,7 +367,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		syncFinderVisibility();
 		const settings = editorSearch.preferences();
 		if (uiState.cache.visible) {
-			if (!uiState.scopeEnabled) uiState.scopeBlocked = false;
+			if (!preserveScope && !uiState.scopeEnabled) uiState.scopeBlocked = false;
 			setFindText(searchText !== undefined ? searchText : uiState.cache.search);
 			focusInput(focusTarget, wasDocked || focusTarget === "replace");
 			if (historyIndexOverride !== undefined)
@@ -396,7 +403,40 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		historyNavigation.select(searchText, getSortedHistory());
 		return true;
 	}
+	function captureRecipe(): SearchRecipe {
+		return copyRecipe({
+			search: uiState.cache.search,
+			options: uiState.cache.options,
+			collapse: isReading() || uiState.cache.collapse,
+			replacement:
+				isReading() ||
+				(uiState.cache.collapse && !uiState.cache.replace && !recipeIncludesReplacement)
+					? null
+					: { text: uiState.cache.replace, interpretEscapes: interpretEscapes() },
+		});
+	}
+	function applyRecipe(recipe: SearchRecipe): boolean {
+		if (
+			uiState.disposed ||
+			recipe.search === "" ||
+			(isReading() ? !editorSearch.canRead() : !getEditorContext())
+		)
+			return false;
+		cancelEditing();
+		uiState.positionRequest++;
+		Object.assign(uiState.cache.options, recipe.options);
+		const replacement = isReading() ? null : recipe.replacement;
+		replacementEscapes = replacement?.interpretEscapes;
+		uiState.cache.replace = replacement?.text ?? "";
+		setCollapse(isReading() || (recipe.collapse ?? !replacement));
+		recipeIncludesReplacement = !!replacement;
+		// setVisible triggers one query with all options set, and preserves the owner scope.
+		setVisible(true, recipe.search, undefined, "search", true);
+		recordSearchToHistory(recipe.search, true);
+		return true;
+	}
 	function setCollapse(flag: boolean) {
+		if (flag && !uiState.cache.collapse && !isReading()) recipeIncludesReplacement = true;
 		uiState.cache.collapse = isReading() ? true : flag;
 	}
 	function showReplace(searchText?: string) {
@@ -414,6 +454,8 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		else toggleCollapse();
 	}
 	function resetAll() {
+		replacementEscapes = undefined;
+		recipeIncludesReplacement = false;
 		cancelEditing();
 		clearScope();
 		uiState.positionRequest++;
@@ -882,11 +924,14 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			uiState.currentSearch = "";
 			uiState.lastRecordedSearch = null;
 		}
-		if (clearReplace) uiState.cache.replace = "";
+		if (clearReplace) {
+			uiState.cache.replace = "";
+			recipeIncludesReplacement = false;
+		}
 		emitChange();
 	};
 	const adjustReplaceText = (text: string) => {
-		return decodeReplacementEscapes(text, editorSearch.preferences().useEscapeCharInReplace);
+		return decodeReplacementEscapes(text, interpretEscapes());
 	};
 	const replacementCurrent = (task: ReplacementTask) =>
 		!uiState.disposed &&
@@ -898,8 +943,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		editorSearch.environment() === task.window &&
 		!editorSearch.environmentClosed(task.window) &&
 		(task.phase === "committed" ||
-			(uiState.cache.replace === task.replace &&
-				editorSearch.preferences().useEscapeCharInReplace === task.escape));
+			(uiState.cache.replace === task.replace && interpretEscapes() === task.escape));
 	const replaceMatches = (
 		inputText: string,
 		all: boolean,
@@ -935,7 +979,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			window: editorSearch.environment(),
 			path: context.file?.path,
 			replace: uiState.cache.replace,
-			escape: editorSearch.preferences().useEscapeCharInReplace,
+			escape: interpretEscapes(),
 			phase: "prepare",
 			scopeEpoch: uiState.scopeEpoch,
 			searchKey: searchKey(),
@@ -966,7 +1010,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 						isCurrentContext(context) &&
 						queryKey() === task.key &&
 						uiState.cache.replace === task.replace &&
-						editorSearch.preferences().useEscapeCharInReplace === task.escape &&
+						interpretEscapes() === task.escape &&
 						context.file?.path === task.path &&
 						editorSearch.environment() === task.window
 					) {
@@ -1170,6 +1214,9 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		getSearchCache,
 		setVisible,
 		setVisibleFromHistory,
+		captureRecipe,
+		applyRecipe,
+		focusSearch: () => focusInput("search", true),
 		setCollapse,
 		showReplace,
 		toggleReplaceFromCommand,

@@ -15,6 +15,8 @@ export const CMD = {
 	RESET_POSITION: "text-finder-reset-position",
 	FIND_IN_SELECTION: "text-finder-find-in-selection",
 	HISTORY: "show-search-history",
+	PRESETS: "text-finder-apply-preset",
+	SAVE_PRESET: "text-finder-save-preset",
 } as const;
 
 interface CommandHost {
@@ -27,6 +29,8 @@ interface CommandHost {
 	useSelection(): boolean;
 	showFinder(view: MarkdownView): void;
 	openHistory(): void;
+	openPresets(): void;
+	savePreset(view: MarkdownView): void;
 	reportError(error: unknown): void;
 }
 
@@ -133,5 +137,15 @@ export function registerWorkspaceCommands(host: CommandHost): void {
 		id: CMD.HISTORY,
 		name: i18n.t("commands.ShowSearchHistory.name"),
 		callback: () => host.openHistory(),
+	});
+	add({
+		id: CMD.PRESETS,
+		name: i18n.t("commands.ApplyPreset.name"),
+		callback: () => host.openPresets(),
+	});
+	add({
+		id: CMD.SAVE_PRESET,
+		name: i18n.t("commands.SavePreset.name"),
+		checkCallback: (checking) => ownerCommand(checking, (view) => host.savePreset(view)),
 	});
 }

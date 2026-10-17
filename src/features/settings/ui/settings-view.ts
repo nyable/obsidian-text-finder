@@ -315,6 +315,20 @@ export class SettingsView {
 							this.commands.historyOrder(value as HistorySortOrderType);
 					});
 				});
+			new Setting(root)
+				.setName(i18n.t("settings.HistoryRetention.name"))
+				.setDesc(i18n.t("settings.HistoryRetention.desc"))
+				.addDropdown((dropdown) => {
+					for (const order of Object.values(HistorySortOrder))
+						dropdown.addOption(
+							order,
+							i18n.t(`settings.HistoryRetention.options.${order}`),
+						);
+					dropdown.setValue(this.settings.historyRetention).onChange((value) => {
+						if (Object.values(HistorySortOrder).includes(value as HistorySortOrderType))
+							this.commands.historyRetention(value as HistorySortOrderType);
+					});
+				});
 		} else {
 			const preview = root.ownerDocument.createElement("div");
 			preview.className = "nya-appearance-preview";

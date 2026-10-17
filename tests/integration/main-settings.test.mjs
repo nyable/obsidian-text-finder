@@ -520,13 +520,16 @@ test("settings toggles and sort changes save through the queue and notify subscr
 	});
 	fields.get("settings.EnableHistory.name").change(false);
 	fields.get("settings.HistorySortOrder.name").change("count");
+	assert.equal(p.settings.historyRetention, "lastUsedAt", "view order never changes retention");
+	fields.get("settings.HistoryRetention.name").change("count");
 	tabs.at(-1).containerEl.querySelector('[role="tab"][id$="-find"]').click();
 	fields.get("settings.MoveCursorToMatch.name").change(false);
 	await p.flushSettings();
-	assert.equal(updates, 3);
-	assert.equal(p.writes.length, 3);
+	assert.equal(updates, 4);
+	assert.equal(p.writes.length, 4);
 	assert.equal(p.writes.at(-1).enableHistory, false);
 	assert.equal(p.writes.at(-1).historySortOrder, "count");
+	assert.equal(p.writes.at(-1).historyRetention, "count");
 	unsubscribe();
 });
 
@@ -567,7 +570,7 @@ test("five settings tabs omit retired controls and support keyboard navigation",
 		"nya-settings-tab-replace",
 	);
 	root.querySelector("#nya-settings-tab-history").click();
-	assert.equal(names().length, 3);
+	assert.equal(names().length, 4);
 	const input = root.querySelector("input");
 	input.focus();
 	input.value = "17";

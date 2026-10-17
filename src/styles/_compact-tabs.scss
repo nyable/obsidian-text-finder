@@ -1,0 +1,53 @@
+// Shared only by this plugin's settings and search library navigation.
+@mixin tabs {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+	overflow-x: auto;
+	padding: 2px 0 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	button {
+		position: relative;
+		flex-shrink: 0;
+		box-sizing: border-box;
+		border: 0;
+		border-radius: 5px;
+		min-height: 32px;
+		height: auto;
+		padding: 5px 12px;
+		font: inherit;
+		line-height: 20px;
+		cursor: pointer;
+		background: transparent;
+		box-shadow: none;
+		color: var(--text-muted);
+		&:hover {
+			background: var(--background-modifier-hover);
+			color: var(--text-normal);
+		}
+		&[aria-selected="true"] {
+			color: var(--interactive-accent);
+			&::after {
+				content: "";
+				position: absolute;
+				bottom: -5px;
+				left: 12px;
+				right: 12px;
+				height: 2px;
+				background: var(--interactive-accent);
+			}
+		}
+		&:active {
+			background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+		}
+		&:focus-visible {
+			outline: 2px solid var(--interactive-accent);
+			outline-offset: -2px;
+		}
+	}
+	@media (pointer: coarse), (max-width: 480px) {
+		button {
+			min-height: 36px;
+		}
+	}
+}

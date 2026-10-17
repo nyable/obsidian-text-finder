@@ -16,6 +16,7 @@ export type SettingsPreferences = Readonly<
 	Omit<
 		PluginSettings,
 		| "searchHistory"
+		| "searchPresets"
 		| "appearanceColors"
 		| "scopeAppearance"
 		| "searchToolbar"
@@ -58,6 +59,11 @@ export class SettingsController {
 	}
 	historyOrder(order: HistorySortOrderType): void {
 		this.settings().historySortOrder = order;
+		this.effects.historyChanged();
+		this.effects.save();
+	}
+	historyRetention(order: HistorySortOrderType): void {
+		this.settings().historyRetention = order;
 		this.effects.historyChanged();
 		this.effects.save();
 	}
@@ -119,6 +125,7 @@ export type SettingsCommands = Pick<
 	| "preferences"
 	| "toggle"
 	| "historyOrder"
+	| "historyRetention"
 	| "resizeHistory"
 	| "color"
 	| "resetColors"

@@ -3,9 +3,13 @@ import type { PluginSettings } from "../features/settings";
 import type { HistoryController } from "../features/history";
 import type { Finder } from "../features/finder/ui";
 import type { TranslationKey } from "../i18n/keys";
+import type { PresetController } from "../features/presets";
 
 export interface WorkspaceCommands {
-	getFinder(): Pick<Finder, "setVisibleFromHistory">;
+	getFinder(): Pick<
+		Finder,
+		"setVisibleFromHistory" | "captureRecipe" | "applyRecipe" | "focusSearch"
+	>;
 	refreshToolbars(): void;
 	syncFloatingEntries(): void;
 	dispose(): void;
@@ -15,6 +19,7 @@ export interface WorkspaceCommands {
 export interface PluginRuntimeHost extends Plugin {
 	settings: PluginSettings;
 	history: HistoryController;
+	presets: PresetController;
 	editorSearch: WorkspaceCommands | null;
 	isUnloaded(): boolean;
 	saveSettings(): Promise<void>;
