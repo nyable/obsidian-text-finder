@@ -4,7 +4,11 @@ import type { SearchOptions } from "../../../core/search/types";
 export interface SearchRecipe {
 	search: string;
 	options: SearchOptions;
-	replacement: { text: string; interpretEscapes: boolean } | null;
+	replacement: {
+		text: string;
+		/** Legacy storage compatibility only; replacement parsing uses global preferences. */
+		interpretEscapes: boolean;
+	} | null;
 	/** Missing on legacy recipes: find-only folds, replacements expand. */
 	collapse?: boolean;
 }

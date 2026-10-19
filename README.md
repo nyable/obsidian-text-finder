@@ -139,7 +139,7 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 
 ## Find and replace presets
 
-- Run **Save current find as preset** to name the current view's rule. The replacement row's fold state is saved separately from its value and regex escape interpretation, so folding never discards a saved replacement. Creating from history copies only the query, so review the options before saving.
+- Run **Save current find as preset** to name the current view's rule. The replacement row's fold state is saved separately from its value, so folding never discards a saved replacement. Presets only fill the finder; replacement escape interpretation follows the plugin's global setting. Creating from history copies only the query, so review the options before saving.
 - Run **Apply find / replace preset**, filter by name or rule, and select an entry. Applying fills the finder and searches; **it never replaces note text automatically**. Existing selection restrictions, including invalid scopes, remain in effect; coordinates are never saved.
 - An empty replacement deletes matches; it is not a find-only preset. Application clears any old replacement if none is saved and restores the saved row fold state. Reading mode applies only find options, without changing mode or retaining replacement text for later.
 - Each preset card previews the Finder with its saved fold state. Apply from the middle; edit or delete with the icons on the right. Reorder with the left handle (drag or Up/Down, Home/End); clear filtering first. Order persists, renaming keeps position, and new presets append.

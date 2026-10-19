@@ -820,6 +820,32 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						);
 						const other = page.locator(".nya-recipe-other");
 						await other.scrollIntoViewIfNeeded();
+						assert.equal(await other.getByRole("checkbox").count(), 2);
+						const descriptions = await other
+							.getByRole("checkbox")
+							.evaluateAll((elements) =>
+								elements.map((element) => ({
+									name: element.labels[0].textContent.trim(),
+									help: element.ownerDocument
+										.getElementById(element.getAttribute("aria-describedby"))
+										?.textContent.trim(),
+									tooltip:
+										element.hasAttribute("aria-label") ||
+										element.hasAttribute("title"),
+								})),
+							);
+						assert.deepEqual(descriptions, [
+							{
+								name: "Include replacement",
+								help: "Also fills replacement text; leave it empty to delete matches.",
+								tooltip: false,
+							},
+							{
+								name: "Fold replacement row when applied",
+								help: "Only hides the replacement input; keeps its contents.",
+								tooltip: false,
+							},
+						]);
 						assert.equal(
 							await other.evaluate(
 								(element) => element.parentElement.lastElementChild === element,
@@ -833,7 +859,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 							true,
 						);
 						report.checks.push(
-							"preset editor: separate option/settings groups, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
+							"preset editor: two other settings with accessible short descriptions and no escape override, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
 						);
 					}
 					if (["history", "preset-editor"].includes(scenario)) {

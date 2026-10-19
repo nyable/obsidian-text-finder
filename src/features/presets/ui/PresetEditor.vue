@@ -22,7 +22,8 @@ const options = shallowRef<SearchOptions>({ ...props.recipe.options });
 const includeReplacement = shallowRef(props.recipe.replacement !== null);
 const collapse = shallowRef(props.recipe.collapse ?? !props.recipe.replacement);
 const replacement = shallowRef(props.recipe.replacement?.text ?? "");
-const escapes = shallowRef(props.recipe.replacement?.interpretEscapes ?? true);
+// Preserve the legacy storage field without exposing or applying a preset-level override.
+const legacyInterpretEscapes = props.recipe.replacement?.interpretEscapes ?? true;
 const nameInput = shallowRef<HTMLInputElement>();
 const copyInput = shallowRef<HTMLInputElement>();
 const copying = shallowRef(false);
@@ -34,12 +35,11 @@ const draftRecipe = computed<SearchRecipe>(() => ({
 	collapse: collapse.value,
 	options: { ...options.value },
 	replacement: includeReplacement.value
-		? { text: replacement.value, interpretEscapes: escapes.value }
+		? { text: replacement.value, interpretEscapes: legacyInterpretEscapes }
 		: null,
 }));
 // Compare the visible draft too: toggling a field off must not silently discard edited text.
-const snapshot = () =>
-	JSON.stringify([name.value, draftRecipe.value, replacement.value, escapes.value]);
+const snapshot = () => JSON.stringify([name.value, draftRecipe.value, replacement.value]);
 const initial = snapshot();
 const dirty = () => snapshot() !== initial || copying.value;
 const focus = () => (copying.value ? copyInput.value : nameInput.value)?.focus();
@@ -144,9 +144,11 @@ const backToEditor = () => {
 			<section class="nya-recipe-other" :aria-labelledby="`${id}-other`">
 				<h3 :id="`${id}-other`">{{ i18n.t("library.OtherSettings") }}</h3>
 				<label class="nya-recipe-check"
-					><input v-model="includeReplacement" type="checkbox" />{{
-						i18n.t("library.IncludeReplacement")
-					}}</label
+					><input
+						v-model="includeReplacement"
+						type="checkbox"
+						:aria-describedby="`${id}-replacement-help`"
+					/>{{ i18n.t("library.IncludeReplacement") }}</label
 				>
 				<p :id="`${id}-replacement-help`" class="nya-library-hint">
 					{{
@@ -156,17 +158,15 @@ const backToEditor = () => {
 					}}
 				</p>
 				<label class="nya-recipe-check"
-					><input v-model="collapse" type="checkbox" />{{
-						i18n.t("library.CollapseOnApply")
-					}}</label
-				>
-				<label class="nya-recipe-check"
 					><input
-						v-model="escapes"
+						v-model="collapse"
 						type="checkbox"
-						:disabled="!includeReplacement || !options.regexMode"
-					/>{{ i18n.t("library.Escapes") }}</label
+						:aria-describedby="`${id}-collapse-help`"
+					/>{{ i18n.t("library.CollapseOnApply") }}</label
 				>
+				<p :id="`${id}-collapse-help`" class="nya-library-hint">
+					{{ i18n.t("library.CollapseOnApplyHint") }}
+				</p>
 			</section>
 		</div>
 		<div class="nya-library-footer">

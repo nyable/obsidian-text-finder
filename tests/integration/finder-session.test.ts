@@ -77,6 +77,7 @@ function environment() {
 	return {
 		session,
 		host,
+		preferences,
 		editor,
 		writes,
 		source: () => source,
@@ -102,12 +103,15 @@ describe("Finder application with explicit owner ports", () => {
 		};
 		expect(h.session.applyRecipe(recipe)).toBe(true);
 		expect(h.session.getSearchCache().collapse).toBe(true);
-		expect(h.session.captureRecipe()).toEqual(recipe);
+		expect(h.session.captureRecipe()).toEqual({
+			...recipe,
+			replacement: { text: "\\n", interpretEscapes: true },
+		});
 		expect(h.writes).toHaveLength(0);
 		h.session.showReplace();
 		expect(h.session.getSearchCache().replace).toBe("\\n");
 		h.session.replaceAllMatchedText("\\n");
-		expect(h.source()).toBe("\\n \\n");
+		expect(h.source()).toBe("\n \n");
 		h.dispose();
 	});
 	it("captures manually folded replacement values, including explicitly applied empty replacements", () => {
@@ -137,7 +141,7 @@ describe("Finder application with explicit owner ports", () => {
 		});
 		h.dispose();
 	});
-	it("applies a portable recipe once without writing or changing global defaults", () => {
+	it("fills the finder once without writing or overriding global replacement settings", () => {
 		const h = environment();
 		const matcher = synchronousMatcher();
 		const match = vi.spyOn(matcher, "match");
@@ -150,11 +154,49 @@ describe("Finder application with explicit owner ports", () => {
 		expect(h.session.applyRecipe(recipe)).toBe(true);
 		expect(match).toHaveBeenCalledTimes(1);
 		expect(h.writes).toHaveLength(0);
-		expect(h.session.captureRecipe()).toEqual({ ...recipe, collapse: false });
+		expect(h.session.captureRecipe()).toEqual({
+			...recipe,
+			collapse: false,
+			replacement: { text: "\\n", interpretEscapes: true },
+		});
 		expect(h.host.preferences().useEscapeCharInReplace).toBe(true);
 		expect(h.host.history.sorted()[0]?.count).toBe(1);
 		h.session.toNextMatch();
 		expect(h.host.history.sorted()[0]?.count).toBe(1);
+		h.session.replaceAllMatchedText("\\n");
+		expect(h.source()).toBe("\n \n");
+		h.dispose();
+	});
+	it.each([true, false])(
+		"ignores legacy preset escapes and follows global setting %s, including later changes",
+		(enabled) => {
+			const h = environment();
+			h.preferences.useEscapeCharInReplace = enabled;
+			h.session.applyRecipe({
+				search: "cat",
+				options: { regexMode: true, caseSensitive: false, wholeWord: false },
+				replacement: { text: "\\n\\t\\\\", interpretEscapes: !enabled },
+			});
+			expect(h.writes).toHaveLength(0);
+			expect(h.host.preferences().useEscapeCharInReplace).toBe(enabled);
+			h.session.replaceAllMatchedText("\\n\\t\\\\");
+			const expected = enabled ? "\n\t\\" : "\\n\\t\\\\";
+			expect(h.source()).toBe(`${expected} ${expected}`);
+			h.edit("cat cat");
+			h.preferences.useEscapeCharInReplace = !enabled;
+			h.session.replaceAllMatchedText("\\n\\t\\\\");
+			const updated = enabled ? "\\n\\t\\\\" : "\n\t\\";
+			expect(h.source()).toBe(`${updated} ${updated}`);
+			h.dispose();
+		},
+	);
+	it("keeps plain-text preset replacements literal even when global escapes are enabled", () => {
+		const h = environment();
+		h.session.applyRecipe({
+			search: "cat",
+			options: { regexMode: false, caseSensitive: false, wholeWord: false },
+			replacement: { text: "\\n", interpretEscapes: true },
+		});
 		h.session.replaceAllMatchedText("\\n");
 		expect(h.source()).toBe("\\n \\n");
 		h.dispose();

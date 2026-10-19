@@ -496,7 +496,30 @@ describe("unified search library", () => {
 		expect(h.apply).not.toHaveBeenCalled();
 		expect(h.settings.searchPresets[0]?.options).toEqual(recipe.options);
 	});
-	it("stores folded replacement drafts without discarding their text or escape semantics", async () => {
+	it("explains both other settings without exposing a preset escape override", async () => {
+		const h = fixture(recipe);
+		const controls = h.target.querySelectorAll<HTMLInputElement>(".nya-recipe-other input");
+		expect(controls).toHaveLength(2);
+		const description = (element: Element) =>
+			element.ownerDocument.getElementById(element.getAttribute("aria-describedby")!);
+		expect(controls[0]!.labels?.[0]?.textContent).toContain("library.IncludeReplacement");
+		expect(description(controls[0]!)?.textContent).toContain("library.EmptyReplacement");
+		expect(controls[1]!.labels?.[0]?.textContent).toContain("library.CollapseOnApply");
+		expect(description(controls[1]!)?.textContent).toContain("library.CollapseOnApplyHint");
+		expect(description(h.target.querySelectorAll("textarea")[1]!)?.textContent).toContain(
+			"library.EmptyReplacement",
+		);
+		expect(h.target.textContent).not.toContain("library.Escapes");
+		controls[0]!.click();
+		await nextTick();
+		expect(description(controls[0]!)?.textContent).toContain("library.ReplacementNotSaved");
+		for (const element of h.target.querySelectorAll(".nya-recipe-other [aria-describedby]")) {
+			expect(element.hasAttribute("aria-label")).toBe(false);
+			expect(element.hasAttribute("title")).toBe(false);
+			expect(description(element)?.textContent?.trim()).toBeTruthy();
+		}
+	});
+	it("stores folded replacement drafts without discarding text or legacy compatibility fields", async () => {
 		const h = fixture({
 			...recipe,
 			replacement: { text: "\\n", interpretEscapes: false },

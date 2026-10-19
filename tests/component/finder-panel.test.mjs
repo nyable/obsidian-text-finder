@@ -229,7 +229,7 @@ function setReplacement(h, value) {
 	input.dispatchEvent(new input.ownerDocument.defaultView.Event("input", { bubbles: true }));
 }
 
-test("preset application preserves exact scope, does not write, and captures local escape semantics", async (t) => {
+test("preset application preserves exact scope, does not write, and follows global escape settings", async (t) => {
 	const h = mount(t, undefined, { useEscapeCharInReplace: true });
 	await tick();
 	selectScope(h, [{ from: 4, to: 7 }]);
@@ -244,10 +244,14 @@ test("preset application preserves exact scope, does not write, and captures loc
 	assert.equal(h.view.editor.getValue(), "cat cat");
 	assert.equal(h.component.hasSelectionScope(), true);
 	assert.deepEqual(h.component.getSearchCache().matches, [{ from: 4, to: 7, index: 0 }]);
-	assert.deepEqual(h.component.captureRecipe(), { ...recipe, collapse: false });
+	assert.deepEqual(h.component.captureRecipe(), {
+		...recipe,
+		collapse: false,
+		replacement: { text: "\\n", interpretEscapes: true },
+	});
 	assert.equal(h.plugin.settings.useEscapeCharInReplace, true);
 	h.component.replaceAllMatchedText("\\n");
-	assert.equal(h.view.editor.getValue(), "cat \\n");
+	assert.equal(h.view.editor.getValue(), "cat \n");
 });
 
 test("selection command preserves query, locks exact multiline characters and navigation cannot shrink scope", async (t) => {
@@ -2171,6 +2175,25 @@ async function mountReplacement(t) {
 	setReplacement(h, "cat!");
 	return { ...h, matcher };
 }
+
+test("global escape changes cancel pending replacements even after applying a legacy preset", async (t) => {
+	const h = await mountReplacement(t);
+	h.plugin.settings.useEscapeCharInReplace = false;
+	h.component.applyRecipe({
+		search: "cat",
+		options: { regexMode: true, caseSensitive: false, wholeWord: false },
+		replacement: { text: "\\n", interpretEscapes: false },
+	});
+	const pending = h.component.replaceOnce();
+	assert.equal(h.matcher.replacements[0].replacement, "\\n");
+	h.plugin.settings.useEscapeCharInReplace = true;
+	h.matcher.replacements[0].resolve(candidates("\\n"));
+	const result = await pending;
+	assert.equal(result.status, "cancelled");
+	assert.equal(result.changed, false);
+	assert.equal(h.view.editor.getValue(), "cat cat");
+	assert.equal(h.specs.filter((spec) => spec.changes).length, 0);
+});
 
 for (const action of ["reselect", "clear", "close", "edit"]) {
 	test(`pending scoped replacement cannot commit after ${action}`, async (t) => {

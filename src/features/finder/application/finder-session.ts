@@ -58,11 +58,9 @@ export interface FinderState {
 /** One owner-local session. Host objects retain raw identity; only presentation state is observable. */
 export function createFinderSession(editorSearch: FinderHost, runtime: FinderRuntime) {
 	const preferences = editorSearch.preferences();
-	// Presets carry replacement semantics locally; never mutate the global preference.
-	let replacementEscapes: boolean | undefined;
 	let recipeIncludesReplacement = false;
-	const interpretEscapes = () =>
-		replacementEscapes ?? editorSearch.preferences().useEscapeCharInReplace;
+	// Presets only fill the finder; replacement parsing always follows global preferences.
+	const interpretEscapes = () => editorSearch.preferences().useEscapeCharInReplace;
 	const cache: SearchCache = runtime.reactive({
 		search: "",
 		replace: "",
@@ -426,7 +424,6 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.positionRequest++;
 		Object.assign(uiState.cache.options, recipe.options);
 		const replacement = isReading() ? null : recipe.replacement;
-		replacementEscapes = replacement?.interpretEscapes;
 		uiState.cache.replace = replacement?.text ?? "";
 		setCollapse(isReading() || (recipe.collapse ?? !replacement));
 		recipeIncludesReplacement = !!replacement;
@@ -454,7 +451,6 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		else toggleCollapse();
 	}
 	function resetAll() {
-		replacementEscapes = undefined;
 		recipeIncludesReplacement = false;
 		cancelEditing();
 		clearScope();
