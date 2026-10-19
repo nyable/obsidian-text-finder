@@ -84,6 +84,9 @@ export function runReplacement(
 		try {
 			task.phase = "committing";
 			effects.commit(changes);
+			// dispatch can return normally after a host transaction filter rejects
+			// the edit. Only an accepted document transaction may advance/rematch.
+			if (!effects.hasCommitted()) throw new Error("Replacement transaction was not applied");
 		} catch (error) {
 			task.phase = "prepare";
 			const committed = effects.hasCommitted();

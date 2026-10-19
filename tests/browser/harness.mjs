@@ -8,6 +8,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { root, embeddedSources } from "../../tools/vite-build.mjs";
+import { visualScenarios } from "./visual-contracts.mjs";
 
 export async function runBrowserChecks(browser, { capture } = {}) {
 	const artifacts = resolve(process.env.TEXT_FINDER_ARTIFACTS ?? "artifacts/browser");
@@ -182,18 +183,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 		page.on("pageerror", (error) => errors.push(String(error)));
 		for (const mobile of [false, true])
 			for (const dark of [false, true])
-				for (const scenario of [
-					"empty",
-					"find",
-					"no-results",
-					"replace",
-					"docked",
-					"preview",
-					"history",
-					"detail",
-					"presets",
-					"preset-editor",
-				]) {
+				for (const scenario of visualScenarios) {
 					await page.setViewportSize(
 						mobile ? { width: 390, height: 844 } : { width: 1000, height: 760 },
 					);
@@ -1197,12 +1187,21 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						// exercises the shared pointer path, not native mobile gesture support.
 						await page.evaluate(() => {
 							const handle = document.querySelector(".nya-preset-grip");
+							const lastMove = document
+								.querySelectorAll("[data-preset-id]")[1]
+								.getBoundingClientRect();
 							const target = document
 								.querySelectorAll("[data-preset-id]")[2]
 								.getBoundingClientRect();
 							const box = handle.getBoundingClientRect();
-							// Synthetic pointers have no browser capture ownership.
-							handle.setPointerCapture = () => {};
+							// Synthetic pointers have no browser capture ownership. A failed
+							// capture must retain Document listeners without a pageerror.
+							handle.setPointerCapture = () => {
+								throw new DOMException(
+									"Synthetic pointer is not active",
+									"NotFoundError",
+								);
+							};
 							handle.dispatchEvent(
 								new PointerEvent("pointerdown", {
 									pointerId: 51,
@@ -1219,7 +1218,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 									pointerId: 51,
 									pointerType: "touch",
 									clientX: box.x + 8,
-									clientY: target.bottom - 3,
+									clientY: lastMove.top + 3,
 									bubbles: true,
 									cancelable: true,
 								}),
@@ -1368,6 +1367,24 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 			if (replaced.navigationCompletion) await replaced.navigationCompletion;
 			if (!replaced.changed || h.view.editor.getValue() !== "dog dog dog2")
 				throw Error("real Worker replacement failed");
+			const filteredTarget = doc.createElement("div");
+			doc.body.append(filteredTarget);
+			const filtered = mountFixture(filteredTarget, { rejectChanges: true });
+			try {
+				filtered.finder.setVisible(true, "cat");
+				const rejected = await filtered.finder.replaceAllMatchedText("dog");
+				if (
+					rejected.status !== "failed" ||
+					rejected.changed ||
+					rejected.changeCount !== 0 ||
+					rejected.navigationCompletion ||
+					filtered.view.editor.getValue() !== "cat CAT cat2"
+				)
+					throw Error("filtered Worker replacement was reported as committed");
+			} finally {
+				filtered.destroy();
+				filteredTarget.remove();
+			}
 			// Adopt the live owner and force a newly-created conditional control in it.
 			document.body.append(target);
 			h.finder.dockFinder();
@@ -1381,6 +1398,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 			return {
 				productionWorkerMatch: true,
 				productionWorkerReplacement: true,
+				filteredWorkerReplacement: true,
 				ownerRealm: true,
 				ime: true,
 				adoptedOwnerCreation: true,

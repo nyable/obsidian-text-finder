@@ -76,6 +76,8 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 `ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示提交后重算及定位完成；后续失败只提示“已替换但定位失败”，不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
 
+dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `EditorPort.hasCommitted()` 检查捕获的不可变 CodeMirror doc 是否已更换。宿主过滤／丢弃事务时返回失败、changed=false／changeCount=0，不执行重算定位或额外前进，也不提供自动重放；同值替换仍可产生合法文档事务，不能只比较字符串。真实 CodeMirror 过滤器、纯端口、Finder 组件及浏览器 Worker 回归分别覆盖该边界。
+
 ### Worker
 
 `tools/vite-build.mjs:embeddedSources()` 将 `platform/browser/match-worker.ts` 和相同纯算法打包成字符串，内嵌 main.js。每 owner／模式的 `MatchEngine` 使用 owner Window 的 Blob Worker；空闲复用，忙碌取代 terminate。ready 前不提交查询；仅启动不可用自动同步兼容，执行失败不自动重放。没有新增语法黑名单、查询执行期限或匹配硬上限。

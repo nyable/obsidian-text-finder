@@ -20,7 +20,11 @@ git diff --check
 
 `pnpm test:browser` 使用 Playwright Test（`playwright.config.mjs`、`tests/browser/finder.spec.mjs` 和 `harness.mjs`）编译生产组件，在真实 Chromium 运行 Finder Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。截图和 REPORT 默认写 `artifacts/browser/`，可用 TEXT_FINDER_ARTIFACTS 指定；失败 trace／diff 写 `artifacts/playwright/`。需要已安装的锁定 Playwright Chromium；模拟主题、iframe 与移动布局不等于 Obsidian／Android／iOS 验收。
 
-`pnpm test:visual` 在 Linux 对 `tests/browser/baselines/chromium-linux/` 的 32 张可追溯原基线零像素容差比较，保留 expected／actual／diff，不自动更新。浏览器、字体、语言、时区、DPR 和主题夹具固定；更新须单独审查授权及差异，见 baselines/README。还可用 TEXT_FINDER_VISUAL_BASELINE 指向保留的外部 REPORT 做哈希核对；输入与输出目录必须不同。不得用当前输出冒充原基线，也不将像素比较当作全部操作等价。
+`pnpm test:visual` 在 Linux 对 `tests/browser/baselines/chromium-linux/` 的 40 张可追溯已审查基线零像素容差比较，保留 expected／actual／diff，不自动更新。其中 24 张查找器／设置预览保持原图，历史／详情 8 张及新增预设 8 张经过单独审查授权；原 32 张及其报告保存在 baselines/archive。浏览器、字体、语言、时区、DPR 和主题夹具固定；更新须单独审查授权及差异，见 baselines/README。还可用 TEXT_FINDER_VISUAL_BASELINE 指向保留的外部 REPORT 做哈希核对；输入与输出目录必须不同。不得用当前输出冒充原基线，也不将像素比较当作全部操作等价。
+
+`tests/browser/visual-contracts.mjs` 是 smoke／严格比较共用的场景清单；严格比较在构建及截图前核对全部主题／布局的基线文件集合、provenance 条目、来源报告与 SHA-256。遗漏、重复、孤立资产或哈希不符明确失败，不跳过无基线场景、不自动生成 expected。`tests/unit/visual-contracts.test.mjs` 覆盖完整集合、新增预设缺图及来源不符等异常；新增场景须同时提交获批截图和来源。现存原基线不是后续改版的自动批准，未完成审查时门禁应保持失败。
+
+已获批准后显式执行 `--update-snapshots=all`／`changed`，才可跳过更新前预检并创建 expected；随后更新 provenance，再用默认禁止更新模式复验。不得把更新命令成功写成严格比较通过。
 
 `pnpm test:artifacts` 在独立 Node 进程运行 `tests/vite-build.test.mjs`，通过正式配置内存构建，避免 Vitest 模块 mock 影响产物。检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及产物初始化、Finder 查找／全部替换／关闭／卸载；另检查内嵌输入 watch。宿主仍是替身，同步兼容不能证明 Obsidian 真机通过。`tests/integration/owner-renderer.test.ts` 检查无全局 Document 的 realm、HTML／SVG／静态节点、独立 app 标签、更新和幂等卸载。
 

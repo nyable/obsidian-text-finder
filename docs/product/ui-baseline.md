@@ -108,6 +108,6 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 仓库现有资产为 [`screenshot/demo.gif`](../../screenshot/demo.gif)，Git 最近修改记录为 `5d5f0f6`（2024 年）。它是早期演示，不作为现行阅读、历史、自定义工具栏的完整基线。没有真实截图证据时，不填造资产路径或通过结论。
 
-自动化模拟基线另位于 `tests/browser/baselines/chromium-linux/`：32 张重构前保留截图及 provenance（原报告、浏览器和 SHA-256）。`pnpm test:visual` 在固定 Linux Chromium 环境作零像素容差比较，失败保留 expected／actual／diff，不自动接受；模拟主题截图仍不等于真实 Obsidian 截图。
+自动化模拟基线另位于 `tests/browser/baselines/chromium-linux/`：40 张已审查截图，含 24 张保留的查找器／设置预览原图，以及经用户单独批准的历史／详情更新 8 张、预设列表／编辑器新增 8 张。原 32 张及原报告完整保留在 `tests/browser/baselines/archive/6823057/chromium-linux/`；当前 provenance 按图关联原／新来源报告，并记录图片及报告的 SHA-256。场景清单由 `tests/browser/visual-contracts.mjs` 共用，缺图／来源或哈希不符直接失败。`pnpm test:visual` 在固定 Linux Chromium 环境作零像素容差比较，失败保留 expected／actual／diff，不自动接受；模拟主题截图仍不等于真实 Obsidian 截图。
 
 真实应用验证方法见 [testing](../testing.md#实际应用验收)。

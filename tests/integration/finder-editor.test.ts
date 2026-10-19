@@ -11,8 +11,8 @@ afterEach(() => {
 	for (const editor of editors.splice(0)) editor.destroy();
 });
 
-function environment() {
-	const state = EditorState.create({ doc: "cat cat" });
+function environment(extensions: import("@codemirror/state").Extension = []) {
+	const state = EditorState.create({ doc: "cat cat", extensions });
 	const editorView = new EditorView({ state });
 	editors.push(editorView);
 	const dispatch = vi.spyOn(editorView, "dispatch");
@@ -76,4 +76,18 @@ it("commits once and rejects replay of that snapshot", () => {
 	expect(h.port.hasCommitted(captured)).toBe(true);
 	expect(() => h.port.commit(captured, [{ from: 0, to: 3, insert: "bad" }])).toThrow();
 	expect(h.dispatch).toHaveBeenCalledOnce();
+});
+it("distinguishes a filtered transaction from an accepted same-text replacement", () => {
+	const rejected = environment(
+		EditorState.transactionFilter.of((tr) => (tr.docChanged ? [] : tr)),
+	);
+	const captured = rejected.port.current()!;
+	rejected.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }]);
+	expect(rejected.initial.editorView.state.doc.toString()).toBe("cat cat");
+	expect(rejected.port.hasCommitted(captured)).toBe(false);
+	const accepted = environment();
+	const sameText = accepted.port.current()!;
+	accepted.port.commit(sameText, [{ from: 0, to: 3, insert: "cat" }]);
+	expect(accepted.initial.editorView.state.doc.toString()).toBe("cat cat");
+	expect(accepted.port.hasCommitted(sameText)).toBe(true);
 });

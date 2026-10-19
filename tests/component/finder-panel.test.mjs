@@ -184,6 +184,30 @@ const settlePosition = async () => {
 	await tick();
 };
 
+for (const replacement of ["dog", "cat"]) {
+	test(`filtered replacement ${replacement} does not claim a commit or navigate in the real Finder`, async () => {
+		const h = mount();
+		const cm = h.view.editor.cm;
+		cm.state = EditorState.create({
+			doc: "cat cat",
+			extensions: [
+				searchScopeField,
+				EditorState.transactionFilter.of((tr) => (tr.docChanged ? [] : tr)),
+			],
+		});
+		h.component.matchAgain(false);
+		h.scrolls.length = 0;
+		const result = await h.component.replaceMatchedText(replacement);
+		await settlePosition();
+		assert.equal(result.changed, false);
+		assert.equal(result.changeCount, 0);
+		assert.equal(result.status, "failed");
+		assert.equal(cm.state.doc.toString(), "cat cat");
+		assert.deepEqual(h.scrolls, []);
+		assert.equal(h.component.getSearchCache().index, 0);
+	});
+}
+
 function selectScope(h, ranges, source) {
 	const cm = h.view.editor.cm;
 	if (source !== undefined)

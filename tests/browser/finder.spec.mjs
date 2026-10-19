@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { runBrowserChecks } from "./harness.mjs";
+import { verifyVisualBaseline } from "./visual-contracts.mjs";
 
 test("production Finder Worker, IME, owner realms, adoption and teardown", async ({ browser }) => {
 	const report = await runBrowserChecks(browser);
@@ -12,6 +13,10 @@ test("visual contracts match the reviewed Linux Chromium baseline", async ({ bro
 		process.platform,
 		"Strict visual baseline is fixed to Linux; use smoke checks on other OSes",
 	).toBe("linux");
+	// An explicitly authorized snapshot update must be able to create new
+	// expected files. Normal runs still require reviewed pixels + provenance.
+	if (!["all", "changed"].includes(test.info().config.updateSnapshots))
+		await verifyVisualBaseline();
 	await runBrowserChecks(browser, {
 		capture: async (image, name) => {
 			// Compare the exact capture used by the preserved baseline. A second

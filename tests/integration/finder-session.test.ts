@@ -255,6 +255,23 @@ describe("Finder application with explicit owner ports", () => {
 		expect(h.writes[0]).toEqual([{ from: 7, to: 10, insert: "dog" }]);
 		h.dispose();
 	});
+	it("does not report or advance a replacement rejected by the editor", () => {
+		const h = environment();
+		h.session.showReplace("cat");
+		h.session.setReplacementText("dog");
+		const commit = vi.spyOn(h.editor, "commit").mockImplementation(() => {});
+		vi.mocked(h.editor.reveal).mockClear();
+		const result = h.session.replaceOnce();
+		expect(result).toMatchObject({ status: "failed", changed: false, changeCount: 0 });
+		expect(commit).toHaveBeenCalledOnce();
+		expect(h.source()).toBe("cat cat");
+		expect(h.editor.reveal).not.toHaveBeenCalled();
+		expect(h.session.getSearchCache().index).toBe(0);
+		expect(h.session.state.replacementTask).toBeNull();
+		expect(h.session.state.readingPending).toBe(false);
+		expect(h.session.state.replacementRetry).toBeNull();
+		h.dispose();
+	});
 	it("does not borrow another same-file owner or write after its owner closes", () => {
 		const first = environment(),
 			second = environment();

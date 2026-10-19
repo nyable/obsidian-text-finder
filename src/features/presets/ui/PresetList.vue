@@ -113,14 +113,28 @@ const pointer = (event: PointerEvent, item: SearchPreset) => {
 		dragging.value = null;
 		boundary.value = null;
 		cancel = undefined;
-		if (handle.hasPointerCapture?.(event.pointerId))
-			handle.releasePointerCapture(event.pointerId);
+		try {
+			if (handle.hasPointerCapture?.(event.pointerId))
+				handle.releasePointerCapture(event.pointerId);
+		} catch {
+			// A detached owner or cancelled pointer must not interrupt cleanup.
+		}
 	};
 	const finish = (next: PointerEvent) => {
 		if (next.pointerId !== event.pointerId) return;
-		if (active && !props.filtered && props.items.some((current) => current.id === item.id))
-			move(item, boundary.value);
-		cleanup();
+		try {
+			if (
+				active &&
+				!props.filtered &&
+				props.items.some((current) => current.id === item.id)
+			) {
+				y = next.clientY;
+				locate();
+				move(item, boundary.value);
+			}
+		} finally {
+			cleanup();
+		}
 	};
 	const abort = (next: PointerEvent) => {
 		if (next.pointerId === event.pointerId) cleanup();
@@ -138,8 +152,12 @@ const pointer = (event: PointerEvent, item: SearchPreset) => {
 	doc.addEventListener("keydown", escape);
 	win.addEventListener("blur", cleanup);
 	handle.addEventListener("lostpointercapture", cleanup);
-	handle.setPointerCapture?.(event.pointerId);
 	cancel = cleanup;
+	try {
+		handle.setPointerCapture?.(event.pointerId);
+	} catch {
+		// Document listeners retain ownership when pointer capture is unavailable.
+	}
 	frame = win.requestAnimationFrame(animate);
 };
 watch(

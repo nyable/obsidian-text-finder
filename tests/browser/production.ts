@@ -10,11 +10,17 @@ import { createFinderHost } from "../../src/app/create-finder-host";
 export { nextTick };
 
 /** Production Finder, controller, Worker and renderer; only Obsidian is stubbed. */
-export function mountFixture(target: HTMLElement) {
+export function mountFixture(target: HTMLElement, { rejectChanges = false } = {}) {
 	const settings = defaultSettings();
 	settings.moveCursorToMatch = false;
 	settings.sourceModeWhenSearch = false;
-	let state = EditorState.create({ doc: "cat CAT cat2", extensions: [searchScopeField] });
+	let state = EditorState.create({
+		doc: "cat CAT cat2",
+		extensions: [
+			searchScopeField,
+			EditorState.transactionFilter.of((tr) => (rejectChanges && tr.docChanged ? [] : tr)),
+		],
+	});
 	const editorView = {
 		get state() {
 			return state;

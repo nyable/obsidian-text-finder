@@ -5,3 +5,5 @@ coverage
 pnpm-lock.yaml
 package-lock.json
 tests/browser/baselines/chromium-linux
+tests/browser/baselines/archive
+tests/browser/baselines/reviews

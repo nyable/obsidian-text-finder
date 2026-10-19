@@ -1,0 +1,502 @@
+{
+  "sourceCommit": "03f1d04b8c4309ce179c5540dd238ead894915c9",
+  "sourceDiffSha256": "a64b6315565818fe414364fc25523c4a82d4a7119013cec84ff9975f08b90842",
+  "fixtureSha256": "d53d8543e85aa3c9bccac30ce6258890815b506f63b936e33aa520d6737eb985",
+  "lockfileSha256": "82089978676c5735ed747dba1ce31b83f396cf2813759458456219d3a7e8718a",
+  "visualBundleSha256": "5ae0ac233db138137ba61e6881b2f8dbd4d9895eb4ec79757f3ce3d1ebdf094b",
+  "fixture": {
+    "font": "Arial, sans-serif",
+    "locale": "en-US",
+    "timezone": "UTC",
+    "deviceScaleFactor": 1,
+    "cssSnippets": "none",
+    "themes": "simulated fixed variables, not Obsidian themes"
+  },
+  "boundary": "Chromium simulated host. Not Obsidian GUI, real theme, mobile, or final Finder equivalence evidence.",
+  "screenshots": [
+    {
+      "name": "desktop-light-empty.png",
+      "scenario": "empty",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "cd8264bb7e1f4519ec5c4741f0cf49b1f04a3eb995fa86b2325e5c77768a772b"
+    },
+    {
+      "name": "desktop-light-find.png",
+      "scenario": "find",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "6c2746f2554e7d758656f781d6ac4a000bbbc460aa1cc82757b3800c7d14e101"
+    },
+    {
+      "name": "desktop-light-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "78ad291fe38f2b5ee3768cfe8cae6911458fa21b2fe499f89286c54b30f5a119"
+    },
+    {
+      "name": "desktop-light-replace.png",
+      "scenario": "replace",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "16fbac1fc8cd86f0c499e40fc549ae0fe9ee652ba4d65723a1d985683862191e"
+    },
+    {
+      "name": "desktop-light-docked.png",
+      "scenario": "docked",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "011532b2f8b3e51dfca208f4555f1f0edf05f861cafda2b40a204746770b5c94"
+    },
+    {
+      "name": "desktop-light-preview.png",
+      "scenario": "preview",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "06df3958f9891822d73460fb0fc075e220d18b6bfa3bef7495f28cb12b5e1524"
+    },
+    {
+      "name": "desktop-light-history.png",
+      "scenario": "history",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "f6f3fa56b74b3fcace59da65cb3ae93283000c748faef79e96aaea2b7140b356"
+    },
+    {
+      "name": "desktop-light-detail.png",
+      "scenario": "detail",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "7737b9845772084b1eb2fab2fc9950576272c59dafd912dd4c21de863b3716fd"
+    },
+    {
+      "name": "desktop-light-presets.png",
+      "scenario": "presets",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "a62b276484d59c173dc6353aba54281ee61eb6befc569aab473173423f18d702"
+    },
+    {
+      "name": "desktop-light-preset-editor.png",
+      "scenario": "preset-editor",
+      "mobileLayout": false,
+      "theme": "light",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "ea3613c9ef36484bd8671f1e62061dd194118a007eeb665f35755bc960c6d695"
+    },
+    {
+      "name": "desktop-dark-empty.png",
+      "scenario": "empty",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "7a560539479d6254ccf2750d1ee59e5d9f3f08a61b27f69791084dc5441587c8"
+    },
+    {
+      "name": "desktop-dark-find.png",
+      "scenario": "find",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "e8c1de6c94ecf5041a7a7c7239448cabd4ca830e6d1ee98ba86faa12db7d23de"
+    },
+    {
+      "name": "desktop-dark-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "fe8f36c42c3a9bde250414dd98811ef1683b7ed95c1e538e25d3e5987087b7bf"
+    },
+    {
+      "name": "desktop-dark-replace.png",
+      "scenario": "replace",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "326daf3e095962395cc865f54d3eeae0395d159bd51076e4c759fd7c49722483"
+    },
+    {
+      "name": "desktop-dark-docked.png",
+      "scenario": "docked",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "bfe6588dc46158dcfc83026e6d4832d5355d708d34854d43dc8efd2079107086"
+    },
+    {
+      "name": "desktop-dark-preview.png",
+      "scenario": "preview",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "3551fc33612a5d97a41ac8180e3117f5e9abe9c5d2187f437bfbfbb7e976b5f6"
+    },
+    {
+      "name": "desktop-dark-history.png",
+      "scenario": "history",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "997b9deaec468e53f682f71e0f13baec79932125b6d24c196fdafc1ca3c0a36d"
+    },
+    {
+      "name": "desktop-dark-detail.png",
+      "scenario": "detail",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "abc5fb225f0d4c8f0f234603b6d3437ab92b482f91813d4c10933217629e944c"
+    },
+    {
+      "name": "desktop-dark-presets.png",
+      "scenario": "presets",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "be7d3f782dd790b4be1e77d1e6c0f7dba69f894ec4cef1ffc59f4a6514ec6fba"
+    },
+    {
+      "name": "desktop-dark-preset-editor.png",
+      "scenario": "preset-editor",
+      "mobileLayout": false,
+      "theme": "dark",
+      "viewport": {
+        "width": 1000,
+        "height": 760
+      },
+      "sha256": "e365ee2fbc9e350bab15a83836d6d2a5a4b9a382532ab10c656d025eaeabd18f"
+    },
+    {
+      "name": "mobile-layout-light-empty.png",
+      "scenario": "empty",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "88a84caf656f88eb256b3c4126fc9acb8306db290fe16e5bfecf51dccd8d4fb6"
+    },
+    {
+      "name": "mobile-layout-light-find.png",
+      "scenario": "find",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "4294f0ee0c2bb1a6a9e4c71aac343642b6d742709d1b7d13370a031af61fba53"
+    },
+    {
+      "name": "mobile-layout-light-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "f731766787b3e75b49a474d0240ef6ca00186f1ade853ea005dad3619ed770b9"
+    },
+    {
+      "name": "mobile-layout-light-replace.png",
+      "scenario": "replace",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "2a5c81e5a3e89eab3a87825e996c4068f40229d0419ac060c04ab26e943251f5"
+    },
+    {
+      "name": "mobile-layout-light-docked.png",
+      "scenario": "docked",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "5436536d7f7d3afaf1a5fecf87649d7c3fa1615eba92eae660b0daabb011b904"
+    },
+    {
+      "name": "mobile-layout-light-preview.png",
+      "scenario": "preview",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "ccccac4689d4053e01481f54d324de0b03cdc4e376219adf03348d20267a8cba"
+    },
+    {
+      "name": "mobile-layout-light-history.png",
+      "scenario": "history",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "ce4374e69706298925c32e2730f30d4ed9fd40579cca156f4e34cb06710d0eef"
+    },
+    {
+      "name": "mobile-layout-light-detail.png",
+      "scenario": "detail",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "9a0d7be2f6e8df63b0ee572eb1868bc003d190c190d1e9dadfef05171a1c6356"
+    },
+    {
+      "name": "mobile-layout-light-presets.png",
+      "scenario": "presets",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "3b184c962cf580aa33f9c2b44538f47e9247dc8dc947b8d1a1f82045a7d71a64"
+    },
+    {
+      "name": "mobile-layout-light-preset-editor.png",
+      "scenario": "preset-editor",
+      "mobileLayout": true,
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "f3a23a4e7f40be5854feb856cecf971d6445a8c4b677b1a91b0a0452594a28c5"
+    },
+    {
+      "name": "mobile-layout-dark-empty.png",
+      "scenario": "empty",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "fe06eb9394ce4976a8159e6905d6c5ba1070aab71fdc3ea2a8e7d5a0313f19cd"
+    },
+    {
+      "name": "mobile-layout-dark-find.png",
+      "scenario": "find",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "951e1cefb895a0d67fbeb4338edcde1d3b008137e9154cba319f139552156933"
+    },
+    {
+      "name": "mobile-layout-dark-no-results.png",
+      "scenario": "no-results",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "1ef7e0781a3f15ea4f024080f54d704b89a216b41802cfc6dc75264ea4fb16aa"
+    },
+    {
+      "name": "mobile-layout-dark-replace.png",
+      "scenario": "replace",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "ffe5f68f7e5aca9e54d43db842be985fc1d2a00869bb980cd22957660fd9285b"
+    },
+    {
+      "name": "mobile-layout-dark-docked.png",
+      "scenario": "docked",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "e401695e73e89c8ff760459a3b91b0eb1a348e3843479ad2c7c865d5c218f202"
+    },
+    {
+      "name": "mobile-layout-dark-preview.png",
+      "scenario": "preview",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "eebbe91760d272a99efc92e55eb60da13a36fdf6dd8fe0095acb927b52c61c22"
+    },
+    {
+      "name": "mobile-layout-dark-history.png",
+      "scenario": "history",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "7c3bbe0add5fc1bf546e47371ba0da02808591a5c05f182fd5a1e050ff90944c"
+    },
+    {
+      "name": "mobile-layout-dark-detail.png",
+      "scenario": "detail",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "72d430af8ab8c5fef4c9961e02d3895fd9046db98a15f6e92583f0fc300971f5"
+    },
+    {
+      "name": "mobile-layout-dark-presets.png",
+      "scenario": "presets",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "34ca87777c59943a6196df87c3aa451602f3bd8148b7c2c4f6891aa989917ef4"
+    },
+    {
+      "name": "mobile-layout-dark-preset-editor.png",
+      "scenario": "preset-editor",
+      "mobileLayout": true,
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "654f58381bdd36b21c9aa8e07f172e6a8ce4da8965cb17db9d13f6f1e7be81e6"
+    }
+  ],
+  "checks": [
+    "history: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "history: single row hover; uniformly styled statistics below query, grouped right alignment to action column; hidden time label and no horizontal overflow",
+    "search library: stable shell/filter/list across tabs, empty results, selection and undo; no persistent footer, long list scrolls independently",
+    "history detail: fixed top statistics and bottom text actions, only full query scrolls at normal and 400px viewport heights; bordered secondary and destructive delete buttons retain keyboard feedback",
+    "presets: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "search library: real browser edit/update, delete/undo and responsive width",
+    "preset list: no title row, inset tab hover, inline new/count toolbar, whole-card hover, equal single-line values with right-aligned line counts, only three saved match modes and accessible tooltip-free handles",
+    "preset names: inline save-as naming, selected input/focus, duplicate-name rejection, draft-preserving return and native Enter creates one uniquely named copy; shared compact tab geometry",
+    "preset cards: mouse/touch-pointer/keyboard reorder, focus retention, Escape cancellation, filtered disable and edge autoscroll",
+    "preset editor: separate option/settings groups, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
+    "history: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "history: single row hover; uniformly styled statistics below query, grouped right alignment to action column; hidden time label and no horizontal overflow",
+    "history detail: fixed top statistics and bottom text actions, only full query scrolls at normal and 400px viewport heights; bordered secondary and destructive delete buttons retain keyboard feedback",
+    "presets: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "preset editor: separate option/settings groups, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
+    "history: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "history: single row hover; uniformly styled statistics below query, grouped right alignment to action column; hidden time label and no horizontal overflow",
+    "search library: stable shell/filter/list across tabs, empty results, selection and undo; no persistent footer, long list scrolls independently",
+    "history detail: fixed top statistics and bottom text actions, only full query scrolls at normal and 400px viewport heights; bordered secondary and destructive delete buttons retain keyboard feedback",
+    "presets: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "preset list: no title row, inset tab hover, inline new/count toolbar, whole-card hover, equal single-line values with right-aligned line counts, only three saved match modes and accessible tooltip-free handles",
+    "preset names: inline save-as naming, selected input/focus, duplicate-name rejection, draft-preserving return and native Enter creates one uniquely named copy; shared compact tab geometry",
+    "preset cards: mouse/touch-pointer/keyboard reorder, focus retention, Escape cancellation, filtered disable and edge autoscroll",
+    "preset editor: separate option/settings groups, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
+    "search library: save action reachable in 360x400 viewport",
+    "history: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "history: single row hover; uniformly styled statistics below query, grouped right alignment to action column; hidden time label and no horizontal overflow",
+    "history detail: fixed top statistics and bottom text actions, only full query scrolls at normal and 400px viewport heights; bordered secondary and destructive delete buttons retain keyboard feedback",
+    "presets: destructive delete icon color, stronger hover stroke, keyboard focus and no nested hover background",
+    "preset editor: separate option/settings groups, fixed four-line textareas with exact multiline content and stable Save/Cancel/Save as preset actions",
+    "production Finder in second realm: real Worker match/replacement, IME, live owner adoption and unmount"
+  ],
+  "browser": "153.0.8010.12",
+  "production": {
+    "productionWorkerMatch": true,
+    "productionWorkerReplacement": true,
+    "filteredWorkerReplacement": true,
+    "ownerRealm": true,
+    "ime": true,
+    "adoptedOwnerCreation": true,
+    "unmounted": true
+  },
+  "passed": true
+}

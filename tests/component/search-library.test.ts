@@ -595,6 +595,98 @@ describe("unified search library", () => {
 			winRemove.mockRestore();
 		}
 	});
+	it("falls back from throwing pointer capture and releases listeners even when capture release throws", async () => {
+		const h = fixture();
+		await nextTick();
+		const handle = h.target.querySelector<HTMLButtonElement>(".nya-preset-grip")!;
+		handle.setPointerCapture = vi.fn(() => {
+			throw new Error("capture unavailable");
+		});
+		handle.hasPointerCapture = () => true;
+		handle.releasePointerCapture = vi.fn(() => {
+			throw new Error("detached pointer");
+		});
+		const docRemove = vi.spyOn(document, "removeEventListener");
+		const winRemove = vi.spyOn(window, "removeEventListener");
+		try {
+			const event = Object.assign(
+				new Event("pointerdown", { bubbles: true, cancelable: true }),
+				{
+					button: 0,
+					pointerId: 7,
+					pointerType: "touch",
+					clientX: 10,
+					clientY: 10,
+				},
+			);
+			handle.dispatchEvent(event);
+			expect(handle.setPointerCapture).toHaveBeenCalledWith(7);
+			expect(() => h.component.destroy()).not.toThrow();
+			for (const type of ["pointermove", "pointerup", "pointercancel", "keydown"])
+				expect(docRemove.mock.calls.some((call) => call[0] === type)).toBe(true);
+			expect(winRemove.mock.calls.some((call) => call[0] === "blur")).toBe(true);
+			expect(handle.releasePointerCapture).toHaveBeenCalledWith(7);
+		} finally {
+			docRemove.mockRestore();
+			winRemove.mockRestore();
+		}
+	});
+	it("commits preset order using the release coordinate, not the last pointermove", async () => {
+		const h = fixture();
+		h.presets.put("B", recipe);
+		h.presets.put("C", recipe);
+		await nextTick();
+		const cards = [...h.target.querySelectorAll<HTMLElement>("[data-preset-id]")];
+		cards.forEach((card, index) => {
+			vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+				top: index * 100,
+				bottom: (index + 1) * 100,
+				height: 100,
+				left: 0,
+				right: 200,
+				width: 200,
+				x: 0,
+				y: index * 100,
+				toJSON() {},
+			});
+		});
+		const event = (type: string, y: number) =>
+			Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+				button: 0,
+				pointerId: 7,
+				pointerType: "mouse",
+				clientX: 10,
+				clientY: y,
+			});
+		const move = vi.spyOn(h.presets, "move");
+		cards[0]!.querySelector(".nya-preset-grip")!.dispatchEvent(event("pointerdown", 20));
+		document.dispatchEvent(event("pointermove", 180));
+		document.dispatchEvent(event("pointerup", 350));
+		await nextTick();
+		expect(move).toHaveBeenCalledExactlyOnceWith("p-1", null);
+		expect(h.presets.list().map((item) => item.id)).toEqual(["p-2", "p-3", "p-1"]);
+		expect(h.apply).not.toHaveBeenCalled();
+	});
+	it("does not activate sorting from a distant release without crossing the move threshold", async () => {
+		const h = fixture();
+		h.presets.put("B", recipe);
+		await nextTick();
+		const event = (type: string, y: number) =>
+			Object.assign(new Event(type, { bubbles: true, cancelable: true }), {
+				button: 0,
+				pointerId: 7,
+				pointerType: "touch",
+				clientX: 10,
+				clientY: y,
+			});
+		const move = vi.spyOn(h.presets, "move");
+		h.target.querySelector(".nya-preset-grip")!.dispatchEvent(event("pointerdown", 20));
+		document.dispatchEvent(event("pointermove", 22));
+		document.dispatchEvent(event("pointerup", 350));
+		await nextTick();
+		expect(move).not.toHaveBeenCalled();
+		expect(h.presets.list().map((item) => item.id)).toEqual(["p-1", "p-2"]);
+	});
 	it("icon toggles keep focus, do not submit, and save only the local option draft", async () => {
 		const h = fixture(recipe);
 		const buttons = [
