@@ -77,6 +77,10 @@ git diff --check
 
 相关测试保留在 [`tests/integration/`](../tests/integration/) 的 `reading-search.test.mjs`、`reading-commands.test.mjs` 和 [`tests/component/`](../tests/component/) 的 `finder-panel.test.mjs`。覆盖情况以测试及运行结果为准，不在文档中固定测试总数。
 
+### 声明式设置覆盖
+
+声明式设置：`main-settings.test.mjs` 检查纯索引无 DOM／读盘／写入、旧／新基础设置同步、12 项基础定义、颜色与复杂区索引、历史输入 IME／非法值、控制器副作用／损坏数据写保护、跨行弹层互斥、owner 标签引用／异 Document 预览拒绝、行清理及 hide／pagehide 后旧节点拒绝。`tests/browser/settings.spec.mjs` 使用明确的宿主 renderer 替身在真实浏览器检查搜索目标可操作、颜色应用、选区开关、位置菜单和卸载；包含在 `pnpm test:browser` 的 production Finder 过滤中。它不执行 Obsidian 搜索实现，不能替代 1.13+ 主窗口／弹窗／移动搜索跳转实机验收；新页面没有固定截图基线，不自动接受新布局像素。
+
 ## 逻辑性能诊断
 
 ```sh

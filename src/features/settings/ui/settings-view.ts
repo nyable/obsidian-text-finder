@@ -1,7 +1,7 @@
 import { Notice, Setting, setIcon, setTooltip } from "obsidian";
-import type { SettingsCommands, ToggleKey } from "../application/settings-controller";
+import type { SettingsCommands } from "../application/settings-controller";
 import { i18n } from "../../../i18n";
-import { HistorySortOrder, type HistorySortOrderType, parseHistoryLimit } from "../../history";
+import { settingsFields } from "./settings-fields";
 import {
 	moveToolbarItem,
 	toolbarLabels,
@@ -17,16 +17,6 @@ import { openColorPicker } from "./color-picker";
 import { createSettingsSelect, type SettingsSelect } from "./settings-select";
 
 type SettingsPage = "general" | "find" | "replace" | "history" | "toolbar";
-type ToggleName =
-	| "ShowFloatingFinderOnOpen"
-	| "FinderAutoDock"
-	| "ClearAfterHidden"
-	| "EnableInputHotkeys"
-	| "UseSelectionAsSearch"
-	| "SourceModeWhenSearch"
-	| "MoveCursorToMatch"
-	| "UseEscapeCharInReplace"
-	| "EnableHistory";
 const pages: SettingsPage[] = ["general", "find", "replace", "history", "toolbar"];
 const actionIcons: Record<ToolbarAction, string> = {
 	regex: "regex",
@@ -42,7 +32,29 @@ const actionIcons: Record<ToolbarAction, string> = {
 
 let nextSettingsId = 0;
 
+export interface AppearancePreview {
+	view: ReturnType<typeof mountView>;
+	root: HTMLElement;
+}
+export type AppearancePart = "preview" | "scope" | ToolbarKind | AppearanceColorKey;
+
 export class SettingsView {
+	private active = false;
+	private get currentPreview() {
+		if (!this.active) return undefined;
+		const preview = this.preview ? this.appearancePreview : this.sharedPreview?.();
+		return preview?.root.ownerDocument === this.containerEl.ownerDocument
+			? preview.view
+			: undefined;
+	}
+	private get currentPreviewRoot() {
+		return this.previewRoot ?? this.sharedPreview?.()?.root;
+	}
+	get appearancePreview(): AppearancePreview | undefined {
+		return this.preview && this.previewRoot
+			? { view: this.preview, root: this.previewRoot }
+			: undefined;
+	}
 	private get settings() {
 		return this.commands.preferences();
 	}
@@ -61,8 +73,13 @@ export class SettingsView {
 		"replace",
 	]);
 	private sectionId = 0;
+	private colorUpdates = new Set<() => void>();
+	refreshColors() {
+		if (this.active) this.colorUpdates.forEach((update) => update());
+	}
 
 	private clearPreview() {
+		this.colorUpdates.clear();
 		this.selectControls.forEach((control) => control.destroy());
 		this.selectControls.clear();
 		this.cleanupSelect = undefined;
@@ -81,7 +98,7 @@ export class SettingsView {
 			defaultWholeWord,
 			enableHistory,
 		} = this.settings;
-		this.preview?.update({
+		this.currentPreview?.update({
 			searchToolbar,
 			replaceToolbar,
 			defaultRegexMode,
@@ -95,11 +112,19 @@ export class SettingsView {
 		readonly containerEl: HTMLElement,
 		private commands: SettingsCommands,
 		private ensureDocument: (doc: Document) => void,
+		private sharedPreview?: () => AppearancePreview | undefined,
+		private beforeInteraction?: () => void,
 	) {}
+	closeInteractions() {
+		this.cleanupDrag?.();
+		this.cleanupSelect?.();
+		this.cleanupColor?.();
+	}
 
 	display() {
 		this.cleanupDrag?.();
 		this.clearPreview();
+		this.active = true;
 		const root = this.containerEl;
 		this.ensureDocument(root.ownerDocument);
 		root.empty();
@@ -173,6 +198,7 @@ export class SettingsView {
 	}
 
 	hide() {
+		this.active = false;
 		this.cleanupDrag?.();
 		this.clearPreview();
 		this.collapsed = new Set(["colors", "scope", "search", "replace"]);
@@ -183,12 +209,13 @@ export class SettingsView {
 
 	private reset(trigger: HTMLButtonElement, action: () => void) {
 		if (
-			!this.preview ||
+			!this.currentPreview ||
 			this.page !== "toolbar" ||
 			!trigger.isConnected ||
 			!this.containerEl.contains(trigger)
 		)
 			return;
+		this.beforeInteraction?.();
 		this.cleanupSelect?.();
 		this.cleanupColor?.();
 		this.cleanupDrag?.();
@@ -237,7 +264,7 @@ export class SettingsView {
 		restore.addEventListener("click", () => this.reset(restore, reset));
 		const body = doc.createElement("div");
 		body.className = "nya-settings-section-body";
-		body.id = `nya-settings-section-${kind}-${++this.sectionId}`;
+		body.id = `nya-settings-section-${kind}-${this.labelId}-${++this.sectionId}`;
 		section.append(body);
 		toggle.setAttribute("aria-controls", body.id);
 		const sync = () => {
@@ -258,77 +285,10 @@ export class SettingsView {
 		return body;
 	}
 
-	private toggle(root: HTMLElement, key: ToggleKey, name: ToggleName) {
-		new Setting(root)
-			.setName(i18n.t(`settings.${name}.name`))
-			.setDesc(i18n.t(`settings.${name}.desc`))
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.settings[key])
-					.onChange((value) => this.commands.toggle(key, value)),
-			);
-	}
-
 	private renderPage(root: HTMLElement) {
-		if (this.page === "general") {
-			this.toggle(root, "showFloatingFinderOnOpen", "ShowFloatingFinderOnOpen");
-			this.toggle(root, "finderAutoDock", "FinderAutoDock");
-		} else if (this.page === "find") {
-			this.toggle(root, "clearAfterHidden", "ClearAfterHidden");
-			this.toggle(root, "enableInputHotkeys", "EnableInputHotkeys");
-			this.toggle(root, "useSelectionAsSearch", "UseSelectionAsSearch");
-			this.toggle(root, "sourceModeWhenSearch", "SourceModeWhenSearch");
-			this.toggle(root, "moveCursorToMatch", "MoveCursorToMatch");
-		} else if (this.page === "replace") {
-			this.toggle(root, "useEscapeCharInReplace", "UseEscapeCharInReplace");
-		} else if (this.page === "history") {
-			this.toggle(root, "enableHistory", "EnableHistory");
-			new Setting(root)
-				.setName(i18n.t("settings.HistoryMaxCount.name"))
-				.setDesc(i18n.t("settings.HistoryMaxCount.desc"))
-				.addText((text) => {
-					text.setValue(String(this.settings.historyMaxCount)).setPlaceholder("1-200");
-					const commit = () => {
-						const limit = parseHistoryLimit(text.inputEl.value);
-						if (limit !== null) this.commands.resizeHistory(limit);
-						text.setValue(String(this.settings.historyMaxCount));
-					};
-					text.inputEl.addEventListener("blur", commit);
-					text.inputEl.addEventListener("keydown", (event) => {
-						if (event.key === "Enter" && !event.isComposing) {
-							event.preventDefault();
-							commit();
-						}
-					});
-				});
-			new Setting(root)
-				.setName(i18n.t("settings.HistorySortOrder.name"))
-				.setDesc(i18n.t("settings.HistorySortOrder.desc"))
-				.addDropdown((dropdown) => {
-					for (const order of Object.values(HistorySortOrder))
-						dropdown.addOption(
-							order,
-							i18n.t(`settings.HistorySortOrder.options.${order}`),
-						);
-					dropdown.setValue(this.settings.historySortOrder).onChange((value) => {
-						if (Object.values(HistorySortOrder).includes(value as HistorySortOrderType))
-							this.commands.historyOrder(value as HistorySortOrderType);
-					});
-				});
-			new Setting(root)
-				.setName(i18n.t("settings.HistoryRetention.name"))
-				.setDesc(i18n.t("settings.HistoryRetention.desc"))
-				.addDropdown((dropdown) => {
-					for (const order of Object.values(HistorySortOrder))
-						dropdown.addOption(
-							order,
-							i18n.t(`settings.HistoryRetention.options.${order}`),
-						);
-					dropdown.setValue(this.settings.historyRetention).onChange((value) => {
-						if (Object.values(HistorySortOrder).includes(value as HistorySortOrderType))
-							this.commands.historyRetention(value as HistorySortOrderType);
-					});
-				});
+		if (this.page !== "toolbar") {
+			for (const field of settingsFields(this.commands)[this.page])
+				field.render(new Setting(root).setName(field.name).setDesc(field.desc));
 		} else {
 			const preview = root.ownerDocument.createElement("div");
 			preview.className = "nya-appearance-preview";
@@ -352,6 +312,43 @@ export class SettingsView {
 			this.scopeStyles(controls);
 			this.toolbar(controls, "search");
 			this.toolbar(controls, "replace");
+		}
+	}
+
+	/** A host-owned definition row renders only its indexed appearance control. */
+	displayAppearancePart(part: AppearancePart) {
+		this.active = true;
+		this.page = "toolbar";
+		this.ensureDocument(this.containerEl.ownerDocument);
+		this.containerEl.classList.add("nya-settings");
+		const doc = this.containerEl.ownerDocument;
+		if (part === "preview") {
+			const root = doc.createElement("div");
+			root.className = "nya-appearance-preview";
+			this.containerEl.append(root);
+			this.previewRoot = root;
+			this.preview = mountView(ToolbarPreview, root, {
+				searchToolbar: this.settings.searchToolbar,
+				replaceToolbar: this.settings.replaceToolbar,
+				defaultRegexMode: this.settings.defaultRegexMode,
+				defaultCaseSensitive: this.settings.defaultCaseSensitive,
+				defaultWholeWord: this.settings.defaultWholeWord,
+				historyEnabled: this.settings.enableHistory,
+			});
+		} else if (part === "scope") this.scopeStyles(this.containerEl);
+		else if (part === "search" || part === "replace") this.toolbar(this.containerEl, part);
+		else {
+			const root = doc.createElement("div");
+			root.className = "nya-color-group";
+			this.containerEl.append(root);
+			this.colorRows(root, appearanceColors[part].group, new Map(), [part]);
+			root.querySelector(".nya-color-row > span")!.textContent =
+				`${i18n.t(`settings.Appearance.${appearanceColors[part].group}`)}: ${i18n.t(`settings.Appearance.${part}`)}`;
+		}
+		for (const section of this.containerEl.querySelectorAll<HTMLElement>("[data-section]")) {
+			const kind = section.dataset.section as "scope" | ToolbarKind;
+			if (this.collapsed.has(kind))
+				section.querySelector<HTMLButtonElement>(".nya-settings-section-toggle")?.click();
 		}
 	}
 
@@ -434,20 +431,24 @@ export class SettingsView {
 				swatch.style.backgroundColor = current;
 				reset.disabled = !this.settings.appearanceColors[key];
 			};
+			const previousUpdate = updates.get(key);
+			if (previousUpdate) this.colorUpdates.delete(previousUpdate);
 			updates.set(key, update);
+			this.colorUpdates.add(update);
 			update();
 			picker.addEventListener("click", () => {
 				if (
-					!this.preview ||
+					!this.currentPreview ||
 					this.page !== "toolbar" ||
 					!this.containerEl.contains(picker) ||
 					picker.closest("[hidden]")
 				)
 					return;
+				this.beforeInteraction?.();
 				this.cleanupSelect?.();
 				this.cleanupColor?.();
 				update();
-				const previewRoot = this.previewRoot!;
+				const previewRoot = this.currentPreviewRoot!;
 				const variable = appearanceColors[key].variable;
 				this.cleanupColor = openColorPicker({
 					trigger: picker,
@@ -517,12 +518,13 @@ export class SettingsView {
 				toggle.toggleEl.setAttribute("aria-controls", details.id);
 				toggle.onChange((value) => {
 					if (
-						!this.preview ||
+						!this.currentPreview ||
 						this.page !== "toolbar" ||
 						!this.containerEl.contains(toggle.toggleEl) ||
 						toggle.toggleEl.closest("[hidden]")
 					)
 						return;
+					this.beforeInteraction?.();
 					this.cleanupColor?.();
 					this.cleanupSelect?.();
 					if (!value && details.contains(root.ownerDocument.activeElement))
@@ -549,11 +551,12 @@ export class SettingsView {
 				value: String(this.settings.scopeAppearance.width),
 				items: ["1", "2", "3"].map((value) => ({ value, label: `${value}px` })),
 				valid: () =>
-					!!this.preview &&
+					!!this.currentPreview &&
 					this.page === "toolbar" &&
 					!details.hidden &&
 					this.containerEl.contains(row),
 				beforeOpen: () => {
+					this.beforeInteraction?.();
 					this.cleanupColor?.();
 					this.cleanupSelect?.();
 					this.cleanupSelect = widthSelect!.close;
@@ -593,6 +596,7 @@ export class SettingsView {
 		const key = kind === "search" ? "searchToolbar" : "replaceToolbar";
 		const selectControls = new Set<SettingsSelect>();
 		const commit = (items: ReturnType<typeof moveToolbarItem>) => {
+			if (!this.currentPreview || !this.containerEl.contains(list)) return;
 			if (!this.commands.toolbar(kind, items)) return;
 			this.refreshPreview();
 		};
@@ -655,10 +659,11 @@ export class SettingsView {
 						label: i18n.t(`settings.Toolbar.${value}`),
 					})),
 					valid: () =>
-						!!this.preview &&
+						!!this.currentPreview &&
 						this.page === "toolbar" &&
 						this.containerEl.contains(placement),
 					beforeOpen: () => {
+						this.beforeInteraction?.();
 						this.cleanupColor?.();
 						this.cleanupDrag?.();
 						this.cleanupSelect?.();
@@ -698,12 +703,17 @@ export class SettingsView {
 							i18n.t("settings.Toolbar.defaultsDesc"),
 						);
 						toggle.onChange((value) => {
+							if (!this.currentPreview || !this.containerEl.contains(toggle.toggleEl))
+								return;
+							this.beforeInteraction?.();
 							this.commands.toggle(defaultKey, value);
 							this.refreshPreview();
 						});
 					});
 				}
 				const move = (boundary: number, controlName: string) => {
+					if (!this.currentPreview || !this.containerEl.contains(row)) return;
+					this.beforeInteraction?.();
 					commit(moveToolbarItem(this.settings[key], index, boundary));
 					render(item.id, controlName);
 					live.textContent = i18n.t("settings.Toolbar.moved", { name });
@@ -731,6 +741,8 @@ export class SettingsView {
 				});
 				handle.addEventListener("pointerdown", (event) => {
 					if (event.button !== 0 || !event.isPrimary) return;
+					if (!this.currentPreview || !this.containerEl.contains(handle)) return;
+					this.beforeInteraction?.();
 					this.cleanupSelect?.();
 					this.cleanupDrag?.();
 					let boundary = index;

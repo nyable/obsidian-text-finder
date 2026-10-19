@@ -65,7 +65,7 @@
 - `match-worker.ts` 的 `globalThis` 是 Worker 全局，没有 Window；`settings-storage.ts` 的共享 realm 队列不能随 `activeWindow` 拆分；`unique-id.ts` 的 UUID 是非 DOM 数据能力。三者不是操作错误窗口的证据。Worker 启动计时器则明确由捕获的 owner Window 创建和清理。
 - `composition-input.ts` 的 `keyCode === 229` 与 `isComposing`／composition 事件共同保护 IME，保留 legacy 229 回归；弃用提示不能替代目标输入法兼容证据。
 - 匹配异常保留 `console.debug`，只输出固定消息及错误类型，不输出查询、正文或可能带查询的正则错误消息。Worker／宿主异常仍保留必要告警，不统一禁用诊断。
-- 设置页保留 imperative `display()`；未实现 1.13.0+ 的 `getSettingDefinitions()`，因此不承诺全局设置搜索可发现。声明式迁移涉及 SettingsController 更新策略、自定义外观页及销毁资源，不用空定义数组掩盖限制。
+- 设置页双路径：1.13.0+ 使用 `getSettingDefinitions()`，旧宿主继续 `display()`，最低版本仍为 1.6.0。新路径普通设置逐项索引、六项颜色逐项索引，选区轮廓和两套工具栏以配置区及 aliases 索引；预览不参与搜索。新版类型只通过 type-only 导入，不在旧宿主继承／实例化新版类。定义生成不建 DOM、不读盘；render 控件继续走 SettingsController，不采用宿主默认 saveData。行清理回调及插件 hide 共同释放外观资源；搜索定位、主题布局与移动端仍须 Obsidian 1.13+ 实机验收。
 
 依据：上述源码、`tests/integration/owner-renderer.test.ts`、`match-engine.test.mjs`、`settings-storage.test.mjs`、`tests/component/finder-panel.test.mjs` 和 `tests/unit/text-matching.test.mjs`。这是逐项设计依据，不代表发布服务自动豁免；仓库 ESLint 已启用方法绑定和枚举比较规则，但未安装／运行完整 Obsidian 发布扫描器。
 

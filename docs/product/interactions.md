@@ -189,6 +189,14 @@
 
 依据：`src/features/finder/application/finder-session.ts:recordSearchToHistory()`／`setVisibleFromHistory()`，`interaction/input-shortcuts.ts`；`src/features/history/ui/HistoryPanel.vue` 的订阅／select／copy；`src/features/history/model/history.ts`；`src/features/settings/ui/settings-view.ts:renderPage()`。数据规则见 [architecture](../architecture.md#持久化数据格式)。
 
+## 设置搜索与生命周期
+
+- 1.13+ 的全局设置搜索消费公开定义：基础项／六项颜色逐项对应可操作控件，选区和工具栏通过配置区名称／aliases 命中；不隐藏非当前分类定义以免丢失索引，不使用空数组或幽灵搜索行。
+- 新版宿主控制分组及外观子页导航；复杂外观区初次展开，用户仍可折叠。旧版继续五分类。所有开关、历史整数 Enter／blur 提交、排序、颜色应用／取消、单项／分组恢复及工具栏排序均通过同一控制器；保存不阻塞导航，读取失败仍禁止覆盖磁盘。
+- 搜索索引注册不挂载预览、不读盘；外观 render 只在可见页挂载，同 Document 共享预览。开启其他行调色器、位置菜单或拖动会关闭既有交互；行重渲染／子页返回／切 Tab／关闭／插件卸载释放预览、草稿、拖动监听和菜单。旧节点不能再次修改外观配置。
+
+依据：`src/features/settings/ui/settings-definitions.ts`、`settings-fields.ts`、`settings-view.ts`、`tests/integration/main-settings.test.mjs`；宿主搜索结果的真实滚动／聚焦和窗口迁移需实测。
+
 ## 阅读状态与错误
 
 - 等待立即显示计数标记 `…`，持续 400ms 后显示外置状态提示；查询／文件变化、关闭会重置提示延迟。
