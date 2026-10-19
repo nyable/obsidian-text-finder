@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { JSDOM } from "jsdom";
 import { createStaticVNode, defineComponent, h, nextTick, useId } from "vue";
 import { mountView } from "../../src/shared/ui/mount-view";
@@ -64,18 +64,12 @@ it("keeps conditional root replacement inside its owner range", async () => {
 	expect(win.document.body.childNodes.length).toBe(0);
 });
 
-it("creates compiler static HTML and SVG fragments in the current realm", () => {
+it("rejects stringified HTML instead of inheriting Vue's default HTML parser", () => {
 	const win = owner();
+	vi.spyOn(console, "warn").mockImplementation(() => {});
 	const View = {
-		setup: () => () =>
-			h("div", null, [
-				createStaticVNode("<span>one</span><span>two</span>", 2),
-				h("svg", null, [createStaticVNode('<path d="M0 0L1 1"/>', 1)]),
-			]),
+		setup: () => () => createStaticVNode("<span>unsupported</span>", 1),
 	};
-	const view = mountView(View, win.document.body, {});
-	expect(win.document.querySelectorAll("span").length).toBe(2);
-	expect(win.document.querySelector("path")).toBeInstanceOf(win.SVGElement);
-	view.destroy();
+	expect(() => mountView(View, win.document.body, {})).toThrow("requires node-based templates");
 	expect(win.document.body.childNodes.length).toBe(0);
 });

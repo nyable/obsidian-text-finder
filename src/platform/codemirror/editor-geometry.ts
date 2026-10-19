@@ -1,11 +1,11 @@
 import type { Line } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { BlockType, Direction, type EditorView } from "@codemirror/view";
 
 /** CodeMirror layers compensate for editor scale; measurements stay in client pixels. */
 export function editorLayerOrigin(view: EditorView) {
 	const bounds = view.scrollDOM.getBoundingClientRect();
 	const left =
-		view.textDirection === 0
+		view.textDirection === Direction.LTR
 			? bounds.left
 			: bounds.right - view.scrollDOM.clientWidth * view.scaleX;
 	return {
@@ -39,7 +39,8 @@ export function sourceLineCoords(view: EditorView, line: Line, pos: number, side
 	if (typeof view.lineBlockAt !== "function" || typeof view.coordsAtPos !== "function")
 		return null;
 	const block = view.lineBlockAt(pos);
-	if (block.type !== 0 || block.from !== line.from || block.to !== line.to) return null;
+	if (block.type !== BlockType.Text || block.from !== line.from || block.to !== line.to)
+		return null;
 	const box = view.coordsAtPos(pos, side);
 	return box &&
 		[box.left, box.right, box.top, box.bottom].every(Number.isFinite) &&

@@ -58,7 +58,7 @@ export function createSearchScope(
 	return {
 		clear,
 		ranges,
-		sync(snapshot: EditingSnapshot | null) {
+		sync(this: void, snapshot: EditingSnapshot | null) {
 			if (state.readingScope) {
 				if (!reading() || state.scopeWindow !== host.environment()) clear(true);
 				return;
@@ -76,7 +76,7 @@ export function createSearchScope(
 				clear(true);
 			state.scopeEmpty = state.scopeEnabled && !ranges()?.length;
 		},
-		activate(selection?: ScopeSelection): boolean {
+		activate(this: void, selection?: ScopeSelection): boolean {
 			if (state.disposed) return false;
 			if (reading()) {
 				const selected = selection ?? host.selection();

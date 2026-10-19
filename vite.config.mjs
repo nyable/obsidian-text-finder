@@ -1,5 +1,5 @@
 import { defineConfig, normalizePath } from "vite";
-import vue from "@vitejs/plugin-vue";
+import { ownerVue } from "./tools/vue-plugin.mjs";
 import { resolve } from "node:path";
 import { root, hostExternal, embeddedSources, releaseAssets } from "./tools/vite-build.mjs";
 
@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => ({
 		__VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
 	},
 	plugins: [
-		vue(),
+		ownerVue(),
 		embeddedSources(),
 		releaseAssets(),
 		{

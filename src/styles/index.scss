@@ -72,12 +72,26 @@ body {
 	}
 }
 
+.nya-safe-area-probe {
+	position: fixed;
+	visibility: hidden;
+	pointer-events: none;
+	padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+		env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
 .nya-reading-overlay {
 	position: fixed;
 	overflow: hidden;
 	pointer-events: none;
 	user-select: none;
 	z-index: 1;
+	&--hidden {
+		visibility: hidden;
+	}
+	.nya-newline-match {
+		position: absolute;
+	}
 }
 ::highlight(nya-reading-scope) {
 	background-color: var(--nya-scope-background);

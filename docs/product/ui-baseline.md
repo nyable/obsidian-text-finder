@@ -10,6 +10,7 @@ Finder 模板／CSS 在 `src/features/finder/ui/FinderPanel.vue`，交互效果�
 
 - 全局变量、编辑高亮、阅读 `::highlight`、设置样式来自 `src/styles/index.scss`，构建为 `dist/styles.css`。
 - Vue scoped CSS／SCSS 与全局样式统一输出到 `dist/styles.css`，由 Obsidian 加载，不再运行 Svelte 样式注入。公开类／变量保持，移动祖先选择器和主题覆盖须保持原行为。框架 scope ID 属于内部实现。
+- 固定布局／状态样式使用 CSS：Modal content 的 flex／溢出／padding 由 `.nya-library-host` 定义，Finder 隐藏／收起由既有状态类控制，阅读 overlay 用 `nya-reading-overlay--hidden`，安全区探针用 `nya-safe-area-probe`。动态位置、尺寸、裁切和颜色仍按 owner 测量写入；`inert`／aria-hidden／焦点防护继续独立同步。收起隐藏规则位于 desktop／custom／mobile display 声明之后，保持全部布局一致。
 - `src/features/settings/ui/ToolbarPreview.vue` 与真实 Finder／Toolbar 通过 `src/styles/finder-primitives.scss` 共享面板、输入、按钮、计数和焦点样式，容器定位与窄宽布局独立。
 - `src/features/settings/ui/appearance-styles.ts:AppearanceStyles` 只为显式自定义颜色生成按 Document 管理的 `body` 变量覆盖（`!important`）；默认没有覆盖样式，恢复时移除对应声明，卸载／窗口关闭移除插件样式，不改写宿主 inline style。更具体或 inline 的 `!important` 用户规则仍可能优先，不能承诺覆盖任意 CSS。
 - README 公开 `.nya-finder`（位置）、`.nya-toggle`（装饰）、`.nya-text-finder-match`、`.nya-text-finder-match-current` 和下列变量的自定义示例。

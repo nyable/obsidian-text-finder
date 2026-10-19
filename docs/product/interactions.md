@@ -114,7 +114,7 @@
 - 编辑 `editor-menu` 按传入 Editor／MarkdownView 或 MarkdownFileInfo 解析 owner，不借用全局活动编辑器；捕获 CodeMirror doc 身份及非空 ranges。阅读在 owner 正文 contextmenu 时捕获实际 Selection 的节点数字端点和文本，不使用旧候选；排除输入、嵌入、页眉／页脚及已排除内容端点。
 - 点击前再次校验视图仍打开、file／mode／Document 和 editor doc 或阅读 source／renderer／DOM 修订标记；焦点或浏览器 Selection 改变不替换快照，正文变化则提示重新打开菜单。阅读候选 tracker 的修订标记消费待定 MutationRecords，拒绝同文字改回后的过期边界。多选区仍分别传递，不拼接为范围。
 - 阅读插件不兼容时，“以选中内容查找”调用既有原生打开，再只向 owner 预览容器的 `.document-search-input input` 填入快照并派发 input；控件形状不可用时提示，不能向其他分屏输入框写值。
-- 阅读通过 shape-checked 内部 `Menu.forEvent()` 共享同一事件菜单，不停止传播、不调用第二次显示；缺失／调用失败不另建替代菜单。链接复制／打开等项目继续由宿主贡献；纯正文因默认浏览器菜单被抑制，补充所属 Document 的复制选中文字操作。菜单项不额外添加 title／aria-label；菜单按实例去重，卸载隐藏持有菜单并释放正文监听。
+- 阅读通过 shape-checked 公开 `Menu.forEvent()`（since 1.6.0）共享同一事件菜单，不停止传播、不调用第二次显示；缺失／调用失败不另建替代菜单。链接复制／打开等项目继续由宿主贡献；纯正文因默认浏览器菜单被抑制，补充所属 Document 的复制选中文字操作。菜单项不额外添加 title／aria-label；菜单按实例去重，卸载隐藏持有菜单并释放正文监听。
 
 依据：`src/app/workspace-runtime.ts:connectReadingMenu()`／`selectionMenu()`／`showSelectedText()`／`registerEvent()`；`src/features/finder/application/finder-session.ts:findSelectedText()`／`findInCapturedSelection()`；`src/features/reading/dom/reading-selection.ts:stamp()`。回归：`tests/integration/finder-menus.test.mjs`、`tests/component/finder-panel.test.mjs`；宿主方法检查 `tools/diagnostics/menu-host-check.mjs` 不等于 GUI 验收。
 

@@ -119,7 +119,10 @@ export function registerWorkspaceCommands(host: CommandHost): void {
 		name: i18n.t("commands.Replace.name"),
 		editorCallback: (editor, info) => {
 			const finder = host.editorFinder(editor, info);
-			if (finder) void Promise.resolve(finder.replaceOnce()).catch(host.reportError);
+			if (finder)
+				void Promise.resolve(finder.replaceOnce()).catch((error) =>
+					host.reportError(error),
+				);
 		},
 	});
 	add({
@@ -130,7 +133,7 @@ export function registerWorkspaceCommands(host: CommandHost): void {
 			if (finder)
 				void Promise.resolve(
 					finder.replaceAllMatchedText(finder.getSearchCache().replace),
-				).catch(host.reportError);
+				).catch((error) => host.reportError(error));
 		},
 	});
 	add({

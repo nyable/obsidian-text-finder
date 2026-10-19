@@ -6,6 +6,7 @@ interface StorageLane {
 
 // A plugin reload evaluates a new module. Keep the lane on the shared realm,
 // keyed by App and data path, rather than on the old plugin/module instance.
+// Do not use activeWindow: focus changes must never split the persistence queue.
 const registryKey = Symbol.for("text-finder.settings-storage.v1");
 const realm = globalThis as typeof globalThis & {
 	[key: symbol]: WeakMap<App, Map<string, StorageLane>>;

@@ -88,7 +88,7 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 
 `platform/obsidian/preview-renderer.ts:rendererFor()` 集中检测私有 renderer 形状，包含全部 sections、全文／渲染状态及挂载／定位能力。公开 preview API 无法列出虚拟移出的分块；能力缺失不能用局部视口冒充全文。正常打开不兼容时走既有原生降级，显式范围命令不静默扩大为原生全文。
 
-同模块的 `capturePreviewBody()` 为菜单捕获较窄的正文／render stamp，不要求全文搜索能力；`event-menu.ts` 和 `editor-context.ts` 隔离私有事件菜单与 CodeMirror 实例探测。缺失／异常能力及过期快照由 `host-bridges.test.ts` 和 `finder-menus.test.mjs` 覆盖。
+同模块的 `capturePreviewBody()` 为菜单捕获较窄的正文／render stamp，不要求全文搜索能力；`event-menu.ts` 检测公开事件菜单能力，`editor-context.ts` 隔离内部 CodeMirror 实例探测。缺失／异常能力及过期快照由 `host-bridges.test.ts` 和 `finder-menus.test.mjs` 覆盖。
 
 - `ReadingSearch.ready()` 要求当前源数据、text／lastText 一致，解析／渲染结束且所有块就绪。等待有界检查和 onRendered 回调，默认 5 秒是渲染保护，不是正则执行期限。
 - `reading-text.ts` 建完整 DOM 逻辑字符串、span／元素边界和 breaks。偏移是 UTF-16 正文偏移，不是 Markdown 源码偏移。先排除明确子树再读取样式，仅 display:none 检查折叠正文例外；正文规则以 features 为准。
@@ -130,7 +130,7 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 
 `OwnerRegistry` 按具体 MarkdownView 懒创建资源，读取选区不预建完整 Finder／Worker；同路径分屏独立。释放时记录保留到清理结束，避免 Finder 清理失去 reading 资源。`Disposables` 逆序、幂等并聚合异常，某资源失败不跳过其他资源。workspace／插件公开 dispose 与宿主 onunload 适配；迟到 layout 回调不重建卸载对象。Modal 关闭销毁视图并取消订阅，workspace 卸载关闭全部已跟踪弹窗和菜单。
 
-`shared/ui/mount-view.ts` 使用 Vue 公开 createRenderer 与 owner-bound 创建操作，实时读取 target.ownerDocument，HTML／SVG／静态节点均不借用初始化 Document。每次挂载独立 app／idPrefix，注释锚点隔离插入范围，不增加布局 wrapper。TextRun 保留相邻文本节点分段，避免 kerning 差异。DOM actions 负责 Observer／事件／计时器资源，Toolbar 在 onBeforeUpdate 归还移动节点再进行 keyed patch。
+`shared/ui/mount-view.ts` 使用 Vue 公开 createRenderer 与 owner-bound 原生 DOM 创建操作，实时读取 target.ownerDocument，HTML／SVG／MathML 均不借用初始化 Document。`tools/vue-plugin.mjs` 统一正式、Vitest 和浏览器编译选项，关闭静态提升／HTML 字符串化，静态内容也走节点操作；renderer 的静态 HTML 插入入口拒绝执行，不回退到默认解析器。每次挂载独立 app／idPrefix，注释锚点隔离插入范围，不增加布局 wrapper。TextRun 保留相邻文本节点分段，避免 kerning 差异。DOM actions 负责 Observer／事件／计时器资源，Toolbar 在 onBeforeUpdate 归还移动节点再进行 keyed patch。
 
 CodeMirror 范围通过 StateField／changes 映射，finderSelection annotation 排除导航选择。轮廓测量仅处理可见源码，拒绝折叠／替换块及歧义 bidi；纯 `shared/geometry/scope-outline.ts` 合并矩形、去内部缝，分轴限制外扩。同范围完整可见空白行通过 `scope-geometry.ts` 补桥，不扩数字写入范围。newline layer 只绘制实际匹配换行的非文本 ↵，不改排版、计数或剪贴板；旧宿主无 layer 保留文字高亮。
 

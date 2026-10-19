@@ -2,14 +2,16 @@
 export function createCompositionInput() {
 	const composing = new WeakSet<EventTarget>();
 	return {
-		isComposing(event: KeyboardEvent) {
+		isComposing(this: void, event: KeyboardEvent) {
 			return (
 				event.isComposing ||
+				// Legacy IME signal: some WebViews report false for isComposing
+				// on the candidate-confirmation key. Keep the 229 fallback.
 				event.keyCode === 229 ||
 				(event.currentTarget !== null && composing.has(event.currentTarget))
 			);
 		},
-		track(node: HTMLTextAreaElement) {
+		track(this: void, node: HTMLTextAreaElement) {
 			const start = () => composing.add(node);
 			const end = () => composing.delete(node);
 			node.addEventListener("compositionstart", start);

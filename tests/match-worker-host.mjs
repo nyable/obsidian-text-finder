@@ -2,6 +2,9 @@ import { Worker as NodeWorker } from "node:worker_threads";
 
 // Node-backed browser API for real production Worker source. Does not prove CSP.
 export function installWorkerHost(win) {
+	// Plain-object hosts have no Window timers; real jsdom windows keep their own.
+	win.setTimeout ??= (...args) => globalThis.setTimeout(...args);
+	win.clearTimeout ??= (timer) => globalThis.clearTimeout(timer);
 	const blobs = new Map(),
 		workers = [],
 		revoked = [];

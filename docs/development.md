@@ -11,6 +11,8 @@
 
 `src/main.ts` 是薄入口，`src/app/create-plugin-runtime.ts` 装配宿主服务。Finder application 只接收 owner-bound ports，不导入 DOM／Vue／宿主类；`useFinderViewModel.ts` 连接浅响应式及交互层。`src/shared/ui/mount-view.ts` 使用 owner-bound renderer，保持跨窗口构造器和父节点几何；不能改回默认全局 Document。详见 [架构](architecture.md)。
 
+Vue 编译统一使用 `tools/vue-plugin.mjs:ownerVue()`，正式／Vitest／浏览器入口不能另建默认插件实例：静态提升关闭，禁止生成需要 HTML 解析的静态 VNode。原生 owner DOM、Worker／存储 `globalThis`、IME 229 与诊断日志的发布检查例外见 [compatibility](compatibility.md#发布检查中的设计例外)，不通过批量自动修复改变这些边界。
+
 ## 按任务定位
 
 | 修改内容 | 入口 | 最小回归 |

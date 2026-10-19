@@ -25,9 +25,8 @@ export class ReadingOverlay {
 		const doc = this.root.ownerDocument,
 			win = doc.defaultView!;
 		const el = doc.createElement("div");
-		el.className = "nya-reading-overlay";
+		el.className = "nya-reading-overlay nya-reading-overlay--hidden";
 		el.setAttribute("aria-hidden", "true");
-		el.style.visibility = "hidden";
 		// Body portal: drawing never mutates indexed/observed preview content.
 		doc.body.append(el);
 		this.element = el;
@@ -84,7 +83,7 @@ export class ReadingOverlay {
 			) || 0;
 		const el = this.mount();
 		el.replaceChildren();
-		el.style.visibility = "";
+		el.classList.remove("nya-reading-overlay--hidden");
 		el.style.left = `${bounds.left}px`;
 		el.style.top = `${bounds.top}px`;
 		el.style.width = `${bounds.width}px`;
@@ -186,12 +185,16 @@ export class ReadingOverlay {
 				).direction === "rtl";
 			const size = Math.max(6, Math.min(16, box.bottom - box.top));
 			glyph.dataset.direction = rtl ? "rtl" : "ltr";
-			glyph.style.cssText = `position:absolute;left:${box.left - bounds.left - (rtl ? size : 0)}px;top:${box.top - bounds.top}px;width:${size}px;height:${box.bottom - box.top}px;font-size:${size}px`;
+			glyph.style.left = `${box.left - bounds.left - (rtl ? size : 0)}px`;
+			glyph.style.top = `${box.top - bounds.top}px`;
+			glyph.style.width = `${size}px`;
+			glyph.style.height = `${box.bottom - box.top}px`;
+			glyph.style.fontSize = `${size}px`;
 			el.append(glyph);
 		}
 	}
 	hide() {
-		if (this.element) this.element.style.visibility = "hidden";
+		this.element?.classList.add("nya-reading-overlay--hidden");
 	}
 	destroy() {
 		this.cleanup?.();

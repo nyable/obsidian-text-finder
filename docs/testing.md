@@ -28,7 +28,7 @@ git diff --check
 
 已获批准后显式执行 `--update-snapshots=all`／`changed`，才可跳过更新前预检并创建 expected；随后更新 provenance，再用默认禁止更新模式复验。不得把更新命令成功写成严格比较通过。
 
-`pnpm test:artifacts` 在独立 Node 进程运行 `tests/vite-build.test.mjs`，通过正式配置内存构建，避免 Vitest 模块 mock 影响产物。检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及产物初始化、Finder 查找／全部替换／关闭／卸载；另检查内嵌输入 watch。宿主仍是替身，同步兼容不能证明 Obsidian 真机通过。`tests/integration/owner-renderer.test.ts` 检查无全局 Document 的 realm、HTML／SVG／静态节点、独立 app 标签、更新和幂等卸载。
+`pnpm test:artifacts` 在独立 Node 进程运行 `tests/vite-build.test.mjs`，通过正式配置内存构建，避免 Vitest 模块 mock 影响产物。检查安装文件集合、宿主 external、无拆分资产、Vue scoped CSS、CommonJS 直接导出插件类及产物初始化、Finder 查找／全部替换／关闭／卸载；另检查内嵌输入 watch 和大段静态 HTML／SVG／MathML 模板不生成 `createStaticVNode`。宿主仍是替身，同步兼容不能证明 Obsidian 真机通过。`tests/integration/owner-renderer.test.ts` 检查无全局 Document 的 realm、独立 app 标签、更新、幂等卸载和拒绝静态 HTML VNode；`tests/component/owner-template.test.ts` 使用浏览器编译路径检查模板在 adopt 后创建 owner HTML／SVG／MathML 节点及用户 HTML 作为文本。
 
 构建路径回归使用 `path.win32.resolve()` 模拟 Vite 在 Windows 处理库入口后的反斜杠 ID，覆盖盘符、中文／空格、UNC、POSIX 及空源码。它检查虚拟入口 resolveId／load 的规范化，不等于 Windows 原生构建；改动构建入口时仍须在 Windows 原生 Node 下运行 `node --test tests/vite-build.test.mjs` 和 `pnpm build`，不能只凭 WSL 通过推定 Windows 通过。
 

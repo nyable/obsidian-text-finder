@@ -231,7 +231,7 @@ test("reading result reuse never mutates earlier query snapshots or another view
 });
 
 test("regex anchors and lookarounds use the full logical reading text", () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const h = environment(["<p>foo<strong>bar</strong></p>", "<p>bar</p>"]);
 	assert.equal(h.run("(?<=foo)bar", { ...options, regexMode: true }).matches.length, 1);
 	assert.equal(h.run("^bar$", { ...options, regexMode: true }).matches.length, 1);

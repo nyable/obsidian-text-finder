@@ -69,7 +69,7 @@ export function createPanelPresentation(
 		sync(panel: PanelPresentation) {
 			const root = nodes.finderEl;
 			if (!root) return;
-			root.style.visibility = panel.visible ? "visible" : "hidden";
+			root.classList.toggle("nya-finder--hidden", !panel.visible);
 			if (!panel.visible) blur();
 			root.setAttribute("aria-hidden", String(!panel.visible));
 			root.classList.toggle("nya-finder--docked", panel.docked);
@@ -78,8 +78,6 @@ export function createPanelPresentation(
 			).forEach((child) => {
 				child.toggleAttribute("inert", !panel.visible || panel.docked);
 				child.setAttribute("aria-hidden", String(!panel.visible || panel.docked));
-				if (panel.docked) child.style.setProperty("display", "none", "important");
-				else child.style.removeProperty("display");
 			});
 			refresh();
 		},
@@ -125,7 +123,7 @@ export function createPanelPresentation(
 	};
 	return {
 		port,
-		guardHiddenFocus(node: HTMLElement) {
+		guardHiddenFocus(this: void, node: HTMLElement) {
 			const guard = (event: FocusEvent) => {
 				if (
 					!state().cache.visible ||
@@ -140,7 +138,7 @@ export function createPanelPresentation(
 				},
 			};
 		},
-		positionFinder(node: HTMLElement, initial: FinderPlacement) {
+		positionFinder(this: void, node: HTMLElement, initial: FinderPlacement) {
 			let doc = node.ownerDocument;
 			const create = () =>
 				createFinderPosition(
@@ -183,7 +181,7 @@ export function createPanelPresentation(
 			}),
 		trackComposition: composition.track,
 		isComposingInput: composition.isComposing,
-		expandFromClick(event: MouseEvent) {
+		expandFromClick(this: void, event: MouseEvent) {
 			if (placement?.consumeClick(event)) return;
 			commands().expandFinder();
 			const intent = state().panelIntent;
@@ -199,7 +197,7 @@ export function createPanelPresentation(
 				})
 				.catch(reportError);
 		},
-		dockMenu(event: MouseEvent) {
+		dockMenu(this: void, event: MouseEvent) {
 			event.preventDefault();
 			if (mobile) {
 				event.stopPropagation();
@@ -226,7 +224,7 @@ export function createPanelPresentation(
 				() => commands().resetFinderPosition(),
 			);
 		},
-		moveFinderKey(event: KeyboardEvent) {
+		moveFinderKey(this: void, event: KeyboardEvent) {
 			if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
 			const step = event.shiftKey ? 32 : 8;
 			const directions: Record<string, readonly [number, number]> = {

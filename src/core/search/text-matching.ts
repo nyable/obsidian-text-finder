@@ -91,7 +91,12 @@ function findTextMatches(
 			}
 		}
 	} catch (error) {
-		console.log(`Finder match error!`, error);
+		// Invalid regexes are expected while typing. Keep diagnostics opt-in to
+		// verbose console output, without exposing the query or document text.
+		console.debug(
+			"Text Finder: matching failed",
+			error instanceof Error ? error.name : "Error",
+		);
 		return [];
 	}
 	return matches;

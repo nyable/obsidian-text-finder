@@ -84,7 +84,7 @@ test("Worker protocol refuses coordinates outside the captured range", async () 
 });
 
 test("whole word shares match and replacement semantics across Worker and startup fallback", async () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const host = installWorkerHost({ URL: {} }),
 		fallbackWindow = {},
 		worker = new MatchEngine(() => host.win),
@@ -154,7 +154,7 @@ test("whole word shares match and replacement semantics across Worker and startu
 });
 
 test("production Worker reuses exact helper semantics across 92 comparisons", async () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const host = installWorkerHost({ URL: {} });
 	const engine = new MatchEngine(() => host.win);
 	onTestFinished(async () => {
@@ -207,6 +207,8 @@ function fakeWindow() {
 	const workers = [],
 		revoked = [];
 	const win = {
+		setTimeout: (...args) => globalThis.setTimeout(...args),
+		clearTimeout: (timer) => globalThis.clearTimeout(timer),
 		URL: { createObjectURL: () => "blob:fake", revokeObjectURL: (url) => revoked.push(url) },
 		Blob: class {},
 		Worker: class {
@@ -234,6 +236,45 @@ function fakeWindow() {
 	};
 	return { win, workers, revoked };
 }
+
+test("startup timers are created and cleared by their captured owner, even after migration", async () => {
+	const first = fakeWindow(),
+		second = fakeWindow();
+	const timers = (host) => {
+		const scheduled = new Map(),
+			cleared = [];
+		host.win.setTimeout = function (callback, delay) {
+			assert.equal(this, host.win);
+			assert.equal(delay, 3000);
+			scheduled.set(17, callback);
+			return 17;
+		};
+		host.win.clearTimeout = function (id) {
+			assert.equal(this, host.win);
+			assert.equal(id, 17);
+			scheduled.delete(id);
+			cleared.push(id);
+		};
+		return { scheduled, cleared };
+	};
+	const a = timers(first),
+		b = timers(second);
+	let owner = first.win;
+	const engine = new MatchEngine(() => owner);
+	onTestFinished(() => engine.destroy());
+	const old = engine.match("cat", "cat", options);
+	assert.equal(a.scheduled.size, 1);
+	owner = second.win;
+	const latest = engine.match("cat", "cat", options);
+	assert.deepEqual(await old, { status: "cancelled" });
+	assert.deepEqual(a.cleared, [17]);
+	assert.equal(b.scheduled.size, 1);
+	second.workers[0].emit("message", { data: { type: "ready" } });
+	assert.deepEqual(b.cleared, [17]);
+	engine.destroy();
+	assert.deepEqual(await latest, { status: "cancelled" });
+	assert.equal(b.cleared.length, 1, "ready timer is not cleared twice");
+});
 
 for (const scenario of ["missing-api", "constructor", "initialization-error", "startup-timeout"]) {
 	test(`pre-query ${scenario} selects sync compatibility once without limiting regex`, async () => {
@@ -387,7 +428,7 @@ test("owner window closing cancels even an idle connection and unregisters liste
 });
 
 test("production replacement Worker preserves full-source templates for single/all across 552 comparisons", async () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const host = installWorkerHost({ URL: {} }),
 		engine = new MatchEngine(() => host.win);
 	onTestFinished(async () => {

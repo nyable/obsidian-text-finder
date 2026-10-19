@@ -17,8 +17,8 @@ export interface FinderRuntime {
 	presentation: PresentationPort;
 	editor: EditorPort;
 	reactive<T extends object>(value: T): T;
-	tick(): Promise<void>;
-	onMount(callback: () => (() => void) | void): void;
+	tick(this: void): Promise<void>;
+	onMount(this: void, callback: () => (() => void) | void): void;
 }
 export interface FinderState {
 	matchedContext: EditorContext | null;
@@ -1065,7 +1065,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			return positioned instanceof Promise ? positioned.then(complete) : complete(positioned);
 		};
 		const engine = matcher;
-		const replace = engine.replace;
+		const replace = engine.replace?.bind(engine);
 		return runReplacement(
 			task,
 			uiState.cache.search,
@@ -1124,8 +1124,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 				},
 				replace: (source, text) => {
 					if (!replace) throw new Error("Replacement executor unavailable");
-					return replace.call(
-						engine,
+					return replace(
 						source,
 						uiState.cache.search,
 						text,

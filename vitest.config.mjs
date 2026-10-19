@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import vue from "@vitejs/plugin-vue";
+import { ownerVue } from "./tools/vue-plugin.mjs";
 import { fileURLToPath } from "node:url";
 import { embeddedSources } from "./tools/vite-build.mjs";
 import { colorPickerModule } from "./tools/color-picker-build.mjs";
@@ -16,7 +16,7 @@ export default defineConfig({
 		},
 	},
 	plugins: [
-		vue(),
+		ownerVue(),
 		{
 			name: "test-color-picker-source",
 			enforce: "pre",

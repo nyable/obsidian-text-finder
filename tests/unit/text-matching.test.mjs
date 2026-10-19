@@ -6,6 +6,14 @@ import {
 	findReplacementChanges,
 } from "../../src/core/search/text-matching";
 
+test("invalid regex diagnostics stay verbose-only and do not expose source or query", () => {
+	const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+	const log = vi.spyOn(console, "log").mockImplementation(() => {});
+	assert.deepEqual(findTextOffsets("private document", "[private query", true, false), []);
+	assert.deepEqual(debug.mock.calls, [["Text Finder: matching failed", "SyntaxError"]]);
+	assert.equal(log.mock.calls.length, 0);
+});
+
 test("whole word uses VS Code separator boundaries, including matched punctuation", () => {
 	const cases = [
 		["cat", "cat", 1],
@@ -52,7 +60,7 @@ test("whole word uses VS Code separator boundaries, including matched punctuatio
 });
 
 test("whole word filters actual regex matches without changing captures or full-source templates", () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const source = "xcat cat Cat cat2";
 	const query = "(?<first>c)(at)";
 	const replacement = "$<first>:$2:$&:$$:$`:$'";

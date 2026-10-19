@@ -12,6 +12,8 @@ interface WorkerWindow {
 	Worker: typeof Worker;
 	Blob: typeof Blob;
 	URL: typeof URL;
+	setTimeout: Window["setTimeout"];
+	clearTimeout: Window["clearTimeout"];
 	closed?: boolean;
 	addEventListener?: Window["addEventListener"];
 	removeEventListener?: Window["removeEventListener"];
@@ -21,7 +23,7 @@ interface Connection {
 	worker: Worker;
 	url: string;
 	ready: boolean;
-	timer: ReturnType<typeof setTimeout> | null;
+	timer: number | null;
 	message: (event: MessageEvent<MatchReply>) => void;
 	error: (event: Event) => void;
 	close: () => void;
@@ -216,7 +218,7 @@ export class MatchEngine implements MatchExecutor {
 		worker.addEventListener("messageerror", connection.error);
 		win.addEventListener?.("pagehide", connection.close);
 		win.addEventListener?.("beforeunload", connection.close);
-		connection.timer = setTimeout(
+		connection.timer = win.setTimeout(
 			() =>
 				this.failure(
 					connection,
@@ -230,7 +232,7 @@ export class MatchEngine implements MatchExecutor {
 		if (reply.type === "ready") {
 			if (connection.ready) return;
 			connection.ready = true;
-			if (connection.timer !== null) clearTimeout(connection.timer);
+			if (connection.timer !== null) connection.win.clearTimeout(connection.timer);
 			connection.timer = null;
 			this.send();
 			return;
@@ -331,7 +333,7 @@ export class MatchEngine implements MatchExecutor {
 		const connection = this.connection;
 		this.connection = null;
 		if (!connection) return;
-		if (connection.timer !== null) clearTimeout(connection.timer);
+		if (connection.timer !== null) connection.win.clearTimeout(connection.timer);
 		connection.worker.removeEventListener("message", connection.message);
 		connection.worker.removeEventListener("error", connection.error);
 		connection.worker.removeEventListener("messageerror", connection.error);

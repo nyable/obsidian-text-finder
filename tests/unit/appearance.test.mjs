@@ -18,6 +18,32 @@ import {
 	resolvedAppearanceColor,
 } from "../../src/features/settings/ui/appearance-styles";
 
+test("fixed host, safe-area and overlay state styles live in CSS", () => {
+	const css = compileString(readFileSync("src/styles/index.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
+	const library = compileString(readFileSync("src/styles/search-library.scss", "utf8"), {
+		loadPaths: ["src/styles"],
+	}).css;
+	const probe = css.match(/\.nya-safe-area-probe\s*\{([^}]+)\}/)?.[1] ?? "";
+	assert.match(probe, /position: fixed/);
+	assert.match(probe, /visibility: hidden/);
+	assert.match(probe, /pointer-events: none/);
+	for (const side of ["top", "right", "bottom", "left"])
+		assert.ok(probe.includes(`env(safe-area-inset-${side}, 0px)`));
+	assert.match(css, /\.nya-reading-overlay--hidden\s*\{\s*visibility: hidden/);
+	assert.match(css, /\.nya-reading-overlay \.nya-newline-match\s*\{\s*position: absolute/);
+	const content = library.match(/\.nya-library-host \.modal-content\s*\{([^}]+)\}/)?.[1] ?? "";
+	for (const declaration of [
+		"overflow: hidden",
+		"padding: 0",
+		"display: flex",
+		"flex-direction: column",
+		"height: 100%",
+	])
+		assert.ok(content.includes(declaration), declaration);
+});
+
 test("scope appearance normalizes safely, migrates disabled and does not change other preferences", () => {
 	assert.deepEqual(settingsSource.defaultSettings().scopeAppearance, { border: false, width: 1 });
 	for (const raw of [null, [], "bad", { border: "true", width: "3" }, { border: 1, width: 4 }]) {

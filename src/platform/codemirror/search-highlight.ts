@@ -2,6 +2,7 @@ import { RangeSetBuilder, StateEffect, StateField, type Text } from "@codemirror
 import {
 	Decoration,
 	EditorView,
+	Direction,
 	layer,
 	type DecorationSet,
 	type LayerMarker,
@@ -145,7 +146,7 @@ function createNewlineMatchLayer() {
 				if (!matched) continue;
 				const box = sourceLineCoords(view, line, line.to, -1);
 				if (!box) continue;
-				const rtl = view.textDirectionAt(line.to) === 1;
+				const rtl = view.textDirectionAt(line.to) === Direction.RTL;
 				const height = box.bottom - box.top,
 					width = Math.max(6, Math.min(height, view.defaultCharacterWidth * view.scaleX));
 				markers.push(

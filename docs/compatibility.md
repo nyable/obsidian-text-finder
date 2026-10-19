@@ -8,14 +8,14 @@
 
 - 插件 ID、最低 Obsidian 版本和移动端声明以 `manifest.json` 为准；`isDesktopOnly: false` 是声明，不是 Android／iOS 实测证明。
 - 开发 Node／pnpm、SDK 和依赖版本以 `.node-version`、`package.json`、`pnpm-lock.yaml` 为准，不在此复制版本清单。
-- 阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与 Manifest 最低 0.15.0、开发 SDK 版本是不同证据，不能推定所有版本支持插件阅读查找。
+- 最低宿主版本为 1.6.0，与生产使用的公开 `Menu.forEvent()`（SDK 标注 since 1.6.0）对齐；`setTooltip()` 为 1.4.4，菜单分组／图标等更早。开发 SDK 版本不是最低运行版本，不因 API 类型覆盖而升级所有依赖。阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与最低版本、开发 SDK 是不同证据，不能推定 1.6.0 的阅读私有形状或全部运行时能力已实测。
 - Vite／Rolldown 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron／Node 内建模块为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。主构建与内嵌 Worker／调色器均显式 target ES2018，不代表所有宿主运行时 API 可用。
 
 依据：`src/features/reading/dom/reading-search.ts` 文件头、`manifest.json`、`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`pnpm-workspace.yaml`。
 
 ### 依赖安全边界
 
-- 生产已移除 Svelte；旧公告的可达性分析不是 Vue 安全结论。Vue 只编译仓库模板，不将笔记、查询或历史文本作为模板／HTML 注入；静态 HTML 插入只处理编译器输出。没有 SSR／hydrate 入口。扫描命中须检查调用链，不将“客户端”作为通用豁免。
+- 生产已移除 Svelte；旧公告的可达性分析不是 Vue 安全结论。Vue 只编译仓库模板，不将笔记、查询或历史文本作为模板／HTML 注入。`tools/vue-plugin.mjs:ownerVue()` 在正式、Vitest 和浏览器构建统一设置 `hoistStatic: false`，关闭静态 HTML 字符串化；owner renderer 只创建节点，遇到静态 HTML VNode 明确抛错，不继承 Vue 默认 HTML 解析。没有 SSR／hydrate 入口。扫描命中须检查调用链，不将“客户端”作为通用豁免。
 - moment 来自宿主 Obsidian external；本插件调用 `moment.locale()` 读取语言，不将用户值传给 locale 加载。开发 SDK 的 moment 扫描结果不能证明实际宿主版本安全。
 - braces 位于开发 lint 的 glob 调用链，不在插件运行时包中；当前 lint 模式由开发命令固定，不由笔记或查询控制。处理开发工具风险与插件运行时风险须分开，不为扫描结果盲目升级框架主版本。
 
@@ -23,7 +23,7 @@
 
 ## API 边界与保护
 
-菜单入口：公开 file-menu 的 `source`／leaf 在本机 Obsidian 1.14.4 源码中可确认 more-options 与所属视图，editor-menu 依赖公开事件（SDK 标记 since 1.1.0），不据此提高 Manifest 或宣称最低版本全功能支持。阅读右键没有对应的公开正文事件，使用能力检测内部 `Menu.forEvent()`，缺失时不创建第二菜单或接管默认行为；异常记录告警。原生阅读选中文字查询的 `.document-search-input input` 是 DOM 形状桥接，缺失提示，不向全局活动窗口猜测控件。`tools/diagnostics/menu-host-check.mjs` 对指定 ASAR 提取真实 Menu.forEvent 验证同事件复用及一次延后显示，并静态检查 pane 来源／leaf／输入形状；不执行 GUI，不能证明触摸选词菜单、复制权限或宿主版本兼容。分屏、弹窗、链接、移动端和第三方菜单实际合并仍待实机验收。
+菜单入口：公开 file-menu 的 `source`／leaf 在本机 Obsidian 1.14.4 源码中可确认 more-options 与所属视图，editor-menu 依赖公开事件（SDK 标记 since 1.1.0）。阅读右键没有对应的公开正文事件，使用公开 `Menu.forEvent()`（since 1.6.0）共享事件菜单，仍保留能力检测；缺失时不创建第二菜单或接管默认行为，异常记录告警。原生阅读选中文字查询的 `.document-search-input input` 是 DOM 形状桥接，缺失提示，不向全局活动窗口猜测控件。`tools/diagnostics/menu-host-check.mjs` 对指定 ASAR 提取真实 Menu.forEvent 验证同事件复用及一次延后显示，并静态检查 pane 来源／leaf／输入形状；不执行 GUI，不能证明触摸选词菜单、复制权限或宿主版本兼容。分屏、弹窗、链接、移动端和第三方菜单实际合并仍待实机验收。
 
 | 依赖 | 用途 | 保护／限制 | 源码 |
 | --- | --- | --- | --- |
@@ -58,6 +58,16 @@
 - 高亮注册表按 Document 合并视图所有权；正常关闭一个视图不清另一个视图。注册表异常清理是失败保护，不能承诺损坏宿主 API 下的完整多视图绘制。
 
 依据：`src/app/workspace-runtime.ts:showFinder()`／`openNativeSearch()`；`src/features/reading/dom/reading-search.ts` 的 `ready()`／`run()`／`scroll()`／`removeHighlights()`。内部机制见 [architecture](architecture.md#阅读索引与高亮机制)。
+
+## 发布检查中的设计例外
+
+- DOM 创建保留原生 `ownerDocument.createElement()`／`createElementNS()`，不机械替换为全局宿主 helpers，也不为隐藏告警套无实际职责的包装。renderer 必须在每次创建时读取当前 owner Document，保留命名空间及原生参数；owner／adopt 回归不等于 Obsidian 弹窗实测。
+- `match-worker.ts` 的 `globalThis` 是 Worker 全局，没有 Window；`settings-storage.ts` 的共享 realm 队列不能随 `activeWindow` 拆分；`unique-id.ts` 的 UUID 是非 DOM 数据能力。三者不是操作错误窗口的证据。Worker 启动计时器则明确由捕获的 owner Window 创建和清理。
+- `composition-input.ts` 的 `keyCode === 229` 与 `isComposing`／composition 事件共同保护 IME，保留 legacy 229 回归；弃用提示不能替代目标输入法兼容证据。
+- 匹配异常保留 `console.debug`，只输出固定消息及错误类型，不输出查询、正文或可能带查询的正则错误消息。Worker／宿主异常仍保留必要告警，不统一禁用诊断。
+- 设置页保留 imperative `display()`；未实现 1.13.0+ 的 `getSettingDefinitions()`，因此不承诺全局设置搜索可发现。声明式迁移涉及 SettingsController 更新策略、自定义外观页及销毁资源，不用空定义数组掩盖限制。
+
+依据：上述源码、`tests/integration/owner-renderer.test.ts`、`match-engine.test.mjs`、`settings-storage.test.mjs`、`tests/component/finder-panel.test.mjs` 和 `tests/unit/text-matching.test.mjs`。这是逐项设计依据，不代表发布服务自动豁免；仓库 ESLint 已启用方法绑定和枚举比较规则，但未安装／运行完整 Obsidian 发布扫描器。
 
 ## 验证能力
 

@@ -4,6 +4,7 @@
  * @returns 唯一ID
  */
 export function generateUniqueId() {
+	// IDs are realm-independent data, not a DOM/window capability. No activeWindow needed.
 	if (globalThis.crypto?.randomUUID) {
 		return globalThis.crypto.randomUUID();
 	} else {

@@ -1,5 +1,5 @@
 import type { Line } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import { Direction, type EditorView } from "@codemirror/view";
 import type { ScopeRect } from "../../shared/geometry/scope-outline";
 import { sourceLineCoords, sourcePositionVisible, visibleSourceLines } from "./editor-geometry";
 
@@ -90,7 +90,8 @@ export function addScopeBlankLines(
 			// No common text width: route a narrow orthogonal corridor through
 			// the measured blank-line insertion point, not a full-width box.
 			const width = Math.max(2, Math.min(8, head.box.bottom - head.box.top) / 2);
-			const x = head.box.left - (view.textDirectionAt(first.from) === 1 ? width : 0);
+			const x =
+				head.box.left - (view.textDirectionAt(first.from) === Direction.RTL ? width : 0);
 			const middle = (head.box.top + last.box.bottom) / 2;
 			additions.push({
 				left: x,

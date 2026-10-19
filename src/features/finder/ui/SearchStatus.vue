@@ -2,11 +2,17 @@
 import { shallowReactive, toRefs, computed, watchEffect, onBeforeUnmount } from "vue";
 import { actionDirective } from "../../../shared/ui/dom-action";
 import { i18n } from "../../../i18n";
-const local = shallowReactive({
+const local = shallowReactive<{
+	delayed: boolean;
+	timer: ReturnType<typeof setTimeout> | undefined;
+	previousQuery: string;
+	previousContext: unknown;
+	above: boolean;
+}>({
 	delayed: false,
-	timer: undefined as ReturnType<typeof setTimeout> | undefined,
+	timer: undefined,
 	previousQuery: "",
-	previousContext: undefined as unknown,
+	previousContext: undefined,
 	above: false,
 });
 const props = withDefaults(

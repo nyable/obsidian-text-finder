@@ -435,7 +435,11 @@ test("overlay coalesces scroll redraw in an owner frame and clear cancels pendin
 	h.root.dispatchEvent(new h.dom.window.Event("scroll"));
 	h.root.dispatchEvent(new h.dom.window.Event("scroll"));
 	assert.equal(frames.size, 1);
-	assert.equal(h.doc.querySelector(".nya-reading-overlay").style.visibility, "hidden");
+	assert.ok(
+		h.doc
+			.querySelector(".nya-reading-overlay")
+			.classList.contains("nya-reading-overlay--hidden"),
+	);
 	h.search.clear();
 	assert.equal(frames.size, 0);
 	assert.equal(cancelled.length, 1);

@@ -117,7 +117,7 @@ export function useFinderViewModel(
 			session.changeQuery((event.target as HTMLTextAreaElement).value),
 		onFinderKeyDown: shortcuts.onQueryKeyDown,
 		enterOnReplacer: shortcuts.onReplacementKeyDown,
-		defaultEnterEvent(event: KeyboardEvent) {
+		defaultEnterEvent(this: void, event: KeyboardEvent) {
 			if (["Enter", "NumpadEnter", "Space"].includes(event.code)) {
 				event.preventDefault();
 				(event.target as HTMLElement).click();

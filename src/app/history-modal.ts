@@ -25,13 +25,6 @@ export class HistoryModal extends Modal {
 		contentEl.empty();
 		this.modalEl.classList.add("nya-library-host");
 
-		// Fix double scrollbar issue
-		contentEl.style.overflow = "hidden";
-		contentEl.style.display = "flex";
-		contentEl.style.flexDirection = "column";
-		contentEl.style.height = "100%";
-		contentEl.style.padding = "0"; // The Vue view owns the content padding.
-
 		const view: HistoryView = {
 			preferences: () => this.plugin.settings,
 			controller: this.plugin.history,

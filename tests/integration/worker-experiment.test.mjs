@@ -9,7 +9,7 @@ import { workerCases, snapshot } from "../../tools/diagnostics/worker-experiment
 import * as helper from "../../src/core/search/text-matching";
 
 test("Node Worker matches current full-source search and replacement semantics", async () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const client = nodeExperiment();
 	onTestFinished(() => client.dispose());
 	for (const entry of workerCases)

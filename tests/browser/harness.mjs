@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { build } from "vite";
-import vuePlugin from "@vitejs/plugin-vue";
+import { ownerVue } from "../../tools/vue-plugin.mjs";
 import { createServer } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -45,7 +45,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						return fileURLToPath(new URL("./host-stub.mjs", import.meta.url));
 				},
 			},
-			vuePlugin(),
+			ownerVue(),
 		],
 	});
 	const visual = Array.isArray(visualResult) ? visualResult[0] : visualResult;
@@ -68,7 +68,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						return fileURLToPath(new URL("./host-stub.mjs", import.meta.url));
 				},
 			},
-			vuePlugin(),
+			ownerVue(),
 			embeddedSources(),
 		],
 		build: {

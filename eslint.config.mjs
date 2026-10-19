@@ -13,6 +13,8 @@ export default tseslint.config(
 		rules: {
 			"@typescript-eslint/no-floating-promises": "error",
 			"@typescript-eslint/no-misused-promises": "error",
+			"@typescript-eslint/unbound-method": "error",
+			"@typescript-eslint/no-unsafe-enum-comparison": "error",
 		},
 	},
 	{

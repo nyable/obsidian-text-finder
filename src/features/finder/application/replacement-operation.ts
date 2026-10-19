@@ -126,7 +126,9 @@ export function runReplacement(
 					}
 				: effects.match(source);
 			const positioned =
-				matched instanceof Promise ? matched.then(effects.finish) : effects.finish(matched);
+				matched instanceof Promise
+					? matched.then((value) => effects.finish(value))
+					: effects.finish(matched);
 			if (positioned instanceof Promise)
 				result.navigationCompletion = positioned
 					.then((success) => {

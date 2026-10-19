@@ -123,7 +123,7 @@ export function openColorPicker(options: {
 	});
 	value.addEventListener("input", (event) => {
 		if (closed) return;
-		if ((event as InputEvent).isComposing) {
+		if ("isComposing" in event && event.isComposing) {
 			confirm.disabled = true;
 			return;
 		}

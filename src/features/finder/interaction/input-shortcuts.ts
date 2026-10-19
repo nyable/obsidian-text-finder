@@ -19,7 +19,7 @@ const unmodifiedEnter = (event: KeyboardEvent) =>
 
 export function createInputShortcuts(commands: InputCommands) {
 	return {
-		onQueryKeyDown(event: KeyboardEvent) {
+		onQueryKeyDown(this: void, event: KeyboardEvent) {
 			if (commands.isComposing(event)) return;
 			if (commands.historyEnabled() && ["ArrowUp", "ArrowDown"].includes(event.code)) {
 				const input = commands.searchInput();
@@ -43,7 +43,7 @@ export function createInputShortcuts(commands: InputCommands) {
 				commands.next();
 			}
 		},
-		onReplacementKeyDown(event: KeyboardEvent) {
+		onReplacementKeyDown(this: void, event: KeyboardEvent) {
 			if (
 				!commands.isComposing(event) &&
 				commands.inputHotkeysEnabled() &&

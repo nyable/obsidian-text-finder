@@ -52,9 +52,8 @@ export function createFinderPosition(
 	let refreshDrag: (() => void) | undefined;
 	// Read resolved env() values without assuming iOS/Android chrome dimensions.
 	const safe = doc.createElement("div");
+	safe.className = "nya-safe-area-probe";
 	safe.setAttribute("aria-hidden", "true");
-	safe.style.cssText =
-		"position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)";
 	doc.body.append(safe);
 	function area() {
 		const box = owner.getBoundingClientRect(),

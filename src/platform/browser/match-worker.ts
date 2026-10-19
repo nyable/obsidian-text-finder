@@ -3,6 +3,7 @@ import type { MatchRequest, MatchReply } from "../../core/search/match-protocol"
 
 // This entry is bundled separately as a self-contained string, not loaded from
 // a Vault URL. The worker has no Obsidian, DOM or CodeMirror dependencies.
+// globalThis is the Worker realm here; window/activeWindow do not exist.
 const scope = globalThis as unknown as {
 	postMessage(reply: MatchReply, transfer?: ArrayBuffer[]): void;
 	onmessage: (event: MessageEvent<MatchRequest>) => void;

@@ -29,6 +29,7 @@ export function mountView<P extends Record<string, unknown>>(
 	let instance: ComponentPublicInstance | null = null;
 	// Vue's default DOM renderer captures the initialization Document. Use its
 	// public renderer API with owner-bound creation operations for pop-out views.
+	// Native DOM APIs preserve namespaces/options without host helper prototypes.
 	const renderer = createRenderer<Node, Element>({
 		...nodeOps,
 		patchProp,
@@ -50,26 +51,10 @@ export function mountView<P extends Record<string, unknown>>(
 		},
 		createText: (text) => target.ownerDocument.createTextNode(text),
 		createComment: (text) => target.ownerDocument.createComment(text),
-		insertStaticContent(content, parent, anchor, namespace) {
-			const doc = target.ownerDocument;
-			const template = doc.createElement("template");
-			template.innerHTML =
-				namespace === "svg"
-					? `<svg>${content}</svg>`
-					: namespace === "mathml"
-						? `<math>${content}</math>`
-						: content;
-			const fragment = template.content;
-			if (namespace) {
-				const wrapper = fragment.firstChild!;
-				while (wrapper.firstChild) fragment.append(wrapper.firstChild);
-				fragment.removeChild(wrapper);
-			}
-			const first = fragment.firstChild!,
-				last = fragment.lastChild!;
-			if (parent === container) target.insertBefore(fragment, anchor ?? end);
-			else parent.insertBefore(fragment, anchor);
-			return [first, last];
+		insertStaticContent() {
+			// tools/vue-plugin.mjs disables HTML stringification in every build.
+			// Fail closed if a future build or hand-written VNode bypasses it.
+			throw new Error("Text Finder renderer requires node-based templates");
 		},
 	});
 	const app = renderer.createApp({

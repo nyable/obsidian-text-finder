@@ -37,7 +37,7 @@ it("refuses absent or malformed host editor and preview capabilities", () => {
 	}
 });
 
-it("checks the event-menu capability and handles private bridge rejection", () => {
+it("checks the public event-menu capability and handles host rejection", () => {
 	const dom = new JSDOM();
 	const host = Menu as typeof Menu & { forEvent?: (event: MouseEvent) => Menu };
 	const old = host.forEvent;

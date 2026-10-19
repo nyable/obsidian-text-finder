@@ -102,7 +102,6 @@ defineExpose(vm.commands);
 			{ 'nya-finder--docked': docked },
 			{ 'nya-finder--dock-left': dockSide === 'left' },
 		]"
-		:style="[{ visibility: cache.visible ? 'visible' : 'hidden' }]"
 		:ref="(node) => (nodes.finderEl = node as HTMLDivElement)"
 		v-guardHiddenFocus
 		:aria-hidden="!cache.visible"
@@ -529,6 +528,7 @@ defineExpose(vm.commands);
 	}
 
 	&--hidden {
+		visibility: hidden;
 		transform: translateY(-100%);
 		opacity: 0;
 		user-select: none;
@@ -858,6 +858,15 @@ defineExpose(vm.commands);
 				justify-content: flex-start;
 			}
 		}
+	}
+}
+// Keep the collapsed state after desktop/custom/mobile display declarations.
+.nya-finder.nya-finder--docked {
+	.main-part,
+	.nya-toggle,
+	.nya-dragger,
+	.nya-float-act {
+		display: none !important;
 	}
 }
 @media (prefers-reduced-motion: reduce) {

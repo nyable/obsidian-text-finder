@@ -120,7 +120,7 @@ test("zero-width regex matches remain excluded from both search and replacement"
 });
 
 test("invalid regex and empty inputs produce no replacement changes", () => {
-	vi.spyOn(console, "log").mockImplementation(() => {});
+	vi.spyOn(console, "debug").mockImplementation(() => {});
 	assert.deepEqual(findReplacementChanges("abc", "[", "X", true, true), []);
 	assert.deepEqual(findReplacementChanges("abc", "", "X", true, true), []);
 	assert.deepEqual(findReplacementChanges("", "a", "X", true, true), []);

@@ -7,6 +7,7 @@ import { JSDOM } from "jsdom";
 import * as cmState from "@codemirror/state";
 import * as cmView from "@codemirror/view";
 import * as cmLanguage from "@codemirror/language";
+import { ownerVue } from "../tools/vue-plugin.mjs";
 import {
 	embeddedEntry,
 	embeddedSources,
@@ -42,6 +43,27 @@ test("embedded virtual entry keeps POSIX paths and empty source valid", () => {
 	assert.equal(plugin.load(entry), "");
 	assert.equal(plugin.resolveId("unrelated-package"), undefined);
 	assert.equal(plugin.load("unrelated-package"), undefined);
+});
+
+test("shared Vue compiler emits node operations for large static HTML, SVG and MathML", async () => {
+	const entry = normalizePath(resolve(root, "tests/__static-template__.vue"));
+	const source = `<template><section>${'<span class="static">text</span>'.repeat(25)}<svg>${'<path d="M0 0L1 1"/>'.repeat(25)}</svg><math><mi>x</mi></math></section></template>`;
+	const result = await build({
+		configFile: false,
+		logLevel: "error",
+		plugins: [embeddedEntry(entry, source), ownerVue()],
+		build: {
+			write: false,
+			minify: false,
+			lib: { entry, formats: ["es"] },
+			rolldownOptions: { external: ["vue"] },
+		},
+	});
+	const chunk = (Array.isArray(result) ? result[0] : result).output.find(
+		(file) => file.type === "chunk",
+	);
+	assert.doesNotMatch(chunk.code, /createStaticVNode|innerHTML|insertAdjacentHTML/);
+	assert.match(chunk.code, /createElementVNode/);
 });
 
 test("Vite release emits only installable files and loads the actual CommonJS plugin lifecycle", async (t) => {
