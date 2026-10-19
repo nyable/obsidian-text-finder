@@ -32,7 +32,9 @@ export default defineConfig({
 	test: {
 		include: ["tests/{unit,component,integration}/**/*.test.{ts,mjs}"],
 		environment: "node",
-		maxWorkers: 1,
+		// Bound parallelism for DOM-heavy suites without sharing their globals or module mocks.
+		maxWorkers: 2,
+		isolate: true,
 		restoreMocks: true,
 		clearMocks: true,
 		css: true,
