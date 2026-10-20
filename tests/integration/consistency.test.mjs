@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { test } from "vitest";
 import * as settingsSource from "../../src/features/settings";
 
@@ -27,9 +28,64 @@ test("translation key sets and static calls stay synchronized", () => {
 	);
 	for (const path of paths) {
 		for (const match of read(`src/${path}`).matchAll(
-			/(?:i18n\.t\(|reportError\()\s*"([^"]+)"/g,
+			/(?:i18n\.t\(|reportError\()\s*["']([^"']+)["']/g,
 		)) {
 			assert.ok(en.includes(match[1]), `${path}: unknown translation ${match[1]}`);
+		}
+	}
+});
+
+test("bilingual interpolation variables stay synchronized", () => {
+	const flatten = (value, prefix = "") =>
+		Object.entries(value).flatMap(([key, entry]) =>
+			typeof entry === "object"
+				? flatten(entry, `${prefix}${key}.`)
+				: [[`${prefix}${key}`, entry]],
+		);
+	const en = new Map(flatten(json("src/i18n/locale/en.json")));
+	const zh = new Map(flatten(json("src/i18n/locale/zh_cn.json")));
+	const variables = (value) =>
+		[
+			...new Set([...value.matchAll(/{{-?\s*([^},\s]+)[^}]*}}/g)].map((match) => match[1])),
+		].sort();
+	for (const [key, text] of en) assert.deepEqual(variables(text), variables(zh.get(key)), key);
+});
+
+test("documented boolean and numeric defaults agree with settings", () => {
+	const doc = read("docs/product/features.md");
+	for (const [key, value] of Object.entries(settingsSource.defaultSettings())) {
+		if (typeof value !== "boolean" && typeof value !== "number") continue;
+		const row = doc
+			.split("\n")
+			.find((line) => line.startsWith("|") && line.includes(`\`${key}\``));
+		assert.ok(row, `missing default row: ${key}`);
+		assert.ok(
+			row.includes(
+				typeof value === "boolean" ? `默认${value ? "开启" : "关闭"}` : `默认 ${value}`,
+			),
+			`wrong default: ${key}`,
+		);
+	}
+});
+
+test("maintained Markdown local links resolve to existing files", () => {
+	const paths = [
+		"README.md",
+		"README-zh_CN.md",
+		"AGENTS.md",
+		...readdirSync("docs", { recursive: true })
+			.filter((path) => path.endsWith(".md"))
+			.map((path) => `docs/${path}`),
+	];
+	for (const path of paths) {
+		// Inline Markdown links only; anchors and prose/symbol references are not a schema.
+		for (const match of read(path).matchAll(/\]\(([^\s)]+)\)/g)) {
+			const target = match[1].split("#")[0];
+			if (!target || /^[a-z][a-z\d+.-]*:/i.test(target)) continue;
+			assert.ok(
+				existsSync(resolve(dirname(path), decodeURIComponent(target))),
+				`${path}: missing ${target}`,
+			);
 		}
 	}
 });

@@ -47,6 +47,9 @@ interface Request {
 	deadline: number;
 	waiting: boolean;
 	registered: boolean;
+	doc: Document;
+	source: string;
+	synchronous: boolean;
 	done: (result: ReadingResult) => void;
 }
 
@@ -103,7 +106,6 @@ export class ReadingSearch {
 		newDocument: boolean;
 	} | null = null;
 	private cachedNewDocument = false;
-	private synchronousRetry = false;
 	private paintFrame: number | null = null;
 	private scope: {
 		ranges: SearchRange[];
@@ -125,9 +127,6 @@ export class ReadingSearch {
 		private matcher?: MatchExecutor,
 	) {}
 
-	retrySynchronously() {
-		this.synchronousRetry = true;
-	}
 	setScope(selection: readonly ReadingSelection[]): boolean {
 		try {
 			const r = rendererFor(this.view);
@@ -240,6 +239,7 @@ export class ReadingSearch {
 				);
 			});
 		if (!same) {
+			if (this.request) this.request.synchronous = false;
 			this.scope = null;
 			this.scopeInvalid = true;
 			this.scopeEpoch++;
@@ -298,6 +298,7 @@ export class ReadingSearch {
 		scroll: boolean,
 		done: (result: ReadingResult) => void,
 		direction = 0,
+		synchronous = false,
 	) {
 		try {
 			const r = rendererFor(this.view);
@@ -339,7 +340,9 @@ export class ReadingSearch {
 				!request ||
 				request.key !== key ||
 				request.renderer !== r ||
-				request.file !== this.view.file
+				request.file !== this.view.file ||
+				request.doc !== r.previewEl.ownerDocument ||
+				request.source !== r.text
 			) {
 				if (this.computation) this.matcher?.cancel();
 				this.computation = null;
@@ -356,10 +359,14 @@ export class ReadingSearch {
 					deadline: Date.now() + this.waitTimeoutMs,
 					waiting: false,
 					registered: false,
+					doc: r.previewEl.ownerDocument,
+					source: r.text,
+					synchronous,
 					done,
 				};
 				this.request = request;
 			} else {
+				request.synchronous ||= synchronous;
 				request.done = done;
 				if (request.waiting && scroll && direction) {
 					request.scroll = true;
@@ -384,6 +391,13 @@ export class ReadingSearch {
 				return;
 			}
 			const r = request.renderer;
+			// A readiness callback can observe a newer source/realm before a host
+			// refresh. Continue normal matching, but never carry retry permission.
+			if (request.doc !== r.previewEl.ownerDocument || request.source !== r.text) {
+				request.synchronous = false;
+				request.doc = r.previewEl.ownerDocument;
+				request.source = r.text;
+			}
 			this.watch(r);
 			if (!this.ready(r)) {
 				this.matcher?.cancel();
@@ -419,8 +433,10 @@ export class ReadingSearch {
 				return;
 			}
 			this.cancelWait();
-			if (this.observer?.takeRecords().some((record) => this.contentMutation(record)))
+			if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) {
 				this.dirty = true;
+				request.synchronous = false;
+			}
 			if (
 				this.computation &&
 				this.computation.request === request &&
@@ -431,8 +447,10 @@ export class ReadingSearch {
 				return;
 			request.waiting = false;
 			request.registered = false;
-			if (this.observer?.takeRecords().some((record) => this.contentMutation(record)))
+			if (this.observer?.takeRecords().some((record) => this.contentMutation(record))) {
 				this.dirty = true;
+				request.synchronous = false;
+			}
 			const newDocument = this.file !== request.file || this.renderer !== r;
 			if (newDocument) this.cachedNewDocument = true;
 			if (
@@ -469,8 +487,11 @@ export class ReadingSearch {
 			if (request.key !== this.queryKey) {
 				const textIndex = this.textIndex!;
 				const ranges = this.getScopeRanges();
+				// Consume only this request's explicit retry, before executing user regex.
+				const synchronous = request.synchronous;
+				request.synchronous = false;
 				const result =
-					this.matcher && !this.synchronousRetry
+					this.matcher && !synchronous
 						? this.matcher.match(textIndex.text, request.text, request.options, ranges)
 						: {
 								status: "completed" as const,
@@ -484,7 +505,6 @@ export class ReadingSearch {
 								),
 								synchronous: true,
 							};
-				this.synchronousRetry = false;
 				if (result instanceof Promise) {
 					const computation = { request, index: textIndex, doc: this.doc!, newDocument };
 					this.computation = computation;
@@ -637,6 +657,7 @@ export class ReadingSearch {
 
 	invalidate() {
 		if (!this.request || this.disposed) return;
+		this.request.synchronous = false;
 		this.matcher?.cancel();
 		this.computation = null;
 		this.dirty = true;

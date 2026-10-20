@@ -38,7 +38,6 @@ export interface ReadingPort {
 	clearScope(): void;
 	blockScope(): void;
 	pauseNavigation(): void;
-	retrySynchronously(): void;
 	search(
 		text: string,
 		options: SearchOptions,
@@ -46,6 +45,7 @@ export interface ReadingPort {
 		scroll: boolean,
 		changed: (result: ReadingResult) => void,
 		direction: number,
+		synchronous?: boolean,
 	): void;
 }
 

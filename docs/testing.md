@@ -20,6 +20,8 @@ git diff --check
 
 `vitest.config.mjs` 将并发限制为两个 worker，并显式保留 `isolate: true`，避免 DOM 全局对象和模块 mock 跨文件泄漏；不为提速关闭隔离或跳过套件。低内存环境使用 `pnpm test --maxWorkers=1`；目标回归使用 `pnpm exec vitest run <测试路径>`，再运行 `pnpm typecheck` 尽早发现测试自身的类型错误。交付前仍运行完整 `pnpm verify`。比较耗时时保持 Node、依赖、测试集合及缓存条件一致，串行执行对照命令，不与构建或其他测试同时运行；Vitest 导入阶段统计和 `/usr/bin/time` 的单进程峰值内存不能分别当作完整墙钟拆分或全部 worker 的总内存。
 
+`tests/browser/reading.spec.mjs` 在 `pnpm test:browser` 中覆盖大型仍挂载的阅读代码块，检查轮廓路径及 Range 测量次数不随离屏行数全量展开；记录耗时但不以机器相关的毫秒阈值替代结构性回归。它不证明真实 Obsidian 虚拟化或移动设备性能。同步重试取消／超时／身份变化由 `reading-search.test.mjs` 覆盖，真实双语特殊字符输出由 `i18n-text.test.mjs` 覆盖。
+
 `pnpm test:browser` 使用 Playwright Test（`playwright.config.mjs`、`tests/browser/finder.spec.mjs` 和 `harness.mjs`）编译生产组件，在真实 Chromium 运行 Finder Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。截图和 REPORT 默认写 `artifacts/browser/`，可用 TEXT_FINDER_ARTIFACTS 指定；失败 trace／diff 写 `artifacts/playwright/`。需要已安装的锁定 Playwright Chromium；模拟主题、iframe 与移动布局不等于 Obsidian／Android／iOS 验收。
 
 `pnpm test:visual` 在 Linux 对 `tests/browser/baselines/chromium-linux/` 的 40 张可追溯已审查基线零像素容差比较，保留 expected／actual／diff，不自动更新。其中 24 张查找器／设置预览保持原图，历史／详情 8 张及新增预设 8 张经过单独审查授权；原 32 张及其报告保存在 baselines/archive。浏览器、字体、语言、时区、DPR 和主题夹具固定；更新须单独审查授权及差异，见 baselines/README。还可用 TEXT_FINDER_VISUAL_BASELINE 指向保留的外部 REPORT 做哈希核对；输入与输出目录必须不同。不得用当前输出冒充原基线，也不将像素比较当作全部操作等价。

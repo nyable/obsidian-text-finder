@@ -205,28 +205,44 @@ export function paddedScopeOutlines(
 	strokeWidth: number,
 ): string[] {
 	const halfStroke = strokeWidth > 0 && Number.isFinite(strokeWidth) ? strokeWidth / 2 : 0;
+	const padding = groups.map(() => ({
+		horizontal: halfStroke,
+		vertical: halfStroke ? 2 + halfStroke : 0,
+	}));
+	// Only nearby rectangles can reduce the initial clearance. Sweep visual rows
+	// instead of comparing every line in a long scope with every other line.
+	if (halfStroke) {
+		const reach = strokeWidth + 1 + 2 * (2 + halfStroke);
+		const sorted = groups
+			.flatMap((rects, group) => rects.map((rect) => ({ rect, group })))
+			.sort((a, b) => a.rect.top - b.rect.top);
+		let active: typeof sorted = [];
+		for (const entry of sorted) {
+			active = active.filter(({ rect }) => entry.rect.top - rect.bottom < reach);
+			for (const other of active) {
+				const r = entry.rect,
+					s = other.rect;
+				if (entry.group === other.group && r === s) continue;
+				const dx = Math.max(s.left - r.right, r.left - s.right, 0);
+				const dy = Math.max(s.top - r.bottom, r.top - s.bottom, 0);
+				if (Math.max(dx, dy) >= reach) continue;
+				for (const group of [entry.group, other.group]) {
+					const value = padding[group]!;
+					if (dx > 0 || dy > 0) {
+						const limit = Math.max(0, (Math.max(dx, dy) - strokeWidth - 1) / 2);
+						if (dx >= dy) value.horizontal = Math.min(value.horizontal, limit);
+						else value.vertical = Math.min(value.vertical, limit);
+					} else if (entry.group !== other.group) value.horizontal = value.vertical = 0;
+				}
+			}
+			active.push(entry);
+		}
+	}
 	return groups
 		.map((rects, index) => {
 			// Keep the inner vertical edges at the measured character boundaries.
 			// Only top/bottom retain the extra 2px of breathing room.
-			let horizontal = halfStroke,
-				vertical = halfStroke ? 2 + halfStroke : 0;
-			// Keep disconnected fragments and different scopes from merging as a
-			// side effect of padding. Limit only the separating axis so a tight
-			// horizontal gap does not remove the existing top/bottom clearance.
-			if (halfStroke)
-				for (const r of rects)
-					for (const [g, group] of groups.entries())
-						for (const s of group) {
-							if (index === g && r === s) continue;
-							const dx = Math.max(s.left - r.right, r.left - s.right, 0);
-							const dy = Math.max(s.top - r.bottom, r.top - s.bottom, 0);
-							if (dx > 0 || dy > 0) {
-								const limit = Math.max(0, (Math.max(dx, dy) - strokeWidth - 1) / 2);
-								if (dx >= dy) horizontal = Math.min(horizontal, limit);
-								else vertical = Math.min(vertical, limit);
-							} else if (index !== g) horizontal = vertical = 0;
-						}
+			const { horizontal, vertical } = padding[index]!;
 			return scopeOutline(
 				rects.map((r) => ({
 					left: r.left - horizontal,

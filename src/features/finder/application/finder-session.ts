@@ -691,6 +691,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 					}
 				},
 				direction,
+				synchronous,
 			);
 			return;
 		}
@@ -1182,7 +1183,6 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			uiState.replacementRetry(true);
 			return;
 		}
-		if (isReading()) editorSearch.reading().retrySynchronously();
 		setFindText(uiState.cache.search, true, getEditorContext(), 0, true);
 	};
 	const onReplaceChanged = () => {

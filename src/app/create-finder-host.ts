@@ -47,7 +47,6 @@ export function createFinderHost(runtime: FinderOwnerRuntime, owner: MarkdownVie
 				clearScope: () => reading.clearScope(),
 				blockScope: () => reading.blockScope(),
 				pauseNavigation: () => reading.pauseNavigation(),
-				retrySynchronously: () => reading.retrySynchronously(),
 				search: (...args) => reading.search(...args),
 			};
 		},

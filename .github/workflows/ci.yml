@@ -8,6 +8,29 @@ permissions:
     contents: read
 
 jobs:
+    dependency-audit:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: mkdir -p artifacts
+            # Informational: distinguish SDK/dev hits from reachable runtime inputs.
+            # Keep the scanner failure visible and upload its full report, not an allowlist.
+            - name: Dependency advisories (requires reachability review)
+              continue-on-error: true
+              run: pnpm audit --json > artifacts/dependency-audit.json
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: dependency-audit
+                  path: artifacts/dependency-audit.json
+
     verify:
         strategy:
             fail-fast: false

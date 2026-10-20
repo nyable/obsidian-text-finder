@@ -400,6 +400,54 @@ test("declarative appearance rows are searchable, expanded, owner-local and clea
 	p.onunload();
 });
 
+test("multiple same-document previews update together and cleanup retains surviving ownership", async () => {
+	const p = plugin(null);
+	await p.onload();
+	const tab = tabs.at(-1);
+	const rows = definitionRows(
+		tab.getSettingDefinitions().find((item) => item.type === "page").items,
+	);
+	const first = renderDefinition(tab.containerEl, rows[0]);
+	const second = renderDefinition(tab.containerEl, rows[0]);
+	const toolbar = renderDefinition(
+		tab.containerEl,
+		rows.find((def) => def.name === "settings.Toolbar.search"),
+	);
+	const toggle = toolbar.row.querySelector('[data-action="regex"] .nya-toolbar-default button');
+	toggle.click();
+	await tick();
+	for (const preview of [first, second])
+		assert.equal(
+			preview.row.querySelector('[data-preview-action="regex"]').dataset.active,
+			"true",
+		);
+	const color = renderDefinition(
+		tab.containerEl,
+		rows.find((def) => def.name.endsWith("settings.Appearance.focusBorder")),
+	);
+	second.cleanup();
+	color.row.querySelector(".nya-color-picker").click();
+	assert.ok(
+		document.querySelector(".nya-color-popover"),
+		"surviving preview still owns interactions",
+	);
+	first.cleanup();
+	assert.equal(document.querySelector(".nya-color-popover"), null);
+	await p.flushSettings();
+	const accepted = p.writes.length;
+	toggle.click();
+	await p.flushSettings();
+	assert.equal(p.settings.defaultRegexMode, true, "no preview means old controls are inert");
+	assert.equal(p.writes.length, accepted);
+	const replacement = renderDefinition(tab.containerEl, rows[0]);
+	color.row.querySelector(".nya-color-picker").click();
+	assert.ok(document.querySelector(".nya-color-popover"));
+	tab.hide();
+	assert.equal(document.querySelector(".nya-color-popover"), null);
+	for (const item of [first, second, replacement, color, toolbar]) item.cleanup();
+	p.onunload();
+});
+
 test("declarative color group reset refreshes rows without host update and preserves scope preferences", async () => {
 	const p = plugin(null);
 	await p.onload();

@@ -152,6 +152,66 @@ test("narrow horizontal gaps limit sideways expansion without removing top/botto
 	);
 });
 
+test("padding sweep preserves all-pairs geometry for dense, separate and overlapping scopes", () => {
+	const reference = (groups, width) =>
+		groups
+			.map((rects, index) => {
+				let horizontal = width / 2,
+					vertical = 2 + width / 2;
+				for (const r of rects)
+					for (const [g, group] of groups.entries())
+						for (const s of group) {
+							if (index === g && r === s) continue;
+							const dx = Math.max(s.left - r.right, r.left - s.right, 0);
+							const dy = Math.max(s.top - r.bottom, r.top - s.bottom, 0);
+							if (dx > 0 || dy > 0) {
+								const limit = Math.max(0, (Math.max(dx, dy) - width - 1) / 2);
+								if (dx >= dy) horizontal = Math.min(horizontal, limit);
+								else vertical = Math.min(vertical, limit);
+							} else if (index !== g) horizontal = vertical = 0;
+						}
+				return scopeOutline(
+					rects.map((r) =>
+						rect(
+							r.left - horizontal,
+							r.top - vertical,
+							r.right + horizontal,
+							r.bottom + vertical,
+						),
+					),
+				);
+			})
+			.filter(Boolean);
+	let seed = 47;
+	const next = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+	for (let i = 0; i < 60; i++) {
+		const groups = Array.from({ length: 3 }, () =>
+			Array.from({ length: 20 }, () => {
+				const x = Math.floor(next() * 120),
+					y = Math.floor(next() * 300);
+				return rect(x, y, x + 1 + Math.floor(next() * 60), y + 1 + Math.floor(next() * 30));
+			}),
+		);
+		for (const width of [1, 2, 3])
+			assert.deepEqual(paddedScopeOutlines(groups, width), reference(groups, width));
+	}
+});
+
+test("long separated rows do not require quadratic padding comparisons", () => {
+	let reads = 0;
+	const boxes = Array.from({ length: 10000 }, (_, i) => ({
+		left: 0,
+		right: 100,
+		bottom: i * 20 + 16,
+		get top() {
+			reads++;
+			return i * 20;
+		},
+	}));
+	assert.equal(paddedScopeOutlines([boxes], 1).length, 1);
+	assert.ok(reads < boxes.length * 100, `bounded nearby-row reads: ${reads}`);
+});
+
 function sample() {
 	const dom = new JSDOM('<html><body><div id="root"></div></body></html>');
 	const root = dom.window.document.getElementById("root");

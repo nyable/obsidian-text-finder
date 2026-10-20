@@ -89,7 +89,7 @@ export class SettingsView {
 		this.preview = undefined;
 		this.previewRoot = undefined;
 	}
-	private refreshPreview() {
+	private previewPreferences() {
 		const {
 			searchToolbar,
 			replaceToolbar,
@@ -98,14 +98,21 @@ export class SettingsView {
 			defaultWholeWord,
 			enableHistory,
 		} = this.settings;
-		this.currentPreview?.update({
+		return {
 			searchToolbar,
 			replaceToolbar,
 			defaultRegexMode,
 			defaultCaseSensitive,
 			defaultWholeWord,
 			historyEnabled: enableHistory,
-		});
+		};
+	}
+	refreshOwnPreview() {
+		if (this.active) this.preview?.update(this.previewPreferences());
+	}
+	private refreshPreview() {
+		this.currentPreview?.update(this.previewPreferences());
+		this.previewsChanged?.();
 	}
 
 	constructor(
@@ -114,6 +121,7 @@ export class SettingsView {
 		private ensureDocument: (doc: Document) => void,
 		private sharedPreview?: () => AppearancePreview | undefined,
 		private beforeInteraction?: () => void,
+		private previewsChanged?: () => void,
 	) {}
 	closeInteractions() {
 		this.cleanupDrag?.();

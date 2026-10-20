@@ -94,9 +94,11 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 - `reading-text.ts` 建完整 DOM 逻辑字符串、span／元素边界和 breaks。偏移是 UTF-16 正文偏移，不是 Markdown 源码偏移。先排除明确子树再读取样式，仅 display:none 检查折叠正文例外；正文规则以 features 为准。
 - 不长期持有 DOM Range：保存节点和数字端点，仅挂载后创建 Range。虚拟同节点移出／挂回只重绘；节点替换、源／renderer／Document 变化令索引或范围失效。
 - 查询／选项可复用有效索引；MutationObserver 观察正文及离屏分块的相关文本／属性，导航前消费待处理 records；主题变化显式失效。
+- 同步重试是 `ReadingPort.search()` 的本次请求参数，等待渲染时仅同查询／选项／范围、文件、源版本、renderer 和 Document 的后台刷新可保留；清理／超时或替换请求不继承，执行前消费一次。回归见 `reading-search.test.mjs` 的 synchronous reading retry 系列。
 - 阅读选区 tracker 在 Finder 懒创建前捕获候选；确认范围需要就绪全文，映射折叠空白向内收紧，排除端点拒绝。失效范围保持 [] 限制，不自动恢复全文。
 - 高亮注册表按 Document 合并视图所有权，范围／普通／当前项有独立优先级。关闭一个 owner 不清其他视图。`reading-overlay.ts` 在 owner body 创建非交互 portal，不污染正文索引；scroll／resize／字体／外观变更合并 owner rAF，销毁取消帧和监听。
 - 换行 breaks 区分 hard／text／block／barrier，保留既有正文字符串，保护边界／末尾合成字符不成为独立可导航换行。几何缺失不猜测坐标，段落／表格间未知空隙不强连。
+- 阅读轮廓按 Text Range 包围盒递归排除离屏片段，再测量候选片段及邻接余量内的完整矩形／换行，不假定字符偏移的视觉顺序。CSS 裁切不代替几何筛选。`paddedScopeOutlines()` 按纵向邻近矩形扫描间距，不再让长文每行和全文两两比较；全文索引、匹配数量及数字范围不截断。初始 Range 包围盒仍可能读取整个挂载文本块，不能宣称所有主线程工作均与视口大小无关。`tests/browser/reading.spec.mjs` 覆盖大型挂载代码块的测量次数与路径工作量，`scope-outline.test.mjs` 对照原间距算法。
 
 回归：`tests/integration/reading-search.test.mjs`、`reading-scope.test.mjs`、`reading-commands.test.mjs` 和 `tests/unit/reading-index.test.mjs`。宿主实际滚动、虚拟化及绘制仍待实测。
 
@@ -133,11 +135,11 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 - 编辑匹配结果发布时按结果集复制并冻结一次，隔离会话内部可变数组；导航复用发布快照身份。`search-highlight.ts` 对有效、排序、不重叠结果仅更新旧／新当前项装饰，其他持久化树节点保留。结果变化或文档修改仍完整重建／清空，公开 CSS 类与单层匹配 mark 不变。发布及装饰元数据用 WeakMap 随集合释放，不持有 owner。
 - 全局转义设置变动通过 SettingsController → workspace → FinderCommands 同步取消准备阶段，不引入全局事件总线；已经提交的替换仍只重算，不重放。
 
-`settings-fields.ts` 共享旧版分类与 1.13+ 声明式行的名称／描述／控件逻辑；`settings-definitions.ts` 生成纯定义，普通设置使用 render 保留控制器副作用、整数提交与非阻塞保存。外观使用声明式子页／颜色行／复杂配置区，不用私有设置索引 API；每行 SettingsView 共享同 Document 的预览，交互互斥，cleanup、hide 与 owner Window 的 pagehide 幂等释放资源，不依赖窗口销毁时宿主仍调用行 cleanup。分组恢复直接刷新已挂载颜色值，不依赖宿主 update 或默认持久化。搜索用 aliases 定位复杂配置区而非隐藏虚假条目。
+`settings-fields.ts` 共享旧版分类与 1.13+ 声明式行的名称／描述／控件逻辑；`settings-definitions.ts` 生成纯定义，普通设置使用 render 保留控制器副作用、整数提交与非阻塞保存。外观使用声明式子页／颜色行／复杂配置区，不用私有设置索引 API；同 Document 的多个预览按实例集合保留，工具栏修改刷新全部有效预览，交互使用最近仍连接的预览。清理一个实例不丢失其余实例，cleanup、hide 与 owner Window 的 pagehide 幂等释放资源，不依赖窗口销毁时宿主仍调用行 cleanup。分组恢复直接刷新已挂载颜色值，不依赖宿主 update 或默认持久化。搜索用 aliases 定位复杂配置区而非隐藏虚假条目。
 
 `OwnerRegistry` 按具体 MarkdownView 懒创建资源，读取选区不预建完整 Finder／Worker；同路径分屏独立。释放时记录保留到清理结束，避免 Finder 清理失去 reading 资源。`Disposables` 逆序、幂等并聚合异常，某资源失败不跳过其他资源。workspace／插件公开 dispose 与宿主 onunload 适配；迟到 layout 回调不重建卸载对象。Modal 关闭销毁视图并取消订阅，workspace 卸载关闭全部已跟踪弹窗和菜单。
 
-`shared/ui/mount-view.ts` 使用 Vue 公开 createRenderer 与 owner-bound 原生 DOM 创建操作，实时读取 target.ownerDocument，HTML／SVG／MathML 均不借用初始化 Document。`tools/vue-plugin.mjs` 统一正式、Vitest 和浏览器编译选项，关闭静态提升／HTML 字符串化，静态内容也走节点操作；renderer 的静态 HTML 插入入口拒绝执行，不回退到默认解析器。每次挂载独立 app／idPrefix，注释锚点隔离插入范围，不增加布局 wrapper。TextRun 保留相邻文本节点分段，避免 kerning 差异。DOM actions 负责 Observer／事件／计时器资源，Toolbar 在 onBeforeUpdate 归还移动节点再进行 keyed patch。
+`shared/ui/mount-view.ts` 使用 Vue 公开 createRenderer 与 owner-bound 原生 DOM 创建操作，实时读取 target.ownerDocument，HTML／SVG／MathML 均不借用初始化 Document。`tools/vue-plugin.mjs` 统一正式、Vitest 和浏览器编译选项，关闭静态提升／HTML 字符串化，静态内容也走节点操作；renderer 的静态 HTML 插入入口拒绝执行，不回退到默认解析器。每次挂载独立 app／idPrefix，注释锚点隔离插入范围，不增加布局 wrapper。历史文字当前直接使用 Vue 模板，未接入 TextRun。DOM actions 负责 Observer／事件／计时器资源，Toolbar 在 onBeforeUpdate 归还移动节点再进行 keyed patch。
 
 CodeMirror 范围通过 StateField／changes 映射，finderSelection annotation 排除导航选择。轮廓测量仅处理可见源码，拒绝折叠／替换块及歧义 bidi；纯 `shared/geometry/scope-outline.ts` 合并矩形、去内部缝，分轴限制外扩。同范围完整可见空白行通过 `scope-geometry.ts` 补桥，不扩数字写入范围。newline layer 只绘制实际匹配换行的非文本 ↵，不改排版、计数或剪贴板；旧宿主无 layer 保留文字高亮。
 

@@ -268,7 +268,6 @@ describe("Finder application with explicit owner ports", () => {
 			clearScope() {},
 			blockScope() {},
 			pauseNavigation() {},
-			retrySynchronously() {},
 		});
 		const options = { regexMode: true, caseSensitive: false, wholeWord: false };
 		expect(
@@ -279,6 +278,8 @@ describe("Finder application with explicit owner ports", () => {
 			}),
 		).toBe(true);
 		expect(search).toHaveBeenCalledTimes(1);
+		h.session.retrySynchronously();
+		expect(search.mock.calls.at(-1)?.[6]).toBe(true);
 		expect(h.session.captureRecipe()).toEqual({
 			search: "cat",
 			options,

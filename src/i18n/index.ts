@@ -6,6 +6,8 @@ void i18next
 		lng: "en", // if you're using a language detector, do not define the lng option
 		fallbackLng: "en",
 		debug: false,
+		// All consumers use Vue/native text or attributes, never HTML parsing.
+		interpolation: { escapeValue: false },
 		resources: {
 			en: {
 				translation: en,

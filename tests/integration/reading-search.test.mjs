@@ -424,6 +424,178 @@ test("a new query invalidates the pending render callback of the previous query"
 	h.search.destroy();
 });
 
+for (const reason of [
+	"close",
+	"query",
+	"options",
+	"scope",
+	"file",
+	"source",
+	"document",
+	"renderer",
+	"mutation",
+	"queued mutation",
+	"mode",
+	"timeout",
+]) {
+	test(`synchronous reading retry cannot escape its request on ${reason}`, async () => {
+		const h = environment(["<p>cat cat</p>"]);
+		h.search.destroy();
+		const matcher = {
+			cancel() {},
+			destroy() {},
+			match: vi.fn(() => ({ status: "failed", error: new Error("worker failure") })),
+		};
+		const search = new ReadingSearch(
+			h.view,
+			() => true,
+			() => {},
+			20,
+			matcher,
+		);
+		let popup;
+		onTestFinished(() => {
+			search.destroy();
+			h.dom.window.close();
+			popup?.window.close();
+		});
+		let result;
+		const run = (query = "cat", opts = options, synchronous = false) =>
+			search.search(
+				query,
+				opts,
+				0,
+				false,
+				(value) => {
+					result = value;
+				},
+				0,
+				synchronous,
+			);
+		run();
+		assert.equal(result.workerError, true);
+		h.renderer.rendered = [];
+		run("cat", options, true);
+		assert.equal(result.pending, true);
+		// Same-request background refresh must not erase the explicit retry.
+		run();
+		if (reason === "close") search.clear();
+		if (reason === "scope") search.clearScope();
+		if (reason === "renderer") h.view.previewMode.renderer = { ...h.renderer };
+		if (reason === "mutation") {
+			h.root.querySelector("p").firstChild.data = "cat dog";
+			await Promise.resolve();
+		}
+		if (reason === "queued mutation") h.root.querySelector("p").firstChild.data = "cat dog";
+		if (reason === "mode") {
+			h.view.mode = "source";
+			run();
+			h.view.mode = "preview";
+		}
+		if (reason === "file") h.view.file = { path: "b.md" };
+		if (reason === "source") h.renderer.text = h.renderer.lastText = "new source";
+		if (reason === "document") {
+			popup = new JSDOM("<html><body></body></html>");
+			popup.window.CSS = { highlights: new Map() };
+			popup.window.Highlight = class extends Set {};
+			popup.window.document.body.append(popup.window.document.adoptNode(h.root));
+		}
+		if (reason === "timeout") {
+			await new Promise((resolve) => h.dom.window.setTimeout(resolve, 50));
+			assert.equal(result.error, "timeout");
+		}
+		h.renderer.rendered = null;
+		h.view.previewMode.renderer.rendered = null;
+		run(
+			reason === "query" ? "dog" : "cat",
+			reason === "options" ? { ...options, caseSensitive: true } : options,
+		);
+		assert.equal(
+			matcher.match.mock.calls.length,
+			2,
+			"new intent still goes through the Worker port",
+		);
+		h.callbacks.forEach((callback) => callback());
+		await Promise.resolve();
+		assert.equal(
+			matcher.match.mock.calls.length,
+			2,
+			"old render callback cannot replay the retry",
+		);
+	});
+}
+
+test("synchronous reading retry survives only same-request waiting and is consumed once", async () => {
+	const h = environment(["<p>cat cat</p>"]);
+	h.search.destroy();
+	const matcher = {
+		cancel() {},
+		destroy() {},
+		match: vi.fn(() => ({ status: "failed", error: new Error("worker") })),
+	};
+	const search = new ReadingSearch(
+		h.view,
+		() => true,
+		() => {},
+		5000,
+		matcher,
+	);
+	onTestFinished(() => {
+		search.destroy();
+		h.dom.window.close();
+	});
+	let result;
+	const done = (value) => {
+		result = value;
+	};
+	search.search("cat", options, 0, false, done);
+	h.renderer.rendered = [];
+	search.search("cat", options, 0, false, done, 0, true);
+	search.search("cat", options, 0, false, done);
+	h.renderer.rendered = null;
+	h.callbacks.forEach((callback) => callback());
+	await Promise.resolve();
+	assert.equal(result.matches.length, 2);
+	assert.equal(matcher.match.mock.calls.length, 1);
+	search.invalidate();
+	search.search("cat", options, 0, false, done);
+	assert.equal(matcher.match.mock.calls.length, 2);
+});
+
+test("render callback with a newer source continues through Worker instead of hanging or inheriting retry", async () => {
+	const h = environment(["<p>cat</p>"]);
+	h.search.destroy();
+	const matcher = {
+		cancel() {},
+		destroy() {},
+		match: vi.fn(() => ({ status: "failed", error: new Error("worker") })),
+	};
+	const search = new ReadingSearch(
+		h.view,
+		() => true,
+		() => {},
+		5000,
+		matcher,
+	);
+	onTestFinished(() => {
+		search.destroy();
+		h.dom.window.close();
+	});
+	let result;
+	const done = (value) => {
+		result = value;
+	};
+	search.search("cat", options, 0, false, done);
+	h.renderer.rendered = [];
+	search.search("cat", options, 0, false, done, 0, true);
+	h.renderer.text = h.renderer.lastText = "new source";
+	h.renderer.rendered = null;
+	h.callbacks.at(-1)();
+	await Promise.resolve();
+	assert.equal(matcher.match.mock.calls.length, 2);
+	assert.equal(result.pending, false);
+});
+
 test("detached section text changes are revalidated synchronously before navigation", () => {
 	const h = environment();
 	h.run("cat");

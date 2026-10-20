@@ -11,6 +11,14 @@ function fixture(html, matcher) {
 	});
 	const doc = dom.window.document,
 		root = doc.getElementById("preview");
+	root.getBoundingClientRect = () => ({
+		left: 0,
+		top: 0,
+		right: 800,
+		bottom: 600,
+		width: 800,
+		height: 600,
+	});
 	dom.window.CSS = { highlights: new Map() };
 	dom.window.Highlight = class extends Set {
 		priority = 0;
@@ -311,8 +319,19 @@ test("scope changes cancel async matches and reject late results; execution erro
 	pending[1].resolve({ status: "failed", error: new Error("worker") });
 	await Promise.resolve();
 	assert.deepEqual(h.search.getScopeRanges(), [{ from: 4, to: 7 }]);
-	h.search.retrySynchronously();
-	assert.equal(h.run("cat").matches.length, 1);
+	let retried;
+	h.search.search(
+		"cat",
+		options,
+		0,
+		false,
+		(value) => {
+			retried = value;
+		},
+		0,
+		true,
+	);
+	assert.equal(retried.matches.length, 1);
 	h.destroy();
 });
 
@@ -353,6 +372,21 @@ test("pure hard-break matches navigate after mounting and scopes can select br w
 	);
 	assert.equal(h.run("\\n", { ...options, regexMode: true }).matches.length, 1);
 	h.destroy();
+});
+
+test("offscreen detached newline matches retain counts without geometry reads", () => {
+	const h = fixture(["<p>head</p>", `<pre>${"line\n".repeat(1000)}</pre>`]);
+	let measurements = 0;
+	h.dom.window.Range.prototype.getBoundingClientRect = function () {
+		if (h.sections[1].el.contains(this.startContainer)) measurements++;
+		return { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+	};
+	try {
+		assert.equal(h.run("\\n", { ...options, regexMode: true }).matches.length, 1001);
+		assert.equal(measurements, 0, "detached code block must not be measured");
+	} finally {
+		h.destroy();
+	}
 });
 
 test("selection tracker captures before focus leaves, handles reverse selections and clears on new body interaction", () => {

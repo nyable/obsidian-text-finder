@@ -5,6 +5,7 @@ import {
 	readingMatchEndpoints,
 	type ReadingTextIndex,
 	type ReadingBreak,
+	type ReadingEndpoint,
 } from "./reading-text";
 import {
 	normalizeScopeRects,
@@ -105,6 +106,54 @@ export class ReadingOverlay {
 			}
 		}
 		el.style.clipPath = `inset(${Math.max(0, top - bounds.top)}px ${Math.max(0, bounds.right - right)}px ${Math.max(0, bounds.bottom - bottom)}px ${Math.max(0, left - bounds.left)}px)`;
+		// Keep whole boxes (not clipped fragments) and one line of neighbours so
+		// normalization cannot create an artificial edge at the viewport boundary.
+		const nearViewport = (box: ScopeRect) => {
+			const margin = Math.max(0, box.bottom - box.top) + 2 * width + 5;
+			return (
+				box.bottom >= top - margin &&
+				box.top <= bottom + margin &&
+				box.right >= left - margin &&
+				box.left <= right + margin
+			);
+		};
+		// A mounted <pre> can contain tens of thousands of lines in one Text.
+		// Bounding-box subdivision is conservative (no offset/visual-order guess),
+		// and avoids measuring every offscreen newline or collecting its line rects.
+		const visibleText = new WeakMap<Text, ReadingEndpoint[]>();
+		const visibleParts = (node: Text) => {
+			let parts = visibleText.get(node);
+			if (parts) return parts;
+			parts = [];
+			visibleText.set(node, parts);
+			const visit = (start: number, end: number) => {
+				if (start >= end) return;
+				const endpoint = { node, start, end };
+				const range = endpointRange(endpoint);
+				if (typeof range.getBoundingClientRect !== "function") {
+					parts.push(endpoint);
+					return;
+				}
+				const box = range.getBoundingClientRect();
+				if (box.height > 0 && !nearViewport(box)) return;
+				if (box.height <= 0 || end - start <= 256) {
+					parts.push(endpoint);
+					return;
+				}
+				const middle = start + Math.floor((end - start) / 2);
+				visit(start, middle);
+				visit(middle, end);
+			};
+			visit(0, node.length);
+			return parts;
+		};
+		const visibleBreak = (br: ReadingBreak) => {
+			if (!this.root.contains(br.before.node)) return false;
+			if (br.before.node.nodeType !== 3) return true;
+			return visibleParts(br.before.node as Text).some(
+				(part) => br.before.offset >= part.start && br.before.offset <= part.end,
+			);
+		};
 		for (const key of [
 			"--nya-scope-border-color",
 			"--nya-scope-border-width",
@@ -126,10 +175,16 @@ export class ReadingOverlay {
 				const boxes: ScopeRect[] = [];
 				for (const endpoint of readingMatchEndpoints(index, scope.from, scope.to)) {
 					if (!this.root.contains(endpoint.node)) continue;
-					const range = endpointRange(endpoint);
-					if (typeof range.getClientRects === "function")
-						for (const box of Array.from(range.getClientRects()))
-							if (box.width > 0 && box.height > 0) boxes.push(local(box));
+					for (const part of visibleParts(endpoint.node)) {
+						const start = Math.max(part.start, endpoint.start),
+							end = Math.min(part.end, endpoint.end);
+						if (start >= end) continue;
+						const range = endpointRange({ node: endpoint.node, start, end });
+						if (typeof range.getClientRects === "function")
+							for (const box of Array.from(range.getClientRects()))
+								if (box.width > 0 && box.height > 0 && nearViewport(box))
+									boxes.push(local(box));
+					}
 				}
 				groups.set(String(id), boxes);
 			});
@@ -140,13 +195,17 @@ export class ReadingOverlay {
 				let previous: ScopeRect | null = null;
 				let previousOffset = -2;
 				for (const br of readingBreaks(index, scope.from, scope.to)) {
+					if (!visibleBreak(br)) {
+						previous = null;
+						continue;
+					}
 					// Never bridge arbitrary paragraph margins or excluded/embedded blocks.
 					if (br.kind === "block") {
 						previous = null;
 						continue;
 					}
 					const box = readingBreakRect(this.root, br);
-					if (box) {
+					if (box && nearViewport(box)) {
 						const current = local(box);
 						boxes.push(current);
 						if (
@@ -175,8 +234,9 @@ export class ReadingOverlay {
 			for (const path of paddedScopeOutlines([...normalized.values()], width))
 				el.append(createScopeSvg(doc, path));
 		for (const entry of breaks) {
+			if (!visibleBreak(entry.br)) continue;
 			const box = readingBreakRect(this.root, entry.br);
-			if (!box) continue;
+			if (!box || !nearViewport(box)) continue;
 			const glyph = doc.createElement("div");
 			glyph.className = `nya-newline-match nya-text-finder-match${entry.current ? " nya-text-finder-match-current" : ""}`;
 			const rtl =

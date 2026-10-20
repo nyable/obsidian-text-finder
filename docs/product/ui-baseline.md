@@ -2,7 +2,7 @@
 
 本文件区分源码中的视觉事实和真实截图证据。截图分类用于确定比较范围，不是采集任务进度。交互语义见 [interactions](interactions.md)。
 
-Finder 模板／CSS 在 `src/features/finder/ui/FinderPanel.vue`，交互效果在 `src/features/finder/interaction/`。内部重构不授权改变外观。`src/shared/ui/TextRun.ts` 保留历史标题／统计／日期的相邻文本节点分段，避免字体 kerning 改变像素和文字宽度；不添加 DOM 元素或改变文本。
+Finder 模板／CSS 在 `src/features/finder/ui/FinderPanel.vue`，交互效果在 `src/features/finder/interaction/`。内部重构不授权改变外观。当前历史标题／统计／日期由 Vue 模板直接输出；`src/shared/ui/TextRun.ts` 尚未被业务组件使用，不能把该闲置组件当作视觉等价的实现证据。视觉变化以实际模板、共享样式及严格截图比较核对。
 
 ## 样式来源与兼容接口
 

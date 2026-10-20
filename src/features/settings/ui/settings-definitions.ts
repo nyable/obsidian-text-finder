@@ -9,7 +9,7 @@ import { toolbarLabels } from "../../finder";
 /** Data-only indexing; DOM and subscriptions exist only while a row is rendered. */
 export class SettingsDefinitions {
 	private mounted = new Map<SettingsView, () => void>();
-	private previews = new Map<Document, AppearancePreview>();
+	private previews = new Map<Document, Set<AppearancePreview>>();
 	constructor(
 		private commands: SettingsCommands,
 		private ensureDocument: (doc: Document) => void,
@@ -33,11 +33,24 @@ export class SettingsDefinitions {
 					root,
 					this.commands,
 					this.ensureDocument,
-					() => (root.ownerDocument === doc ? this.previews.get(doc) : undefined),
+					() =>
+						root.ownerDocument === doc
+							? [...(this.previews.get(doc) ?? [])]
+									.reverse()
+									.find(
+										(preview) =>
+											preview.root.isConnected &&
+											preview.root.ownerDocument === doc,
+									)
+							: undefined,
 					() => {
 						for (const other of this.mounted.keys())
 							if (other !== view && other.containerEl.ownerDocument === doc)
 								other.closeInteractions();
+					},
+					() => {
+						for (const other of this.mounted.keys())
+							if (other.containerEl.ownerDocument === doc) other.refreshOwnPreview();
 					},
 				);
 				const win = root.ownerDocument.defaultView;
@@ -49,8 +62,12 @@ export class SettingsDefinitions {
 					const preview = view.appearancePreview;
 					view.hide();
 					this.mounted.delete(view);
-					if (preview && this.previews.get(doc)?.view === preview.view) {
-						this.previews.delete(doc);
+					if (preview) {
+						const previews = this.previews.get(doc);
+						// appearancePreview returns a fresh wrapper; compare mounted view identity.
+						for (const entry of previews ?? [])
+							if (entry.view === preview.view) previews?.delete(entry);
+						if (!previews?.size) this.previews.delete(doc);
 						for (const other of this.mounted.keys())
 							if (other.containerEl.ownerDocument === doc) other.closeInteractions();
 					}
@@ -67,7 +84,9 @@ export class SettingsDefinitions {
 					for (const other of this.mounted.keys())
 						if (other !== view && other.containerEl.ownerDocument === doc)
 							other.closeInteractions();
-					this.previews.set(doc, preview);
+					let previews = this.previews.get(doc);
+					if (!previews) this.previews.set(doc, (previews = new Set()));
+					previews.add(preview);
 				}
 				// The SDK does not guarantee row cleanup when its window is destroyed.
 				win?.addEventListener("pagehide", cleanup, { once: true });
