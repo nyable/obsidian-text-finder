@@ -5,6 +5,7 @@ import { EditorView } from "@codemirror/view";
 import { createFinderEditor } from "../../src/platform/codemirror/finder-editor";
 import type { EditorContext } from "../../src/platform/codemirror/editor-context";
 import type { Vault } from "obsidian";
+import { searchCacheEffect } from "../../src/platform/codemirror/search-highlight";
 
 const editors: EditorView[] = [];
 afterEach(() => {
@@ -48,6 +49,24 @@ it("retains stable opaque identities but never exposes host instances", () => {
 	expect(one?.view).not.toBe(h.initial.view);
 	expect(one?.editorView).not.toBe(h.initial.editorView);
 	expect(one?.doc.toString()).toBe("cat cat");
+});
+
+it("publishes immutable result identity without copying every offset on navigation", () => {
+	const h = environment();
+	const matches = [
+		{ from: 0, to: 3, index: 0 },
+		{ from: 4, to: 7, index: 1 },
+	];
+	const captured = h.port.current()!;
+	for (const index of [0, 1]) {
+		h.port.publish(captured, { visible: true, index, matches });
+		const spec = h.dispatch.mock.lastCall?.[0];
+		if (!spec || Array.isArray(spec) || !("effects" in spec))
+			throw new Error("Missing publication");
+		const effects = Array.isArray(spec.effects) ? spec.effects : [spec.effects];
+		const effect = effects.find((value) => value?.is(searchCacheEffect));
+		expect(effect?.value.matches).toBe(matches);
+	}
 });
 for (const change of ["owner", "editor", "editorView", "file", "doc", "closed"] as const) {
 	it(`rechecks ${change} identity at the write boundary`, () => {

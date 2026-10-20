@@ -465,6 +465,12 @@ test("declarative appearance uses owner labels and rejects a foreign-document pr
 		"foreign preview cannot own this picker",
 	);
 	const ownerPreview = renderDefinition(root, rows[0]);
+	const mainColor = renderDefinition(tab.containerEl, colorDef);
+	mainColor.row.querySelector(".nya-color-picker").click();
+	assert.ok(
+		dom.window.document.querySelector(".nya-color-popover"),
+		"second Document must not steal the first preview",
+	);
 	const scope = renderDefinition(
 		root,
 		rows.find((def) => def.name === "settings.Appearance.scope"),
@@ -506,6 +512,7 @@ test("declarative appearance uses owner labels and rejects a foreign-document pr
 	assert.equal(root.querySelector(".nya-color-popover"), null);
 	assert.equal(root.querySelector(".nya-finder-preview"), null);
 	color.cleanup();
+	mainColor.cleanup();
 	ownerPreview.cleanup();
 	scope.cleanup();
 	toolbar.cleanup();
@@ -603,7 +610,7 @@ test("actual plugin reload reads all accepted snapshots before writing new histo
 	fresh.history.record("NEW");
 	await fresh.flushSettings();
 	assert.ok(JSON.parse(disk).searchHistory.some((item) => item.text === "NEW"));
-	assert.equal(snapshots.length, 4);
+	assert.equal(snapshots.length, 2);
 });
 
 for (const manifestDir of [undefined, ".custom/plugins/renamed-folder"]) {
@@ -740,13 +747,15 @@ test("interleaved real plugin history, deletion and settings writes never overla
 		);
 	};
 	p.history.record("A");
+	await settle();
+	assert.equal(p.writes.length, 1);
 	p.history.record("B");
 	p.history.remove(new Set(["A"]));
 	p.settings.moveCursorToMatch = false;
 	p.requestSaveSettings();
 	await settle();
 	assert.equal(p.writes.length, 1);
-	for (let i = 0; i < 4; i++) {
+	for (let i = 0; i < 2; i++) {
 		jobs[i]();
 		await settle();
 	}
@@ -795,6 +804,31 @@ test("capacity input only commits on Enter or blur, rejecting partial and malfor
 	assert.equal(p.writes.at(-1).searchHistory.length, 2);
 });
 
+test("global escape settings route immediate replacement invalidation through the workspace", async () => {
+	const p = plugin(null);
+	await p.onload();
+	let invalidations = 0;
+	p.editorSearch = {
+		replacementPreferencesChanged() {
+			invalidations++;
+		},
+		dispose() {},
+	};
+	const tab = tabs.at(-1);
+	const row = definitionRows(tab.getSettingDefinitions()).find(
+		(def) => def.name === "settings.UseEscapeCharInReplace.name",
+	);
+	const rendered = renderDefinition(tab.containerEl, row);
+	const control = fields.get("settings.UseEscapeCharInReplace.name");
+	control.change(false);
+	control.change(true);
+	control.change(true);
+	assert.equal(invalidations, 2);
+	rendered.cleanup?.();
+	await p.flushSettings();
+	p.onunload();
+});
+
 test("settings toggles and sort changes save through the queue and notify subscribers", async () => {
 	const p = plugin(null);
 	await p.onload();
@@ -812,7 +846,7 @@ test("settings toggles and sort changes save through the queue and notify subscr
 	fields.get("settings.MoveCursorToMatch.name").change(false);
 	await p.flushSettings();
 	assert.equal(updates, 4);
-	assert.equal(p.writes.length, 4);
+	assert.equal(p.writes.length, 1);
 	assert.equal(p.writes.at(-1).enableHistory, false);
 	assert.equal(p.writes.at(-1).historySortOrder, "count");
 	assert.equal(p.writes.at(-1).historyRetention, "count");

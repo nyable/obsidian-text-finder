@@ -256,7 +256,7 @@
 		"SaveHint": "Saves configuration only; does not edit the note.",
 		"EmptyPresets": "No presets yet. Save your current find, or create a named rule.",
 		"NoResults": "No matching entries. Try a different filter.",
-		"SaveConflict": "This preset was deleted. Choose Save as preset to keep your draft.",
+		"SaveConflict": "This preset was changed or deleted elsewhere. Choose Save as preset to keep your draft without overwriting it.",
 		"SelectQuery": "Select query: {{text}}",
 		"WhitespaceQuery": "Whitespace-only query ({{count}} characters)",
 		"Deleted": "Deleted {{count}} entries",
@@ -284,6 +284,7 @@
 		"Back": "Back",
 		"LoadFailed": "Text Finder could not read saved settings. Saving is blocked to protect existing data. Check the data file and reload the plugin.",
 		"SaveFailed": "Text Finder could not save settings/history. Changes remain in memory; the next change will retry saving the latest state.",
+		"SubscriberFailed": "Text Finder could not refresh one view. Other views and saving continue. Reopen the affected view.",
 		"CopyFailed": "Text Finder could not copy the query text.",
 		"ReuseFailed": "Open a supported Markdown editing or reading view before reusing search history."
 	}

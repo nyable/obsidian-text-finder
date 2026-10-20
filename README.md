@@ -145,8 +145,11 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 - Each preset card previews the Finder with its saved fold state. Apply from the middle; edit or delete with the icons on the right. Reorder with the left handle (drag or Up/Down, Home/End); clear filtering first. Order persists, renaming keeps position, and new presets append.
 - Edit, rename, save as new, delete or briefly undo deletion. Finder edits do not update saved presets automatically. Modified drafts require explicit discard before closing. Presets are independent of history recording and capacity.
 - Assign shortcuts to these two commands in Obsidian. Per-preset commands are not registered.
+- If another dialog changes or deletes the same preset, an older draft cannot overwrite it. The draft stays available to save as a new preset; reordering alone does not block saving.
 
 ## Appearance settings
+
+Obsidian 1.6–1.12 uses the five-tab layout, fixed preview and initially collapsed sections described below. In 1.13+, host groups and an Appearance subpage replace that layout: the preview scrolls with the page, six colors have individual rows, and selection/toolbars start expanded. Editing, saving and canceling work the same way.
 
 - Reorder actions and choose Toolbar, More or Hidden in individual action blocks in the Appearance settings tab. The full preview stays at the top while configuration scrolls below; it always displays both find and replace rows and has no interactive controls.
 - Colors, search selection, search toolbar and replacement toolbar sections fold independently and start collapsed. An undo-style icon beside each heading shows a Restore default settings tooltip. Clicking directly restores that section; individual color resets affect only that color, with no confirmation dialog. All resets show the same brief “Default settings restored” notice.

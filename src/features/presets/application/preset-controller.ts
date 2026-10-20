@@ -1,5 +1,8 @@
 import { copyRecipe, presetNameTaken, type SearchPreset, type SearchRecipe } from "../model/preset";
 
+const editIdentity = (item: SearchPreset) =>
+	JSON.stringify([item.id, item.name, item.createdAt, item.updatedAt, copyRecipe(item)]);
+
 export class PresetController {
 	private listeners = new Set<() => void>();
 	constructor(
@@ -7,16 +10,29 @@ export class PresetController {
 		private save: () => Promise<void>,
 		private id: () => string,
 		private clock = Date.now,
+		private reportError: (error: unknown) => void = (error) =>
+			console.error("Text Finder: preset subscriber failed", error),
 	) {}
 	subscribe(listener: () => void) {
 		this.listeners.add(listener);
-		listener();
+		try {
+			listener();
+		} catch (error) {
+			this.listeners.delete(listener);
+			throw error;
+		}
 		return () => {
 			this.listeners.delete(listener);
 		};
 	}
 	notify() {
-		this.listeners.forEach((listener) => listener());
+		for (const listener of this.listeners) {
+			try {
+				listener();
+			} catch (error) {
+				this.reportError(error);
+			}
+		}
 	}
 	list(): SearchPreset[] {
 		return this.settings()
@@ -25,15 +41,21 @@ export class PresetController {
 	}
 	private commit(items: SearchPreset[]) {
 		this.settings().searchPresets = items.map((item, order) => ({ ...item, order }));
-		this.notify();
-		void this.save().catch(() => {});
+		try {
+			this.notify();
+		} finally {
+			void this.save().catch(() => {});
+		}
 	}
-	put(name: string, recipe: SearchRecipe, id?: string): boolean {
+	put(name: string, recipe: SearchRecipe, id?: string, expected?: SearchPreset): boolean {
 		if (!name.trim() || recipe.search === "" || this.nameTaken(name, id)) return false;
 		const items = this.settings().searchPresets;
 		const previous = id ? items.find((item) => item.id === id) : undefined;
 		// A deleted preset must not be resurrected by a stale editor.
 		if (id && !previous) return false;
+		// Compare content, not milliseconds or ordering: a reorder is not an edit conflict.
+		if (expected && (!previous || editIdentity(previous) !== editIdentity(expected)))
+			return false;
 		const now = this.clock();
 		const next: SearchPreset = {
 			...copyRecipe(recipe),

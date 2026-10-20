@@ -34,6 +34,8 @@ git diff --check
 
 ## 主要覆盖
 
+- 审计边界回归：`regex-replacement.test.mjs` 的嵌套美元模板对照原生语义；`presets.test.ts`／`search-library.test.ts` 的同毫秒并发编辑冲突、排序后保存和另存保留；历史／预设故障订阅不阻断其他回调及保存；`search-highlight.test.mjs` 的高密度当前项切换保留无关装饰；`settings-storage.test.mjs` 的慢写入合并、读取封存屏障及跨重载；`finder-panel.test.mjs` 的全局转义变化立即取消及改回不复活；`main-settings.test.mjs` 的双 Document 预览独立。浏览器 TypeScript 入口同样纳入 `tsconfig.test.json`，翻译静态调用按源码目录自动发现，不维护文件白名单。
+
 - 笔记菜单：`finder-menus.test.mjs` 覆盖 more-options 来源过滤／所属视图／去重、普通设置与范围／收起保留、选择快照、丢焦、正文／renderer／file／Document 过期拒绝、旧原生偏好不再路由及不兼容时 owner 填词、复制／链接保留及卸载监听清理；真实组件测试覆盖明确填词清旧范围／失效保护、贴边展开，以及捕获范围不被后来的选择替换。可选 `node tools/diagnostics/menu-host-check.mjs /path/to/obsidian.asar` 只读提取真实事件菜单方法，不启动宿主、不写 Vault，不等于 GUI 或移动端验收。
 
 菜单实机验收：编辑／阅读右上角“更多选项”各有一个打开入口，文件管理器／链接文件菜单不误加；正文选择右键两个操作含义清晰，无选择／Finder 输入选择不误加。检查选区填词设置、已有范围、旧原生偏好 true／false 升级后统一插件查找及不兼容回退、菜单丢焦、重复文本、多范围、同文件双分屏、弹窗和菜单打开后换文件；阅读链接复制／打开与纯正文复制保留，不出现双菜单。移动端需另外验证长按选词及系统菜单，不将桌面模拟测试当作触屏通过。

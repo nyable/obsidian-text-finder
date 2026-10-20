@@ -12,6 +12,7 @@ export function mountSettings(root: HTMLElement) {
 			saves++;
 		},
 		historyChanged() {},
+		replacementPreferencesChanged() {},
 		resizeHistory: (value) => {
 			settings.historyMaxCount = value;
 			saves++;
@@ -30,7 +31,7 @@ export function mountSettings(root: HTMLElement) {
 		items.flatMap((item) =>
 			"items" in item && item.items
 				? collect(item.items)
-				: "render" in item && item.render
+				: "render" in item
 					? [item as SettingDefinitionRender]
 					: [],
 		);

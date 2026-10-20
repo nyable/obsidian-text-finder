@@ -8,7 +8,8 @@
 		"tests/unit/**/*.ts",
 		"tests/component/**/*.ts",
 		"tests/integration/**/*.ts",
-		"tests/support/**/*.ts"
+		"tests/support/**/*.ts",
+		"tests/browser/**/*.ts"
 	],
 	"exclude": ["node_modules"]
 }

@@ -16,17 +16,30 @@ export class HistoryController {
 		private settings: () => HistorySettings,
 		private save: () => Promise<void>,
 		private clock = Date.now,
+		private reportError: (error: unknown) => void = (error) =>
+			console.error("Text Finder: history subscriber failed", error),
 	) {}
 
 	subscribe(listener: () => void) {
 		this.listeners.add(listener);
-		listener();
+		try {
+			listener();
+		} catch (error) {
+			this.listeners.delete(listener);
+			throw error;
+		}
 		return () => {
 			this.listeners.delete(listener);
 		};
 	}
 	notify() {
-		this.listeners.forEach((listener) => listener());
+		for (const listener of this.listeners) {
+			try {
+				listener();
+			} catch (error) {
+				this.reportError(error);
+			}
+		}
 	}
 	sorted() {
 		const settings = this.settings();
@@ -34,9 +47,12 @@ export class HistoryController {
 	}
 	private commit(items: SearchHistoryItem[]) {
 		this.settings().searchHistory = items;
-		this.notify();
-		// saveSettings reports failures; this prevents abandoned UI promises.
-		void this.save().catch(() => {});
+		try {
+			this.notify();
+		} finally {
+			// saveSettings reports failures; this prevents abandoned UI promises.
+			void this.save().catch(() => {});
+		}
 	}
 	record(text: string, increment = true, existingOnly = false): boolean {
 		const settings = this.settings();

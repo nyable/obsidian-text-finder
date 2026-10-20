@@ -113,6 +113,8 @@
 
 ## 设置语义
 
+预设草稿保存采用并发冲突保护：其他弹窗修改或删除同一预设后，旧草稿保持可编辑但不能覆盖，可另存为新预设；单纯排序不构成冲突。字段及存储格式不变，细节见 interactions 的预设契约。
+
 Obsidian 1.13.0+ 通过公开 `getSettingDefinitions()` 使用宿主分组：常规项在顶部，随后查找／替换／历史及外观子页。12 项基础控件与六项外观色分别索引，搜索选区／搜索工具栏／替换工具栏以名称和 aliases 定位到初次展开的配置区；纯预览不索引。1.6–1.12 保留五分类；字段、默认值、更新副作用与保存队列完全共用。定义索引不触发挂载或保存，不改变数据格式。源码：`src/app/settings-tab.ts`、`src/features/settings/ui/settings-fields.ts`、`settings-definitions.ts`；实机搜索跳转仍需宿主验收。
 
 默认值的唯一代码来源为 `src/features/settings/model/settings.ts:defaultSettings()` 和 `src/features/finder/model/toolbar.ts:defaultToolbar()`。

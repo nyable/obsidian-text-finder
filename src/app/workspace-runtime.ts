@@ -381,6 +381,10 @@ export class EditorSearch {
 	refreshToolbars() {
 		for (const [, resources] of this.owners.entries()) resources.finder?.refreshToolbar();
 	}
+	replacementPreferencesChanged() {
+		for (const [, resources] of this.owners.entries())
+			resources.finder?.replacementPreferencesChanged();
+	}
 	openHistory(tab: "history" | "presets" = "history", recipe?: SearchRecipe) {
 		if (this.disposed) return;
 		const modal = new HistoryModal(

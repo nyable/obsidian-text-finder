@@ -9,7 +9,7 @@ import { toolbarLabels } from "../../finder";
 /** Data-only indexing; DOM and subscriptions exist only while a row is rendered. */
 export class SettingsDefinitions {
 	private mounted = new Map<SettingsView, () => void>();
-	private preview: AppearancePreview | undefined;
+	private previews = new Map<Document, AppearancePreview>();
 	constructor(
 		private commands: SettingsCommands,
 		private ensureDocument: (doc: Document) => void,
@@ -26,16 +26,18 @@ export class SettingsDefinitions {
 			aliases,
 			render: (setting) => {
 				const root = setting.settingEl;
+				const doc = root.ownerDocument;
 				root.replaceChildren();
 				root.classList.add("nya-settings-definition");
 				const view = new SettingsView(
 					root,
 					this.commands,
 					this.ensureDocument,
-					() => this.preview,
+					() => (root.ownerDocument === doc ? this.previews.get(doc) : undefined),
 					() => {
 						for (const other of this.mounted.keys())
-							if (other !== view) other.closeInteractions();
+							if (other !== view && other.containerEl.ownerDocument === doc)
+								other.closeInteractions();
 					},
 				);
 				const win = root.ownerDocument.defaultView;
@@ -47,7 +49,11 @@ export class SettingsDefinitions {
 					const preview = view.appearancePreview;
 					view.hide();
 					this.mounted.delete(view);
-					if (preview && this.preview?.view === preview.view) this.preview = undefined;
+					if (preview && this.previews.get(doc)?.view === preview.view) {
+						this.previews.delete(doc);
+						for (const other of this.mounted.keys())
+							if (other.containerEl.ownerDocument === doc) other.closeInteractions();
+					}
 				};
 				this.mounted.set(view, cleanup);
 				try {
@@ -57,7 +63,12 @@ export class SettingsDefinitions {
 					throw error;
 				}
 				const preview = view.appearancePreview;
-				if (preview) this.preview = preview;
+				if (preview) {
+					for (const other of this.mounted.keys())
+						if (other !== view && other.containerEl.ownerDocument === doc)
+							other.closeInteractions();
+					this.previews.set(doc, preview);
+				}
 				// The SDK does not guarantee row cleanup when its window is destroyed.
 				win?.addEventListener("pagehide", cleanup, { once: true });
 				return cleanup;
@@ -134,6 +145,6 @@ export class SettingsDefinitions {
 	}
 	hide(): void {
 		for (const cleanup of this.mounted.values()) cleanup();
-		this.preview = undefined;
+		this.previews.clear();
 	}
 }

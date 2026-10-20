@@ -8,6 +8,7 @@ const commandNames = [
 	"showFloatingEntry",
 	"resetFinderPosition",
 	"refreshToolbar",
+	"replacementPreferencesChanged",
 	"getSearchCache",
 	"setVisible",
 	"setVisibleFromHistory",

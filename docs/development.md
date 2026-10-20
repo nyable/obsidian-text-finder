@@ -60,6 +60,7 @@ pnpm verify
 - 默认值／类型以 settings 和 toolbar 为来源，命令以注册定义为来源，公开 CSS 默认值以全局 SCSS 为来源。文档表格由一致性测试守护，不引入重复 Schema 系统。
 - 功能变化核对 README／features，交互变化核对 interactions，数据变化核对 architecture 与迁移回归，宿主依赖变化核对 compatibility 与实机场景。
 - 每次关键功能变更核对异常路径测试、旧数据兼容、命令／CSS 接口、文案及真实宿主验收需求。安全公告按可达调用链判断，不为消除扫描命中盲目升级框架主版本。
+- `consistency.test.mjs` 自动发现源码中的静态翻译调用并核对双语键集合；设置／命令／CSS 表格继续直接对照唯一源码定义，不再维护第二套 Schema。新增浏览器 TypeScript 入口纳入既有 vue-tsc 工程；配置与类型变化由统一 `pnpm verify`／CI 检查，产品理由及版本适用范围仍需人工审查。
 
 ## UI 命名与悬浮提示规范
 

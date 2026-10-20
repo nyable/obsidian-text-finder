@@ -328,7 +328,11 @@ assert.deepEqual(
 newPlugin.history.record("NEW");
 await newPlugin.flushSettings();
 assert.ok(JSON.parse(reload.disk.get(path)).searchHistory.some((item) => item.text === "NEW"));
-assert.equal(reload.writes.length, 4);
+assert.equal(
+	reload.writes.length,
+	2,
+	"unstarted history writes coalesce before the reload read barrier",
+);
 newPlugin.unload();
 hostWindows.forEach((dom) => dom.window.close());
 

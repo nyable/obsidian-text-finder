@@ -360,4 +360,19 @@ describe("Finder application with explicit owner ports", () => {
 		expect(observed.matches).toBe(h.session.state.cache.matches);
 		h.dispose();
 	});
+	it("copies publication offsets once per result set and reuses frozen snapshots for navigation", () => {
+		const h = environment();
+		h.session.setVisible(true, "cat");
+		const publish = vi.mocked(h.editor.publish);
+		const initial = publish.mock.lastCall?.[1]?.matches;
+		expect(initial).toEqual(h.session.state.cache.matches);
+		expect(initial).not.toBe(h.session.state.cache.matches);
+		expect(Object.isFrozen(initial)).toBe(true);
+		expect(Object.isFrozen(initial?.[0])).toBe(true);
+		h.session.toNextMatch();
+		expect(publish.mock.lastCall?.[1]?.matches).toBe(initial);
+		h.session.state.cache.matches[0]!.from = 100;
+		expect(initial?.[0]?.from).toBe(0);
+		h.dispose();
+	});
 });

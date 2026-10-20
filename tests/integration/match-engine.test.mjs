@@ -83,6 +83,39 @@ test("Worker protocol refuses coordinates outside the captured range", async () 
 	engine.destroy();
 });
 
+test("nested dollar templates agree with native replacement in Worker and startup fallback", async () => {
+	const host = installWorkerHost({ URL: {} });
+	const worker = new MatchEngine(() => host.win),
+		fallback = new MatchEngine(() => ({}));
+	onTestFinished(async () => {
+		worker.destroy();
+		fallback.destroy();
+		await host.dispose();
+	});
+	for (const query of ["a", "(a)", "(?<value>a)"])
+		for (const replacement of ["$<$&>", "$<$1>", "$<x$$>"])
+			for (const engine of [worker, fallback])
+				for (const all of [false, true]) {
+					const result = await engine.replace(
+						"ab ab",
+						query,
+						replacement,
+						{ regexMode: true, caseSensitive: true, wholeWord: false },
+						0,
+						all,
+					);
+					assert.equal(result.status, "completed");
+					let actual = "ab ab";
+					for (const change of [...result.changes].reverse())
+						actual =
+							actual.slice(0, change.from) + change.insert + actual.slice(change.to);
+					assert.equal(
+						actual,
+						"ab ab".replace(new RegExp(query, all ? "gm" : "m"), replacement),
+					);
+				}
+});
+
 test("whole word shares match and replacement semantics across Worker and startup fallback", async () => {
 	vi.spyOn(console, "debug").mockImplementation(() => {});
 	const host = installWorkerHost({ URL: {} }),

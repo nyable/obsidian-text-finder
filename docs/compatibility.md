@@ -17,6 +17,7 @@
 
 - 生产已移除 Svelte；旧公告的可达性分析不是 Vue 安全结论。Vue 只编译仓库模板，不将笔记、查询或历史文本作为模板／HTML 注入。`tools/vue-plugin.mjs:ownerVue()` 在正式、Vitest 和浏览器构建统一设置 `hoistStatic: false`，关闭静态 HTML 字符串化；owner renderer 只创建节点，遇到静态 HTML VNode 明确抛错，不继承 Vue 默认 HTML 解析。没有 SSR／hydrate 入口。扫描命中须检查调用链，不将“客户端”作为通用豁免。
 - moment 来自宿主 Obsidian external；本插件调用 `moment.locale()` 读取语言，不将用户值传给 locale 加载。开发 SDK 的 moment 扫描结果不能证明实际宿主版本安全。
+- 设置写入合并仅覆盖尚未开始的连续批次，读取始终封存前批次并维持跨重载顺序；这不提供宿主磁盘崩溃原子性或跨进程同步冲突保证。
 - braces 位于开发 lint 的 glob 调用链，不在插件运行时包中；当前 lint 模式由开发命令固定，不由笔记或查询控制。处理开发工具风险与插件运行时风险须分开，不为扫描结果盲目升级框架主版本。
 
 依据：`package.json`／`pnpm-lock.yaml`、`vite.config.mjs`、`src/i18n/index.ts` 和组件模板。依赖版本或不可信输入边界变化时重新扫描并检查可达性；这不是永久豁免。

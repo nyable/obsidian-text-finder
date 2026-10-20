@@ -122,11 +122,16 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 
 `SettingsController` 是设置 UI 更新入口：同步修改／通知后请求保存，不暴露可写设置给 SettingsView。分组恢复只影响该组；颜色草稿仅在局部预览，应用才更新。HistoryController／PresetController 同步更新与订阅通知，异步保存不阻塞导航；复制不再统计使用。预设名称通过纯模型 `presetNameTaken()` 按 trim 后区分大小写比较，UI 提前提示、控制器 put／restore 在提交前按最新集合阻止重名；更新排除自身 ID，归一化保留旧的不同 ID 同名配置，不引入数据迁移丢失。HistoryPanel 管理筛选／详情／编辑／撤销状态，不持久化；PresetEditor 使用独立浅响应式草稿，另存命名步骤保留原配置草稿，明确创建才提交新 ID。Finder 的 captureRecipe 返回复制快照，applyRecipe 原子装载配置、保留范围并匹配；预设只填充搜索栏，不建立会话内替换转义覆盖，也不改共享设置。
 
-`platform/obsidian/settings-storage.ts` 通过公开 stat／read／write 区分不存在、权限、损坏 JSON 和写入错误。按 App／路径的队列通过共享 realm Symbol 跨模块重载复用；排队前独立 JSON 快照，新实例 read 排在旧实例已接受写入之后。失败不阻断后续任务。卸载关闭新请求，但已接受任务继续；flush 不代表宿主退出会等待。
+`platform/obsidian/settings-storage.ts` 通过公开 stat／read／write 区分不存在、权限、损坏 JSON 和写入错误。按 App／路径的队列通过共享 realm Symbol 跨模块重载复用；调用时序列化为独立 JSON 快照，未开始的连续写入合并为最新快照，进行中的写入不被修改。每次 read 封存此前批次，后续写入不能并入读取之前的批次；新实例仍读到旧实例已接受的最新状态。合并请求共享该批次成功／失败结果，失败不重放也不阻断后续任务。卸载关闭新请求，但已接受任务继续；flush 等待含等待期间新增写入的队列稳定并报告本实例最后批次结果，不代表宿主退出会等待。
 
 读取失败用默认内存状态启动并封锁保存，不能覆写已有磁盘数据；修复后重载不合并临时修改。保存失败不回滚，下次请求保存最新快照，没有自动后台重试或强制退出落盘保证。回归：`settings-storage.test.mjs`、`main-settings.test.mjs`、`history-contracts.test.mjs`、`settings-controller.test.ts`。
 
 ## 生命周期与视觉边界
+
+- `PresetController.put()` 接收编辑器的可选原始快照；有基线的编辑按 ID、名称、规则及时间比较，不因排序变化拒绝，不以毫秒时间戳单独识别冲突。UI 始终提交建立草稿时的复制基线，冲突保留草稿并允许另存，不新增持久化字段。
+- 历史／预设通知逐项捕获订阅异常并经装配层提示，保存请求在 finally 中保证发出；数据更新仍同步，初次订阅失败移除回调。
+- 编辑匹配结果发布时按结果集复制并冻结一次，隔离会话内部可变数组；导航复用发布快照身份。`search-highlight.ts` 对有效、排序、不重叠结果仅更新旧／新当前项装饰，其他持久化树节点保留。结果变化或文档修改仍完整重建／清空，公开 CSS 类与单层匹配 mark 不变。发布及装饰元数据用 WeakMap 随集合释放，不持有 owner。
+- 全局转义设置变动通过 SettingsController → workspace → FinderCommands 同步取消准备阶段，不引入全局事件总线；已经提交的替换仍只重算，不重放。
 
 `settings-fields.ts` 共享旧版分类与 1.13+ 声明式行的名称／描述／控件逻辑；`settings-definitions.ts` 生成纯定义，普通设置使用 render 保留控制器副作用、整数提交与非阻塞保存。外观使用声明式子页／颜色行／复杂配置区，不用私有设置索引 API；每行 SettingsView 共享同 Document 的预览，交互互斥，cleanup、hide 与 owner Window 的 pagehide 幂等释放资源，不依赖窗口销毁时宿主仍调用行 cleanup。分组恢复直接刷新已挂载颜色值，不依赖宿主 update 或默认持久化。搜索用 aliases 定位复杂配置区而非隐藏虚假条目。
 

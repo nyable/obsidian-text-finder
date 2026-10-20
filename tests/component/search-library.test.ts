@@ -330,6 +330,40 @@ describe("unified search library", () => {
 		await h.click("library.Undo");
 		expect(h.settings.searchHistory[0]?.count).toBe(2);
 	});
+	it("a concurrently updated preset cannot be overwritten by an old draft, but can be saved as new", async () => {
+		const h = fixture();
+		await h.click("library.Edit");
+		await h.input(".nya-recipe-field input", "My draft");
+		const current = h.presets.list()[0]!;
+		h.presets.put(
+			current.name,
+			{ ...current, search: "new rule from other window" },
+			current.id,
+		);
+		await h.click("library.SaveAction");
+		expect(h.settings.searchPresets[0]?.search).toBe("new rule from other window");
+		expect(h.target.querySelector('[role="alert"]')?.textContent).toContain(
+			"library.SaveConflict",
+		);
+		await h.click("library.SaveAs");
+		await h.click("library.CreatePreset");
+		expect(h.settings.searchPresets).toHaveLength(2);
+		expect(h.settings.searchPresets[1]?.name).toBe("My draft");
+	});
+	it("captures the clicked preset baseline even before a concurrent update patches the list", async () => {
+		const h = fixture();
+		const current = h.presets.list()[0]!;
+		h.presets.put(current.name, { ...current, search: "newer rule" }, current.id);
+		// Click the still-rendered old row before Vue commits the new props.
+		h.button("library.Edit").click();
+		await nextTick();
+		await h.input(".nya-recipe-field input", "Stale row draft");
+		await h.click("library.SaveAction");
+		expect(h.settings.searchPresets[0]?.search).toBe("newer rule");
+		expect(h.target.querySelector('[role="alert"]')?.textContent).toContain(
+			"library.SaveConflict",
+		);
+	});
 	it("a deleted preset cannot be revived by a stale editor, but can be saved as new", async () => {
 		const h = fixture();
 		await h.click("library.Edit");

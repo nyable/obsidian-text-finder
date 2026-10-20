@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { test } from "vitest";
 import * as settingsSource from "../../src/features/settings";
 
@@ -22,24 +22,9 @@ test("release version and supported host version have one consistent definition"
 test("translation key sets and static calls stay synchronized", () => {
 	const en = keys(json("src/i18n/locale/en.json"));
 	assert.deepEqual(en.sort(), keys(json("src/i18n/locale/zh_cn.json")).sort());
-	const paths = [
-		"features/finder/ui/FinderPanel.vue",
-		"features/finder/application/finder-session.ts",
-		"features/history/ui/HistoryList.vue",
-		"features/history/ui/HistoryDetail.vue",
-		"features/finder/ui/SearchStatus.vue",
-		"features/finder/ui/FinderToolbar.vue",
-		"features/history/ui/HistoryPanel.vue",
-		"features/presets/ui/PresetEditor.vue",
-		"features/settings/ui/ToolbarPreview.vue",
-		"app/create-plugin-runtime.ts",
-		"app/workspace-runtime.ts",
-		"app/workspace-commands.ts",
-		"features/finder/model/toolbar.ts",
-		"app/settings-tab.ts",
-		"features/settings/ui/settings-view.ts",
-		"features/settings/ui/color-picker.ts",
-	];
+	const paths = readdirSync("src", { recursive: true }).filter((path) =>
+		/\.(ts|vue)$/.test(path),
+	);
 	for (const path of paths) {
 		for (const match of read(`src/${path}`).matchAll(
 			/(?:i18n\.t\(|reportError\()\s*"([^"]+)"/g,

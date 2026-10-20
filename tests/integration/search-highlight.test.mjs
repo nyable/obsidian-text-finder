@@ -41,6 +41,54 @@ test("highlight selects the current match and survives selection-only transactio
 	assert.equal(state.field(textMatchMarker), previous);
 });
 
+test("cached dense navigation preserves unrelated marks and handles wraparound", () => {
+	let state = create("a ".repeat(10000));
+	const matches = Array.from({ length: 10000 }, (_, index) => ({
+		from: index * 2,
+		to: index * 2 + 1,
+		index,
+	}));
+	state = state.update({ effects: highlight(state, { matches, index: 0 }) }).state;
+	let unchanged;
+	state.field(textMatchMarker).between(100, 101, (from, _to, value) => {
+		if (from === 100) unchanged = value;
+	});
+	for (const index of [1, 9999, 0]) {
+		state = state.update({ effects: highlight(state, { matches, index }) }).state;
+		const all = ranges(state);
+		assert.equal(all.length, 10000);
+		assert.equal(all.filter((mark) => mark.class.includes(CLS.MATCH_CURRENT)).length, 1);
+		assert.equal(all[index].class, `${CLS.MATCH} ${CLS.MATCH_CURRENT}`);
+		state.field(textMatchMarker).between(100, 101, (from, _to, value) => {
+			if (from === 100) assert.equal(value, unchanged);
+		});
+	}
+	const stable = state.field(textMatchMarker);
+	state = state.update({ effects: highlight(state, { matches, index: 0 }) }).state;
+	assert.equal(state.field(textMatchMarker), stable);
+});
+
+test("navigation reads a bounded number of offsets instead of scanning the cached result array", () => {
+	let reads = 0;
+	const entries = Array.from({ length: 10000 }, (_, index) => ({
+		from: index * 2,
+		to: index * 2 + 1,
+		index,
+	}));
+	const matches = new Proxy(entries, {
+		get(target, key, receiver) {
+			if (/^\d+$/.test(String(key))) reads++;
+			return Reflect.get(target, key, receiver);
+		},
+	});
+	let state = create("a ".repeat(10000));
+	state = state.update({ effects: highlight(state, { matches }) }).state;
+	reads = 0;
+	state = state.update({ effects: highlight(state, { matches, index: 9999 }) }).state;
+	assert.ok(reads <= 4, `navigation read ${reads} offsets`);
+	assert.equal(state.field(textMatchMarker).size, 10000);
+});
+
 for (const changes of [
 	{ from: 0, insert: "prefix " },
 	{ from: 1, to: 2 },

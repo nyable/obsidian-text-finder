@@ -30,11 +30,14 @@ export interface SearchHighlight {
 	doc: Text;
 	visible: boolean;
 	index: number;
-	matches: MatchOffset[];
+	matches: readonly MatchOffset[];
 }
 
 // Offsets always belong to this exact CodeMirror document, not a mutable cache.
 export const searchCacheEffect = StateEffect.define<SearchHighlight>();
+
+// Weakly retain metadata by immutable decoration identity, never by owner/view.
+const highlightSources = new WeakMap<DecorationSet, SearchHighlight>();
 
 export const textMatchMarker = StateField.define<DecorationSet>({
 	create: () => Decoration.none,
@@ -47,8 +50,43 @@ export const textMatchMarker = StateField.define<DecorationSet>({
 			if (!effect.is(searchCacheEffect) || effect.value.doc !== transaction.state.doc)
 				continue;
 			const { visible, matches, index } = effect.value;
+			const previous = highlightSources.get(result);
+			if (visible && previous?.visible && previous.matches === matches) {
+				const oldMatch = matches[previous.index],
+					nextMatch = matches[index];
+				const valid = (match: MatchOffset | undefined) =>
+					!!match &&
+					Number.isInteger(match.from) &&
+					Number.isInteger(match.to) &&
+					match.from >= 0 &&
+					match.from < match.to &&
+					match.to <= transaction.state.doc.length;
+				// Normal results are sorted, non-overlapping matches. Update only the
+				// previous/current mark, retaining all other persistent tree nodes.
+				if (previous.index === index) continue;
+				if (valid(oldMatch) || valid(nextMatch)) {
+					const selected = [oldMatch, nextMatch].filter((match): match is MatchOffset =>
+						valid(match),
+					);
+					for (const match of selected)
+						result = result.update({
+							filterFrom: match.from,
+							filterTo: match.to,
+							filter: (from, to) => from !== match.from || to !== match.to,
+							add: [
+								Decoration.mark({
+									class: `${CLS.MATCH}${match === nextMatch ? ` ${CLS.MATCH_CURRENT}` : ""}`,
+								}).range(match.from, match.to),
+							],
+						});
+					highlightSources.set(result, effect.value);
+					continue;
+				}
+			}
 			const builder = new RangeSetBuilder<Decoration>();
 			let previousFrom = -1;
+			let previousTo = -1,
+				nonOverlapping = true;
 			if (visible) {
 				matches.forEach(({ from, to }, matchIndex) => {
 					if (
@@ -67,11 +105,15 @@ export const textMatchMarker = StateField.define<DecorationSet>({
 							class: `${CLS.MATCH}${index === matchIndex ? ` ${CLS.MATCH_CURRENT}` : ""}`,
 						}),
 					);
+					if (from < previousTo) nonOverlapping = false;
+					previousTo = to;
 					previousFrom = from;
 				});
 			}
 			// The last valid effect in a transaction wins, including explicit clears.
 			result = builder.finish();
+			if (visible && nonOverlapping && result.size === matches.length && result.size > 0)
+				highlightSources.set(result, effect.value);
 		}
 		return result;
 	},

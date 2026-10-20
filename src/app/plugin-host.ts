@@ -11,6 +11,7 @@ export interface WorkspaceCommands {
 		"setVisibleFromHistory" | "captureRecipe" | "applyRecipe" | "focusSearch"
 	>;
 	refreshToolbars(): void;
+	replacementPreferencesChanged(): void;
 	syncFloatingEntries(): void;
 	dispose(): void;
 }

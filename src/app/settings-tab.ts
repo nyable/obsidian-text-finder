@@ -16,6 +16,8 @@ export class SettingTab extends PluginSettingTab {
 			refreshToolbars: () => plugin.editorSearch?.refreshToolbars(),
 			syncFloatingEntries: () => plugin.editorSearch?.syncFloatingEntries(),
 			refreshAppearance: () => plugin.refreshAppearance(),
+			replacementPreferencesChanged: () =>
+				plugin.editorSearch?.replacementPreferencesChanged(),
 		});
 		this.view = new SettingsView(this.containerEl, commands, (doc) =>
 			plugin.ensureAppearanceDocument(doc),

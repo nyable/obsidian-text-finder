@@ -13,6 +13,7 @@ function environment() {
 			calls.push("history");
 		}),
 		resizeHistory: vi.fn(),
+		replacementPreferencesChanged: vi.fn(),
 		refreshToolbars: vi.fn(() => {
 			calls.push("toolbar");
 		}),
@@ -41,6 +42,13 @@ it("applies toggles synchronously with original notification and save ordering",
 	h.calls.length = 0;
 	h.controller.toggle("showFloatingFinderOnOpen", false);
 	expect(h.calls).toEqual(["save"]);
+});
+it("invalidates replacement intents on every real escape preference change, including ABA", () => {
+	const h = environment();
+	h.controller.toggle("useEscapeCharInReplace", false);
+	h.controller.toggle("useEscapeCharInReplace", true);
+	h.controller.toggle("useEscapeCharInReplace", true);
+	expect(h.effects.replacementPreferencesChanged).toHaveBeenCalledTimes(2);
 });
 it("restores only the requested appearance group and saves once", () => {
 	const h = environment();

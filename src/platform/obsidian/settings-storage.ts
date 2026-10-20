@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 
 interface StorageLane {
 	tail: Promise<void>;
+	pending?: { text: string; promise: Promise<void> } | undefined;
 }
 
 // A plugin reload evaluates a new module. Keep the lane on the shared realm,
@@ -46,6 +47,9 @@ export class SettingsStorage {
 	}
 
 	read(): Promise<unknown> {
+		if (this.closed) return Promise.reject(new Error("Settings storage is closed"));
+		// A read seals the preceding batch: later writes must stay behind it.
+		this.lane.pending = undefined;
 		return this.run(async () => {
 			const adapter = this.app.vault.adapter;
 			// exists() in some host adapters turns permission errors into false.
@@ -66,9 +70,22 @@ export class SettingsStorage {
 	}
 
 	write(value: unknown): Promise<void> {
-		// Serialize before waiting, preserving the exact state accepted by the UI.
+		if (this.closed) return Promise.reject(new Error("Settings storage is closed"));
+		// Snapshot now, never retain the mutable DTO. Only unstarted writes merge.
 		const text = JSON.stringify(value, null, 2);
-		this.lastWrite = this.run(() => this.app.vault.adapter.write(this.path, text));
+		const pending = this.lane.pending;
+		if (pending) {
+			pending.text = text;
+			this.lastWrite = pending.promise;
+			return this.lastWrite;
+		}
+		const batch = { text, promise: Promise.resolve() };
+		batch.promise = this.run(() => {
+			if (this.lane.pending === batch) this.lane.pending = undefined;
+			return this.app.vault.adapter.write(this.path, batch.text);
+		});
+		this.lane.pending = batch;
+		this.lastWrite = batch.promise;
 		return this.lastWrite;
 	}
 

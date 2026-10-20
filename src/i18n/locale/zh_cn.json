@@ -256,7 +256,7 @@
 		"SaveHint": "仅保存配置，不修改笔记。",
 		"EmptyPresets": "暂无预设。可以保存当前查找，或新建一个有名字的规则。",
 		"NoResults": "没有匹配的条目，请尝试其他筛选词。",
-		"SaveConflict": "此预设已被删除。可以选择“另存为预设”以保留草稿。",
+		"SaveConflict": "此预设已在其他位置修改或删除。可以选择“另存为预设”保留草稿，避免覆盖现有规则。",
 		"SelectQuery": "选择查询：{{text}}",
 		"WhitespaceQuery": "纯空白查询（{{count}} 个字符）",
 		"Deleted": "已删除 {{count}} 条记录",
@@ -284,6 +284,7 @@
 		"Back": "返回",
 		"LoadFailed": "Text Finder 无法读取已保存的设置。为保护已有数据，已禁止保存。请检查数据文件后重新加载插件。",
 		"SaveFailed": "Text Finder 无法保存设置或历史。修改保留在内存中，下次修改将重新尝试保存最新状态。",
+		"SubscriberFailed": "Text Finder 无法刷新某个视图，其他视图与保存仍继续。请重新打开受影响的视图。",
 		"CopyFailed": "Text Finder 无法复制查询文字。",
 		"ReuseFailed": "请先打开支持查找的 Markdown 编辑或阅读视图，再复用搜索历史。"
 	}

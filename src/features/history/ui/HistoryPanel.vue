@@ -45,9 +45,12 @@ const filteredPresets = computed(() =>
 		matches(`${item.name}\n${item.search}\n${item.replacement?.text ?? ""}`),
 	),
 );
-const editing = shallowRef<{ id?: string | undefined; name: string; recipe: SearchRecipe } | null>(
-	props.initialRecipe ? { name: "", recipe: copyRecipe(props.initialRecipe) } : null,
-);
+const editing = shallowRef<{
+	id?: string | undefined;
+	name: string;
+	recipe: SearchRecipe;
+	expected?: SearchPreset | undefined;
+} | null>(props.initialRecipe ? { name: "", recipe: copyRecipe(props.initialRecipe) } : null);
 const editor = shallowRef<{ dirty(): boolean; focus(): void }>();
 const discard = shallowRef<"back" | "close" | null>(null);
 const error = shallowRef("");
@@ -196,10 +199,15 @@ const discardDraft = () => {
 	if (closing) props.close();
 	else restoreFocus();
 };
-const start = (recipe: SearchRecipe, name = "", presetId?: string) => {
+const start = (recipe: SearchRecipe, name = "", expected?: SearchPreset) => {
 	if (!viewingItem.value) remember();
 	viewingItem.value = null;
-	editing.value = { name, recipe: copyRecipe(recipe), id: presetId };
+	editing.value = {
+		name,
+		recipe: copyRecipe(recipe),
+		id: expected?.id,
+		expected: expected ? { ...expected, ...copyRecipe(expected) } : undefined,
+	};
 	error.value = "";
 };
 const create = () => {
@@ -217,7 +225,14 @@ const fromHistory = (item: SearchHistoryItem) =>
 		replacement: null,
 	});
 const save = (name: string, recipe: SearchRecipe, copy: boolean) => {
-	if (!props.view.presets?.put(name, recipe, copy ? undefined : editing.value?.id)) {
+	if (
+		!props.view.presets?.put(
+			name,
+			recipe,
+			copy ? undefined : editing.value?.id,
+			copy ? undefined : editing.value?.expected,
+		)
+	) {
 		error.value = i18n.t(
 			props.view.presets?.nameTaken(name, copy ? undefined : editing.value?.id)
 				? "library.DuplicateName"
@@ -406,7 +421,7 @@ watch(discard, (value) => {
 						:items="filteredPresets"
 						:filtered="!!filter"
 						@apply="apply"
-						@edit="(item) => start(item, item.name, item.id)"
+						@edit="(item) => start(item, item.name, item)"
 						@delete="removePreset"
 						@move="(id, before) => view.presets?.move(id, before)"
 					/>

@@ -4,7 +4,7 @@ import { findTextOffsets } from "../../../core/search/text-matching";
 import { HistoryNavigation } from "../../history";
 import { copyRecipe, type SearchRecipe } from "../../presets";
 import type { MatchResult } from "../../../core/search/match-protocol";
-import type { ReplaceResult, SearchCache } from "../../../core/search/types";
+import type { MatchOffset, ReplaceResult, SearchCache } from "../../../core/search/types";
 import { defaultToolbar, type ToolbarAction } from "../model/toolbar";
 import { searchIdentity, queryIdentity, decodeReplacementEscapes } from "../model/query-identity";
 import type { PresentationPort } from "./presentation-port";
@@ -578,6 +578,16 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		if (uiState.cache.index < 0 || uiState.cache.index >= uiState.cache.matches.length)
 			uiState.cache.index = 0;
 	};
+	// Isolate mutable session results once; navigation reuses an immutable publication.
+	const publishedMatches = new WeakMap<MatchOffset[], readonly MatchOffset[]>();
+	const matchSnapshot = (matches: MatchOffset[]) => {
+		let snapshot = publishedMatches.get(matches);
+		if (!snapshot) {
+			snapshot = Object.freeze(matches.map((match) => Object.freeze({ ...match })));
+			publishedMatches.set(matches, snapshot);
+		}
+		return snapshot;
+	};
 	const emitChange = (
 		withCache: boolean = true,
 		extraSpec?: { selection?: { anchor: number; head: number } | undefined },
@@ -595,9 +605,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 					? {
 							visible: uiState.cache.visible,
 							index: uiState.cache.index,
-							matches: validMatches
-								? uiState.cache.matches.map((match) => ({ ...match }))
-								: [],
+							matches: validMatches ? matchSnapshot(uiState.cache.matches) : [],
 						}
 					: undefined,
 				extraSpec?.selection,
@@ -1188,6 +1196,8 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.cache.replace = text;
 		onReplaceChanged();
 	};
+	// A settings change invalidates an uncommitted intent even if changed back.
+	const replacementPreferencesChanged = () => onReplaceChanged();
 	const retrySearch = () => {
 		if (uiState.replacementRetry) uiState.replacementRetry(false);
 		else setFindText(uiState.cache.search);
@@ -1206,6 +1216,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		showFloatingEntry,
 		resetFinderPosition,
 		refreshToolbar,
+		replacementPreferencesChanged,
 		getSearchCache,
 		setVisible,
 		setVisibleFromHistory,

@@ -35,6 +35,7 @@ interface SettingsEffects {
 	refreshToolbars(): void;
 	syncFloatingEntries(): void;
 	refreshAppearance(): void;
+	replacementPreferencesChanged(): void;
 }
 
 /** Synchronous updates and notifications precede a non-blocking save request.
@@ -48,7 +49,10 @@ export class SettingsController {
 		return this.settings();
 	}
 	toggle(key: ToggleKey, value: boolean): void {
+		const changed = this.settings()[key] !== value;
 		this.settings()[key] = value;
+		if (key === "useEscapeCharInReplace" && changed)
+			this.effects.replacementPreferencesChanged();
 		if (key === "finderAutoDock") this.effects.refreshToolbars();
 		if (key === "showFloatingFinderOnOpen" && value) this.effects.syncFloatingEntries();
 		if (key === "enableHistory") {

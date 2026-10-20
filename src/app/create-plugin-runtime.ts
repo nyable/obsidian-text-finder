@@ -16,11 +16,15 @@ export default class TextFinderPlugin extends Plugin {
 	history = new HistoryController(
 		() => this.settings,
 		() => this.saveSettings(),
+		Date.now,
+		(error) => this.reportError("history.SubscriberFailed", error),
 	);
 	presets = new PresetController(
 		() => this.settings,
 		() => this.saveSettings(),
 		generateUniqueId,
+		Date.now,
+		(error) => this.reportError("history.SubscriberFailed", error),
 	);
 	private storage?: SettingsStorage;
 	private unloaded = false;

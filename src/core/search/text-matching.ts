@@ -196,7 +196,9 @@ function expandReplacement(source: string, match: RegExpExecArray, replacement: 
 			groups?: Record<string, string | undefined>;
 		}
 	).groups;
-	return replacement.replace(/\$([$&`']|[0-9]{1,2}|<[^>]*>)/g, (token, key: string) => {
+	const tokens =
+		groups === undefined ? /\$([$&`']|[0-9]{1,2})/g : /\$([$&`']|[0-9]{1,2}|<[^>]*>)/g;
+	return replacement.replace(tokens, (token, key: string) => {
 		switch (key) {
 			case "$":
 				return "$";

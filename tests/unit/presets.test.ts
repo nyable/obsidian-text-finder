@@ -15,6 +15,103 @@ const recipe: SearchRecipe = {
 };
 
 describe("portable presets", () => {
+	it("removes an initially failing subscription instead of leaking a failed mount", () => {
+		const settings = defaultSettings();
+		let calls = 0;
+		const broken = () => {
+			calls++;
+			throw new Error("mount failed");
+		};
+		const history = new HistoryController(
+			() => settings,
+			async () => {},
+		);
+		const presets = new PresetController(
+			() => settings,
+			async () => {},
+			() => "id",
+		);
+		expect(() => history.subscribe(broken)).toThrow("mount failed");
+		expect(() => presets.subscribe(broken)).toThrow("mount failed");
+		history.notify();
+		presets.notify();
+		expect(calls).toBe(2);
+	});
+	it("rejects concurrent stale edits even with identical timestamps, but permits reordering", () => {
+		const settings = { searchPresets: [] as SearchPreset[] };
+		let saves = 0,
+			id = 0;
+		const controller = new PresetController(
+			() => settings,
+			async () => {
+				saves++;
+			},
+			() => String(++id),
+			() => 10,
+		);
+		controller.put("one", recipe);
+		controller.put("two", recipe);
+		const first = controller.list()[0]!;
+		controller.move(first.id, null);
+		expect(controller.put("renamed", { ...recipe, search: "new" }, first.id, first)).toBe(true);
+		const before = saves;
+		expect(controller.put("stale name", recipe, first.id, first)).toBe(false);
+		expect(saves).toBe(before);
+		expect(controller.list().find((item) => item.id === first.id)?.search).toBe("new");
+	});
+	it("isolates failed preset subscribers without skipping saving or other views", () => {
+		const settings = { searchPresets: [] as SearchPreset[] };
+		let fail = false,
+			notified = 0,
+			saved = 0;
+		const errors: unknown[] = [];
+		const controller = new PresetController(
+			() => settings,
+			async () => {
+				saved++;
+			},
+			() => "one",
+			() => 10,
+			(error) => errors.push(error),
+		);
+		controller.subscribe(() => {
+			if (fail) throw new Error("view failed");
+		});
+		controller.subscribe(() => {
+			notified++;
+		});
+		fail = true;
+		expect(controller.put("one", recipe)).toBe(true);
+		expect(notified).toBe(2);
+		expect(saved).toBe(1);
+		expect(errors).toHaveLength(1);
+	});
+	it("isolates failed history subscribers without skipping persistence", () => {
+		const settings = defaultSettings();
+		let fail = false,
+			notified = 0,
+			saved = 0;
+		const errors: unknown[] = [];
+		const controller = new HistoryController(
+			() => settings,
+			async () => {
+				saved++;
+			},
+			() => 10,
+			(error) => errors.push(error),
+		);
+		controller.subscribe(() => {
+			if (fail) throw new Error("view failed");
+		});
+		controller.subscribe(() => {
+			notified++;
+		});
+		fail = true;
+		expect(controller.record("cat")).toBe(true);
+		expect(notified).toBe(2);
+		expect(saved).toBe(1);
+		expect(errors).toHaveLength(1);
+	});
 	it("enforces trimmed case-sensitive names for creation, renaming and undo without saving rejected changes", () => {
 		const settings = { searchPresets: [] as SearchPreset[] };
 		let ids = 0,

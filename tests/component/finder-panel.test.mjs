@@ -2195,6 +2195,31 @@ test("global escape changes cancel pending replacements even after applying a le
 	assert.equal(h.specs.filter((spec) => spec.changes).length, 0);
 });
 
+test("escape preference notifications immediately cancel candidates and changing back cannot revive them", async (t) => {
+	const h = await mountReplacement(t);
+	h.plugin.settings.useEscapeCharInReplace = false;
+	h.component.applyRecipe({
+		search: "cat",
+		options: { regexMode: true, caseSensitive: false, wholeWord: false },
+		replacement: { text: "\\n", interpretEscapes: false },
+	});
+	const pending = h.component.replaceOnce();
+	let cancels = 0;
+	const cancel = h.matcher.cancel.bind(h.matcher);
+	h.matcher.cancel = () => {
+		cancels++;
+		cancel();
+	};
+	h.plugin.settings.useEscapeCharInReplace = true;
+	h.component.replacementPreferencesChanged();
+	assert.equal(cancels, 1);
+	h.plugin.settings.useEscapeCharInReplace = false;
+	h.component.replacementPreferencesChanged();
+	h.matcher.replacements[0].resolve(candidates("\\n"));
+	assert.equal((await pending).changed, false);
+	assert.equal(h.view.editor.getValue(), "cat cat");
+});
+
 for (const action of ["reselect", "clear", "close", "edit"]) {
 	test(`pending scoped replacement cannot commit after ${action}`, async (t) => {
 		const h = await mountReplacement(t);
@@ -2481,6 +2506,26 @@ test("post-commit Worker failure reports applied edit and retry only searches, n
 	);
 	retry.click();
 	await settlePosition();
+	assert.equal(h.matcher.replacements.length, 1);
+	assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
+});
+
+test("escape preference changes after commit preserve rematching without replaying the edit", async (t) => {
+	const h = await mountReplacement(t);
+	const pending = h.component.replaceOnce();
+	h.matcher.replacements[0].resolve(candidates());
+	const result = await pending;
+	h.plugin.settings.useEscapeCharInReplace = !h.plugin.settings.useEscapeCharInReplace;
+	h.component.replacementPreferencesChanged();
+	h.matcher.requests[1].resolve({
+		...matchedCats,
+		matches: [
+			{ from: 0, to: 3, index: 0 },
+			{ from: 5, to: 8, index: 1 },
+		],
+	});
+	assert.equal(await result.navigationCompletion, true);
+	assert.equal(h.view.editor.getValue(), "cat! cat");
 	assert.equal(h.matcher.replacements.length, 1);
 	assert.equal(h.specs.filter((spec) => spec.changes).length, 1);
 });

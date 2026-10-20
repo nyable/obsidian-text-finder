@@ -90,7 +90,7 @@ export function createFinderEditor(
 					? [
 							searchCacheEffect.of({
 								...highlight,
-								matches: [...highlight.matches],
+								matches: highlight.matches,
 								doc: value.doc,
 							}),
 						]

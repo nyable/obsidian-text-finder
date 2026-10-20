@@ -58,7 +58,7 @@ test("new module instances read behind every accepted old write, even with a ser
 	await Promise.all(accepted);
 	await assert.rejects(old.write({ value: 5 }), /closed/);
 	await fresh.flush();
-	assert.deepEqual(writes, [1, 2, 3, 4]);
+	assert.deepEqual(writes, [3, 4]);
 	assert.deepEqual(JSON.parse(disk), { value: 4 });
 });
 
@@ -112,6 +112,43 @@ test("storage distinguishes absence, malformed JSON and I/O failures, and propag
 	assert.deepEqual(await storage.read(), { value: 2 });
 });
 
+test("coalesces a burst behind an active write while reads seal immutable batch boundaries", async () => {
+	const gate = deferred(),
+		started = deferred();
+	let disk = "null";
+	const writes = [];
+	const app = {
+		vault: {
+			adapter: {
+				stat: async () => ({ type: "file" }),
+				read: async () => disk,
+				write: async (_path, text) => {
+					const value = JSON.parse(text).value;
+					writes.push(value);
+					if (value === 0) {
+						started.resolve();
+						await gate.promise;
+					}
+					disk = text;
+				},
+			},
+		},
+	};
+	const old = new SettingsStorage(app, "burst");
+	const first = old.write({ value: 0 });
+	await started.promise;
+	const pending = Array.from({ length: 1000 }, (_, value) => old.write({ value: value + 1 }));
+	const fresh = new SettingsStorage(app, "burst");
+	const before = fresh.read();
+	const last = fresh.write({ value: 1001 });
+	old.close();
+	gate.resolve();
+	assert.deepEqual(await before, { value: 1000 });
+	await Promise.all([first, ...pending, last]);
+	assert.deepEqual(writes, [0, 1000, 1001]);
+	assert.deepEqual(await fresh.read(), { value: 1001 });
+});
+
 test("snapshots are isolated and lanes are scoped by App and data path", async () => {
 	const gate = deferred();
 	let text;
@@ -147,6 +184,37 @@ test("snapshots are isolated and lanes are scoped by App and data path", async (
 	gate.resolve();
 	await write;
 	assert.deepEqual(JSON.parse(text), { nested: [1] });
+});
+
+test("merged callers share the write failure, but newer batches can still recover", async () => {
+	let fail = true;
+	const writes = [];
+	const storage = new SettingsStorage(
+		{
+			vault: {
+				adapter: {
+					write: async (_path, text) => {
+						writes.push(JSON.parse(text).value);
+						if (fail) throw new Error("batch failed");
+					},
+				},
+			},
+		},
+		"merged-failure",
+	);
+	const first = storage.write({ value: 1 });
+	const second = storage.write({ value: 2 });
+	assert.equal(first, second);
+	await Promise.all([
+		assert.rejects(first, /batch failed/),
+		assert.rejects(second, /batch failed/),
+	]);
+	await assert.rejects(storage.flush(), /batch failed/);
+	assert.deepEqual(writes, [2]);
+	fail = false;
+	await storage.write({ value: 3 });
+	await storage.flush();
+	assert.deepEqual(writes, [2, 3]);
 });
 
 test("different paths in the same App do not share a blocked plugin lane", async () => {
