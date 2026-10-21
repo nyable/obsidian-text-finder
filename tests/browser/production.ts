@@ -10,7 +10,10 @@ import { createFinderHost } from "../../src/app/create-finder-host";
 export { nextTick };
 
 /** Production Finder, controller, Worker and renderer; only Obsidian is stubbed. */
-export function mountFixture(target: HTMLElement, { rejectChanges = false } = {}) {
+export function mountFixture(
+	target: HTMLElement,
+	{ rejectChanges = false, partialChanges = false } = {},
+) {
 	const settings = defaultSettings();
 	settings.moveCursorToMatch = false;
 	settings.sourceModeWhenSearch = false;
@@ -19,14 +22,17 @@ export function mountFixture(target: HTMLElement, { rejectChanges = false } = {}
 		extensions: [
 			searchScopeField,
 			EditorState.transactionFilter.of((tr) => (rejectChanges && tr.docChanged ? [] : tr)),
+			EditorState.changeFilter.of(() => (partialChanges ? [0, 3] : true)),
 		],
 	});
 	const editorView = {
 		get state() {
 			return state;
 		},
-		dispatch(spec: Parameters<typeof state.update>[0]) {
-			state = state.update(spec).state;
+		dispatch(
+			spec: Parameters<typeof state.update>[0] | import("@codemirror/state").Transaction,
+		) {
+			state = "startState" in spec ? spec.state : state.update(spec).state;
 		},
 	};
 	const editor = {

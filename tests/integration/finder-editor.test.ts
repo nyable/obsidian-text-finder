@@ -6,6 +6,12 @@ import { createFinderEditor } from "../../src/platform/codemirror/finder-editor"
 import type { EditorContext } from "../../src/platform/codemirror/editor-context";
 import type { Vault } from "obsidian";
 import { searchCacheEffect } from "../../src/platform/codemirror/search-highlight";
+import { createFinderSession } from "../../src/features/finder/application/finder-session";
+import { silentPresentation } from "../../src/features/finder/application/presentation-port";
+import { defaultSettings } from "../../src/features/settings";
+import { HistoryController } from "../../src/features/history";
+import { synchronousMatcher } from "../support/synchronous-matcher";
+import type { FinderHost } from "../../src/features/finder/contracts";
 
 const editors: EditorView[] = [];
 afterEach(() => {
@@ -92,7 +98,11 @@ it("commits once and rejects replay of that snapshot", () => {
 	if (!captured) throw new Error("Missing fixture snapshot");
 	h.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }]);
 	h.set({ ...h.initial, doc: h.initial.editorView.state.doc });
-	expect(h.port.hasCommitted(captured)).toBe(true);
+	expect(h.port.commitResult(captured)).toEqual({
+		changed: true,
+		complete: true,
+		changeCount: 1,
+	});
 	expect(() => h.port.commit(captured, [{ from: 0, to: 3, insert: "bad" }])).toThrow();
 	expect(h.dispatch).toHaveBeenCalledOnce();
 });
@@ -103,10 +113,125 @@ it("distinguishes a filtered transaction from an accepted same-text replacement"
 	const captured = rejected.port.current()!;
 	rejected.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }]);
 	expect(rejected.initial.editorView.state.doc.toString()).toBe("cat cat");
-	expect(rejected.port.hasCommitted(captured)).toBe(false);
+	expect(rejected.port.commitResult(captured)).toEqual({
+		changed: false,
+		complete: false,
+		changeCount: 0,
+	});
 	const accepted = environment();
 	const sameText = accepted.port.current()!;
 	accepted.port.commit(sameText, [{ from: 0, to: 3, insert: "cat" }]);
 	expect(accepted.initial.editorView.state.doc.toString()).toBe("cat cat");
-	expect(accepted.port.hasCommitted(sameText)).toBe(true);
+	expect(accepted.port.commitResult(sameText)).toEqual({
+		changed: true,
+		complete: true,
+		changeCount: 1,
+	});
 });
+
+it("does not confuse partially filtered same-text replacements with full acceptance", () => {
+	const h = environment(EditorState.changeFilter.of(() => [0, 3]));
+	const captured = h.port.current()!;
+	h.port.commit(captured, [
+		{ from: 0, to: 3, insert: "cat" },
+		{ from: 4, to: 7, insert: "cat" },
+	]);
+	expect(h.initial.editorView.state.doc.toString()).toBe("cat cat");
+	expect(h.port.commitResult(captured)).toEqual({
+		changed: true,
+		complete: false,
+		changeCount: null,
+	});
+	expect(h.dispatch).toHaveBeenCalledOnce();
+});
+
+it("runs host filters once and refuses owner changes made during filtering", () => {
+	const filter = vi.fn((tr: import("@codemirror/state").Transaction) => tr);
+	const h = environment(EditorState.transactionFilter.of(filter));
+	h.port.commit(h.port.current()!, [{ from: 0, to: 3, insert: "dog" }]);
+	expect(filter).toHaveBeenCalledOnce();
+	const switchOwner = vi.fn((tr: import("@codemirror/state").Transaction) => {
+		other.set({ ...other.initial, file: { path: "new.md" } as EditorContext["file"] });
+		return tr;
+	});
+	const other = environment(EditorState.transactionFilter.of(switchOwner));
+	const captured = other.port.current()!;
+	expect(() => other.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }])).toThrow(
+		"during replacement filtering",
+	);
+	expect(other.dispatch).not.toHaveBeenCalled();
+	expect(other.port.commitResult(captured)).toEqual({
+		changed: false,
+		complete: false,
+		changeCount: 0,
+	});
+});
+
+it.each(["partial", "rewritten"])(
+	"reports %s host changes without claiming full completion or replaying",
+	(kind) => {
+		const h = environment(
+			kind === "partial"
+				? EditorState.changeFilter.of(() => [0, 3])
+				: EditorState.transactionFilter.of((tr) =>
+						tr.docChanged ? { changes: { from: 0, to: 7, insert: "host text" } } : tr,
+					),
+		);
+		const preferences = defaultSettings();
+		preferences.sourceModeWhenSearch = false;
+		preferences.moveCursorToMatch = false;
+		const host: FinderHost = {
+			preferences: () => preferences,
+			history: new HistoryController(
+				() => preferences,
+				async () => {},
+			),
+			reportError: vi.fn(),
+			mode: () => "source",
+			environment: () => null,
+			environmentClosed: () => false,
+			canRead: () => false,
+			matcher: synchronousMatcher,
+			clearReading() {},
+			activate: () => true,
+			selection: () => null,
+			reading() {
+				throw new Error("Not reading");
+			},
+			openHistory() {},
+			openNativeSearch() {},
+		};
+		const editor = {
+			...h.port,
+			current() {
+				h.set({ ...h.initial, doc: h.initial.editorView.state.doc });
+				return h.port.current();
+			},
+			reveal: vi.fn(),
+		};
+		const session = createFinderSession(host, {
+			editor,
+			presentation: silentPresentation,
+			reactive: (value) => value,
+			tick: async () => {},
+			onMount() {},
+		});
+		session.showReplace("cat");
+		session.setReplacementText("dog");
+		editor.reveal.mockClear();
+		const result = session.replaceAllMatchedText("dog");
+		expect(result).toMatchObject({ changed: true, changeCount: null, status: "failed" });
+		expect(h.initial.editorView.state.doc.toString()).toBe(
+			kind === "partial" ? "cat dog" : "host text",
+		);
+		expect(editor.reveal).not.toHaveBeenCalled();
+		expect(session.state.replacementRetry).toBeNull();
+		expect(session.state.replacementModifiedError).toBe(true);
+		expect(session.state.workerError).toBe(false);
+		expect(host.reportError).toHaveBeenCalledWith(
+			"search.ReplacementModified",
+			expect.any(Error),
+		);
+		expect(h.dispatch.mock.calls.filter(([spec]) => spec && "changes" in spec)).toHaveLength(1);
+	},
+);

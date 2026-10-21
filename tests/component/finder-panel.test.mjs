@@ -105,13 +105,18 @@ function mount(_t, matcher, settings = {}, open = true) {
 			state: EditorState.create({ doc: "cat cat", extensions: [searchScopeField] }),
 			dispatch(spec) {
 				specs.push(spec);
-				this.state = this.state.update({
-					changes: spec.changes,
-					selection: spec.selection,
-					annotations: spec.annotations,
-					effects:
-						spec.effects instanceof stateModule.StateEffect ? spec.effects : undefined,
-				}).state;
+				this.state =
+					spec instanceof stateModule.Transaction
+						? spec.state
+						: this.state.update({
+								changes: spec.changes,
+								selection: spec.selection,
+								annotations: spec.annotations,
+								effects:
+									spec.effects instanceof stateModule.StateEffect
+										? spec.effects
+										: undefined,
+							}).state;
 			},
 		},
 	};
@@ -2005,7 +2010,7 @@ test("whole word toolbar toggle filters counts and synchronous replacement again
 	assert.equal(result.changeCount, 2);
 	assert.equal(result.changed, true);
 	assert.equal(h.view.editor.getValue(), "cat2 dog cat2 cat_name xcat dog-dog");
-	assert.equal(h.specs.filter((spec) => Array.isArray(spec.changes)).length, 1);
+	assert.equal(h.specs.filter((spec) => spec instanceof stateModule.Transaction).length, 1);
 });
 
 test("whole word uses a pressed More button and hiding it does not reset the query option", async (t) => {
@@ -3079,7 +3084,11 @@ for (const [name, invalidate] of [
 		assert.equal(h.specs.length, count);
 		assert.equal(h.scrolls.length, scrolls);
 		assert.equal(
-			h.specs.filter((spec) => spec.changes && spec.changes[0]?.insert === "cat!").length,
+			h.specs.filter(
+				(spec) =>
+					spec instanceof stateModule.Transaction &&
+					spec.newDoc.toString().includes("cat!"),
+			).length,
 			1,
 		);
 	});

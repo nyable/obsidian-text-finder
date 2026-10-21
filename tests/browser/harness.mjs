@@ -1411,6 +1411,37 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 				filtered.destroy();
 				filteredTarget.remove();
 			}
+			const partialTarget = doc.createElement("div");
+			doc.body.append(partialTarget);
+			const partial = mountFixture(partialTarget, { partialChanges: true });
+			try {
+				partial.finder.setVisible(true, "cat");
+				const result = await partial.finder.replaceAllMatchedText("dog");
+				await nextTick();
+				if (
+					result.status !== "failed" ||
+					!result.changed ||
+					result.changeCount !== null ||
+					result.navigationCompletion ||
+					partial.view.editor.getValue() !== "cat dog dog2"
+				)
+					throw Error("partial Worker replacement was reported as complete");
+				if (
+					!partialTarget
+						.querySelector(".nya-search-status")
+						?.textContent.includes("partially applied")
+				)
+					throw Error("partial replacement did not explain the modified write");
+				if (
+					[...partialTarget.querySelectorAll("button")].some((button) =>
+						button.textContent?.includes("Retry synchronously"),
+					)
+				)
+					throw Error("partial replacement offered a synchronous write replay");
+			} finally {
+				partial.destroy();
+				partialTarget.remove();
+			}
 			// Adopt the live owner and force a newly-created conditional control in it.
 			document.body.append(target);
 			h.finder.dockFinder();
@@ -1425,6 +1456,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 				productionWorkerMatch: true,
 				productionWorkerReplacement: true,
 				filteredWorkerReplacement: true,
+				partialWorkerReplacement: true,
 				ownerRealm: true,
 				ime: true,
 				adoptedOwnerCreation: true,

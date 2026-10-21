@@ -87,6 +87,58 @@ function fixture(initialRecipe?: SearchRecipe) {
 }
 
 describe("unified search library", () => {
+	it("releases earlier subscriptions immediately when preset initialization fails", () => {
+		const settings = defaultSettings();
+		const history = new HistoryController(
+			() => settings,
+			async () => {},
+		);
+		const sorted = vi.spyOn(history, "sorted");
+		const presets = new PresetController(
+			() => {
+				throw new Error("preset settings fault");
+			},
+			async () => {},
+			() => "id",
+		);
+		const target = document.createElement("div");
+		document.body.append(target);
+		const error = vi.spyOn(console, "error").mockImplementation(() => {});
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+		let component: ReturnType<typeof mountView> | undefined;
+		try {
+			try {
+				component = mountView(HistoryPanel, target, {
+					view: {
+						preferences: () => settings,
+						controller: history,
+						presets,
+						capture: () => recipe,
+						apply: () => true,
+						reuse: () => true,
+						copy: async () => {},
+						isDisposed: () => false,
+						reportError() {},
+					} satisfies HistoryView,
+					close() {},
+				});
+			} catch (cause) {
+				expect(cause).toEqual(new Error("preset settings fault"));
+			}
+			const calls = sorted.mock.calls.length;
+			expect(calls).toBeGreaterThan(0);
+			history.notify();
+			expect(sorted).toHaveBeenCalledTimes(calls);
+			component?.destroy();
+			history.notify();
+			expect(sorted).toHaveBeenCalledTimes(calls);
+		} finally {
+			component?.destroy();
+			error.mockRestore();
+			warn.mockRestore();
+			target.remove();
+		}
+	});
 	it("marks only the preset delete icon as destructive without losing its name", () => {
 		const h = fixture();
 		const remove = h.target.querySelector<HTMLButtonElement>(".nya-library-delete-icon")!;

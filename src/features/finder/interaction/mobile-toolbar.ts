@@ -2,7 +2,7 @@
  * More stays in its original toolbar; only a suffix of inline actions moves. */
 export function mobileToolbar(node: HTMLElement, target?: HTMLElement) {
 	let destination = target;
-	const win = node.ownerDocument.defaultView;
+	let win = node.ownerDocument.defaultView;
 	let disposed = false,
 		queued = false;
 	const width = (el: HTMLElement) => {
@@ -14,7 +14,9 @@ export function mobileToolbar(node: HTMLElement, target?: HTMLElement) {
 		);
 	};
 	function measure() {
-		if (disposed || !destination || !node.isConnected) return;
+		if (disposed) return;
+		if (win !== node.ownerDocument.defaultView) connect();
+		if (!destination || !node.isConnected) return;
 		const row = node.closest<HTMLElement>(".finder"),
 			input = row?.querySelector<HTMLElement>("textarea");
 		if (!row || !input || row.getBoundingClientRect().width <= 0) return;
@@ -74,13 +76,23 @@ export function mobileToolbar(node: HTMLElement, target?: HTMLElement) {
 			measure();
 		});
 	};
-	const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(schedule) : undefined;
-	const mutation = win ? new win.MutationObserver(schedule) : undefined;
-	const connect = () => {
+	let observer: ResizeObserver | undefined;
+	let mutation: MutationObserver | undefined;
+	const disconnect = () => {
 		observer?.disconnect();
 		mutation?.disconnect();
 		win?.removeEventListener("resize", schedule);
 		win?.visualViewport?.removeEventListener("resize", schedule);
+	};
+	const connect = () => {
+		disconnect();
+		const next = node.ownerDocument.defaultView;
+		if (win !== next || !mutation) {
+			win = next;
+			observer =
+				win && "ResizeObserver" in win ? new win.ResizeObserver(schedule) : undefined;
+			mutation = win ? new win.MutationObserver(schedule) : undefined;
+		}
 		if (destination) {
 			win?.addEventListener("resize", schedule);
 			win?.visualViewport?.addEventListener("resize", schedule);
@@ -105,16 +117,14 @@ export function mobileToolbar(node: HTMLElement, target?: HTMLElement) {
 	schedule();
 	return {
 		update(next?: HTMLElement) {
+			if (disposed) return;
 			destination = next;
 			connect();
 			schedule();
 		},
 		destroy() {
 			disposed = true;
-			observer?.disconnect();
-			mutation?.disconnect();
-			win?.removeEventListener("resize", schedule);
-			win?.visualViewport?.removeEventListener("resize", schedule);
+			disconnect();
 			// Return owned nodes before the parent/keyed component is destroyed.
 			const more = node.querySelector(".nya-toolbar-overflow");
 			destination

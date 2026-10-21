@@ -64,6 +64,7 @@ const {
 	workerError,
 	replacementTask,
 	replacementCommittedError,
+	replacementModifiedError,
 	docked,
 	dockSide,
 	autoDock,
@@ -128,6 +129,7 @@ defineExpose(vm.commands);
 			:synchronousRetry="retrySynchronously"
 			:cancel="() => setVisible(false)"
 			:committed="replacementCommittedError"
+			:modified="replacementModifiedError"
 			:replacing="!!replacementTask && replacementTask.phase !== 'committed'"
 			:rematching="replacementTask?.phase === 'committed'"
 			:nativeFind="props.host.openNativeSearch"

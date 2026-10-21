@@ -17,6 +17,13 @@ export interface EditingSnapshot {
 	readonly doc: DocumentSnapshot;
 }
 
+export interface ReplacementCommitResult {
+	changed: boolean;
+	complete: boolean;
+	/** Unknown when the host changed the document differently from the request. */
+	changeCount: number | null;
+}
+
 export interface EditorPort {
 	ownerFile(): FileIdentity | null;
 	current(): EditingSnapshot | null;
@@ -31,7 +38,7 @@ export interface EditorPort {
 		selection?: { anchor: number; head: number },
 	): void;
 	commit(snapshot: EditingSnapshot, changes: readonly ReplacementChange[]): void;
-	hasCommitted(snapshot: EditingSnapshot): boolean;
+	commitResult(snapshot: EditingSnapshot): ReplacementCommitResult;
 	reveal(
 		snapshot: EditingSnapshot,
 		match: MatchOffset,

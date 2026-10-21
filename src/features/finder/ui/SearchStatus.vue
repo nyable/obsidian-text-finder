@@ -28,6 +28,7 @@ const props = withDefaults(
 		readingMode?: boolean;
 		workerError?: boolean;
 		committed?: boolean;
+		modified?: boolean;
 		replacing?: boolean;
 		rematching?: boolean;
 		synchronousRetry?: () => void;
@@ -37,6 +38,7 @@ const props = withDefaults(
 		readingMode: true,
 		workerError: false,
 		committed: false,
+		modified: false,
 		replacing: false,
 		rematching: false,
 		synchronousRetry: () => {},
@@ -59,10 +61,14 @@ function update(show: boolean, text: string, owner: unknown) {
 }
 function position(node: HTMLElement) {
 	const parent = node.parentElement!;
+	let win = node.ownerDocument.defaultView;
+	let observer: ResizeObserver | undefined;
+	let disposed = false;
 	const measure = () => {
+		if (disposed) return;
+		if (win !== node.ownerDocument.defaultView) connect();
 		const box = parent.getBoundingClientRect();
-		const win = node.ownerDocument.defaultView,
-			viewport = win?.visualViewport;
+		const viewport = win?.visualViewport;
 		const owner = parent.parentElement?.getBoundingClientRect();
 		const top = Math.max(owner?.top ?? 0, viewport?.offsetTop ?? 0) + 8;
 		const bottom =
@@ -75,43 +81,54 @@ function position(node: HTMLElement) {
 		local.above = node.scrollHeight > belowSpace && aboveSpace > belowSpace;
 		node.style.maxHeight = `${Math.max(0, local.above ? aboveSpace : belowSpace)}px`;
 	};
-	const win = node.ownerDocument.defaultView;
-	const observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
-	observer?.observe(node);
-	win?.addEventListener("resize", measure);
+	const disconnect = () => {
+		observer?.disconnect();
+		win?.removeEventListener("resize", measure);
+		win?.visualViewport?.removeEventListener("resize", measure);
+		win?.visualViewport?.removeEventListener("scroll", measure);
+	};
+	const connect = () => {
+		disconnect();
+		win = node.ownerDocument.defaultView;
+		observer = win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
+		observer?.observe(node);
+		win?.addEventListener("resize", measure);
+		win?.visualViewport?.addEventListener("resize", measure);
+		win?.visualViewport?.addEventListener("scroll", measure);
+	};
+	connect();
 	parent.addEventListener("nya-finder-position", measure);
-	win?.visualViewport?.addEventListener("resize", measure);
-	win?.visualViewport?.addEventListener("scroll", measure);
 	measure();
 	return {
+		update: measure,
 		destroy() {
-			observer?.disconnect();
-			win?.removeEventListener("resize", measure);
+			disposed = true;
+			disconnect();
 			parent.removeEventListener("nya-finder-position", measure);
-			win?.visualViewport?.removeEventListener("resize", measure);
-			win?.visualViewport?.removeEventListener("scroll", measure);
 		},
 	};
 }
 onBeforeUnmount(() => clearTimeout(local.timer));
 const message = computed(() =>
-	props.committed
-		? "search.ReplacedNavigationFailed"
-		: props.workerError
-			? "search.WorkerFailed"
-			: props.error
-				? props.error === "timeout"
-					? "search.ReadingTimeout"
-					: "search.ReadingFailed"
-				: props.unsupported
-					? "search.ReadingUnsupported"
-					: props.replacing
-						? "search.ReplacementPending"
-						: props.rematching
-							? "search.ReplacementRematching"
-							: props.readingMode
-								? "search.ReadingPending"
-								: "search.MatchPending",
+	props.modified
+		? "search.ReplacementModified"
+		: props.committed
+			? "search.ReplacedNavigationFailed"
+			: props.workerError
+				? "search.WorkerFailed"
+				: props.error
+					? props.error === "timeout"
+						? "search.ReadingTimeout"
+						: "search.ReadingFailed"
+					: props.unsupported
+						? "search.ReadingUnsupported"
+						: props.replacing
+							? "search.ReplacementPending"
+							: props.rematching
+								? "search.ReplacementRematching"
+								: props.readingMode
+									? "search.ReadingPending"
+									: "search.MatchPending",
 );
 watchEffect(() => update(props.visible && props.pending, props.query, props.context));
 const { delayed, above } = toRefs(local);

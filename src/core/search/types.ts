@@ -83,9 +83,9 @@ export interface ReplaceResult {
 	 */
 	replace: string;
 	/**
-	 * 影响的记录数
+	 * 已确认的替换数；宿主改写／部分过滤后无法确认时为 null。
 	 */
-	changeCount: number;
+	changeCount: number | null;
 	/**
 	 * 替换前的匹配总数量
 	 */

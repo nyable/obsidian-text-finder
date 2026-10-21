@@ -25,6 +25,7 @@
 		"StatusError": "查找暂不可用",
 		"EditorFailed": "无法更新编辑器位置或模式。请在视图就绪后重试。",
 		"ReplacedNavigationFailed": "替换已完成，但定位失败。再次替换前请检查正文。",
+		"ReplacementModified": "宿主仅部分应用或改写了替换。请先检查正文；不会自动重复执行替换。",
 		"Retry": "重试",
 		"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
 		"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",

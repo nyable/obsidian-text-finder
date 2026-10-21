@@ -1,4 +1,4 @@
-import type { EditingSnapshot } from "./editor-port";
+import type { EditingSnapshot, ReplacementCommitResult } from "./editor-port";
 import type { MatchResult } from "../../../core/search/match-protocol";
 import type { ReplaceResult, SearchOptions, SearchRange } from "../../../core/search/types";
 import { findTextOffsets, prepareReplacements } from "../../../core/search/text-matching";
@@ -20,11 +20,11 @@ interface ReplacementEffects {
 	ranges(): readonly SearchRange[] | undefined;
 	prepared(result: Extract<MatchResult, { status: "completed" }>): void;
 	commit(changes: NonNullable<Extract<MatchResult, { status: "completed" }>["changes"]>): void;
-	hasCommitted(): boolean;
+	commitResult(): ReplacementCommitResult;
 	committed(): EditingSnapshot | null;
 	pending(): void;
 	finish(result: MatchResult): boolean | Promise<boolean>;
-	failed(error: unknown, committed: boolean): void;
+	failed(error: unknown, committed: boolean, modified?: boolean): void;
 	clear(): void;
 	noChanges(): void;
 	commitFailed(): void;
@@ -84,15 +84,17 @@ export function runReplacement(
 		try {
 			task.phase = "committing";
 			effects.commit(changes);
-			// dispatch can return normally after a host transaction filter rejects
-			// the edit. Only an accepted document transaction may advance/rematch.
-			if (!effects.hasCommitted()) throw new Error("Replacement transaction was not applied");
+			// Returning from dispatch is not proof that all requested changes survived
+			// host filters. Only the expected document may advance/rematch.
+			if (!effects.commitResult().complete)
+				throw new Error("Replacement transaction was rejected or modified by the host");
 		} catch (error) {
 			task.phase = "prepare";
-			const committed = effects.hasCommitted();
-			result.changed = committed;
-			result.changeCount = committed ? changes.length : 0;
-			effects.failed(error, committed);
+			const commit = effects.commitResult();
+			result.changed = commit.changed;
+			result.changeCount = commit.changeCount;
+			if (commit.changed && !commit.complete) effects.failed(error, true, true);
+			else effects.failed(error, commit.changed);
 			effects.commitFailed();
 			return result;
 		} finally {

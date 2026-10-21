@@ -1,4 +1,5 @@
 import type { TFile, Vault } from "obsidian";
+import { ChangeSet, type Text } from "@codemirror/state";
 import type { EditorContext } from "./editor-context";
 import type {
 	DocumentSnapshot,
@@ -24,6 +25,10 @@ export function createFinderEditor(
 	const documents = new WeakMap<object, DocumentSnapshot>();
 	const files = new WeakMap<object, FileIdentity>();
 	const contexts = new WeakMap<EditingSnapshot, EditorContext>();
+	const commits = new WeakMap<
+		EditingSnapshot,
+		{ expected: Text; count: number; complete: boolean }
+	>();
 	const token = (value: object) => {
 		let identity = tokens.get(value);
 		if (!identity) {
@@ -110,11 +115,43 @@ export function createFinderEditor(
 				current.doc !== captured.doc
 			)
 				throw new Error("Editing context changed before replacement commit");
-			captured.editorView.dispatch({ changes });
+			const state = captured.editorView.state;
+			const requested = ChangeSet.of(changes, captured.doc.length, state.lineBreak);
+			// Resolve host filters once, inspect their actual changes, then dispatch
+			// that exact transaction (never replay the original specs through filters).
+			const transaction = state.update({ changes });
+			const filtered = context();
+			if (
+				captured.editorView.state !== state ||
+				!filtered ||
+				filtered.view !== captured.view ||
+				filtered.editor !== captured.editor ||
+				filtered.editorView !== captured.editorView ||
+				filtered.file !== captured.file ||
+				filtered.doc !== captured.doc
+			)
+				throw new Error("Editing context changed during replacement filtering");
+			commits.set(snapshot, {
+				expected: requested.apply(captured.doc),
+				count: changes.length,
+				complete:
+					JSON.stringify(transaction.changes.toJSON()) ===
+					JSON.stringify(requested.toJSON()),
+			});
+			captured.editorView.dispatch(transaction);
 		},
-		hasCommitted(snapshot) {
-			const value = raw(snapshot);
-			return value.editorView.state.doc !== value.doc;
+		commitResult(snapshot) {
+			const value = raw(snapshot),
+				commit = commits.get(snapshot),
+				doc = value.editorView.state.doc;
+			if (!commit || doc === value.doc)
+				return { changed: false, complete: false, changeCount: 0 };
+			const complete = commit.complete && doc.eq(commit.expected);
+			return {
+				changed: true,
+				complete,
+				changeCount: complete ? commit.count : null,
+			};
 		},
 		reveal(snapshot, match, sourceMode) {
 			const { editor, view } = raw(snapshot);

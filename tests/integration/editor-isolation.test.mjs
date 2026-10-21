@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import * as helper from "../../src/core/search/text-matching";
 import { createFinderSession } from "../../src/features/finder/application/finder-session";
 import { silentPresentation } from "../../src/features/finder/application/presentation-port";
@@ -38,10 +38,13 @@ function editorView(content) {
 			dispatch(spec) {
 				view.transactions.push(spec);
 				// Effects are inspected as snapshots; real StateField is tested separately.
-				this.state = this.state.update({
-					changes: spec.changes,
-					selection: spec.selection,
-				}).state;
+				this.state =
+					spec instanceof Transaction
+						? spec.state
+						: this.state.update({
+								changes: spec.changes,
+								selection: spec.selection,
+							}).state;
 				view.afterDispatch?.(spec);
 			},
 		},

@@ -5,7 +5,9 @@ interface RowAlignment {
 
 /** Measure controls, never the row/input whose width is affected by this spacer. */
 export function alignFinderRows(node: HTMLElement, mobile: boolean, layout: RowAlignment) {
-	const win = node.ownerDocument.defaultView;
+	let win = node.ownerDocument.defaultView;
+	let observer: ResizeObserver | undefined;
+	let disposed = false;
 	const count = node.querySelector<HTMLElement>(".nya-tip");
 	const searchActions = node.querySelector<HTMLElement>(".finder-act");
 	const replaceActions = node.querySelector<HTMLElement>(".replacer-act");
@@ -19,6 +21,8 @@ export function alignFinderRows(node: HTMLElement, mobile: boolean, layout: RowA
 		);
 	};
 	const measure = () => {
+		if (disposed) return;
+		if (win !== node.ownerDocument.defaultView) connect();
 		if (
 			mobile ||
 			!layout.measureEnabled() ||
@@ -52,17 +56,26 @@ export function alignFinderRows(node: HTMLElement, mobile: boolean, layout: RowA
 		);
 		layout.setDimensions(offset, width);
 	};
-	const observer =
-		!mobile && win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
-	for (const element of [count, searchActions, replacementControls])
-		if (element) observer?.observe(element, { box: "border-box" });
-	win?.addEventListener("resize", measure);
+	const disconnect = () => {
+		observer?.disconnect();
+		win?.removeEventListener("resize", measure);
+	};
+	const connect = () => {
+		disconnect();
+		win = node.ownerDocument.defaultView;
+		observer =
+			!mobile && win && "ResizeObserver" in win ? new win.ResizeObserver(measure) : undefined;
+		for (const element of [count, searchActions, replacementControls])
+			if (element) observer?.observe(element, { box: "border-box" });
+		win?.addEventListener("resize", measure);
+	};
+	connect();
 	measure();
 	return {
 		update: measure,
 		destroy() {
-			observer?.disconnect();
-			win?.removeEventListener("resize", measure);
+			disposed = true;
+			disconnect();
 		},
 	};
 }

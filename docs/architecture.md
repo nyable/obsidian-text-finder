@@ -51,7 +51,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 | 查询、替换、选项、可见／折叠、当前项、结果、历史浏览周期 | Finder 会话及 `HistoryNavigation` |
 | 待执行查询和累积导航方向、接受的 promise、matcher 能力 | `QueryLane`，不放进 Vue state |
 | 范围身份、代次、失效保护 | `application/search-scope.ts`；数字范围由 EditorPort 或 ReadingPort 提供 |
-| 替换阶段与提交后重算／定位结果 | `replacement-operation.ts` 和会话，提交后失败不得重放 |
+| 替换阶段与提交后重算／定位结果 | `replacement-operation.ts` 和会话，提交后失败不得重放；EditorPort.commitResult 返回写入、完整性与可确认数量，部分过滤／改写数量为 null |
 | DOM refs、IME、面板焦点／菜单／手势、尺寸／位置 | `useFinderViewModel`、`panel-presentation` 及 interaction 控制器 |
 | 原始 MarkdownView／Editor／CodeMirror doc／文件对象 | app 和 `platform/codemirror/finder-editor.ts`；通过稳定 token 和 DocumentSnapshot 提供身份 |
 | 设置、共享历史及保存可读性封锁 | 插件装配、SettingsController、HistoryController、SettingsStorage |
@@ -74,9 +74,9 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 `runReplacement()` 是同步兼容与 Worker 共用的 prepare → 单次 commit → rematch 用例；会话提供 owner／查询有效性和导航效果，不维护另一条同步写入实现。提交前校验文件／Editor／EditorView／doc、模式、窗口、查询／替换输入及范围代次；`EditorPort.commit()` 在 CodeMirror 边界再次校验原始身份并一次 dispatch。自身提交期间的同步宿主通知不得重入取消或重放。
 
-`ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示提交后重算及定位完成；后续失败只提示“已替换但定位失败”，不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
+`ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示完整提交后重算及定位完成；定位失败提示“已替换但定位失败”，宿主部分过滤／改写则明确提示检查正文，均不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
 
-dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `EditorPort.hasCommitted()` 检查捕获的不可变 CodeMirror doc 是否已更换。宿主过滤／丢弃事务时返回失败、changed=false／changeCount=0，不执行重算定位或额外前进，也不提供自动重放；同值替换仍可产生合法文档事务，不能只比较字符串。真实 CodeMirror 过滤器、纯端口、Finder 组件及浏览器 Worker 回归分别覆盖该边界。
+dispatch 正常返回不等于完整替换：适配器从原始 State 解析一次宿主过滤器，对比实际与请求的 ChangeSet，再提交同一 Transaction，避免过滤器二次执行；过滤后再次校验 owner 身份。`runReplacement()` 读取 `EditorPort.commitResult()`，要求已接受文档事务、变化集合及最终文本均符合预期。完全拒绝返回 changed=false／changeCount=0；部分过滤／改写返回失败、changed=true／changeCount=null，不执行重算定位或额外前进，也不提供重放。即使最终文本相同也须核对实际变化，不能把同值部分接受视为全部成功。真实 CodeMirror 过滤器、纯端口、Finder 组件及浏览器 Worker 回归分别覆盖该边界。
 
 ### Worker
 

@@ -135,7 +135,8 @@ export class SettingsView {
 		const buttons = pages.map((page) => {
 			const button = doc.createElement("button");
 			button.type = "button";
-			button.id = `nya-settings-tab-${page}`;
+			button.id = `nya-settings-tab-${page}-${this.labelId}`;
+			button.dataset.settingsPage = page;
 			button.textContent = i18n.t(`settings.Tabs.${page}`);
 			button.setAttribute("role", "tab");
 			button.setAttribute("aria-controls", panel.id);
@@ -171,7 +172,7 @@ export class SettingsView {
 				button.tabIndex = pages[index] === page ? 0 : -1;
 			});
 			panel.replaceChildren();
-			panel.setAttribute("aria-labelledby", `nya-settings-tab-${page}`);
+			panel.setAttribute("aria-labelledby", buttons[pages.indexOf(page)]!.id);
 			this.renderPage(panel);
 		};
 		select(this.page);
@@ -287,7 +288,7 @@ export class SettingsView {
 			controls.className = "nya-appearance-controls";
 			controls.tabIndex = 0;
 			controls.setAttribute("role", "region");
-			controls.setAttribute("aria-labelledby", "nya-settings-tab-toolbar");
+			controls.setAttribute("aria-labelledby", `nya-settings-tab-toolbar-${this.labelId}`);
 			root.append(controls);
 			this.colors(controls);
 			this.scopeStyles(controls);
@@ -705,18 +706,23 @@ export class SettingsView {
 						row.classList.add("nya-toolbar-dragging");
 						e.preventDefault();
 						const rows = Array.from(list.children) as HTMLElement[];
-						boundary = rows.findIndex((el) => {
-							const box = el.getBoundingClientRect();
-							return e.clientY < box.top + box.height / 2;
-						});
-						if (boundary === -1) boundary = rows.length;
+						boundary = locate(e.clientY);
 						clearMarkers();
 						if (boundary < rows.length)
 							rows[boundary]?.classList.add("nya-drop-before");
 						else rows.at(-1)?.classList.add("nya-drop-after");
 					};
+					const locate = (y: number) => {
+						const rows = Array.from(list.children) as HTMLElement[];
+						const index = rows.findIndex((el) => {
+							const box = el.getBoundingClientRect();
+							return y < box.top + box.height / 2;
+						});
+						return index === -1 ? rows.length : index;
+					};
 					const pointerUp = (e: PointerEvent) => {
 						if (e.pointerId !== event.pointerId) return;
+						if (dragging) boundary = locate(e.clientY);
 						cleanup();
 						if (dragging) move(boundary, "handle");
 					};

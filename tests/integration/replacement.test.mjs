@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Transaction } from "@codemirror/state";
 import { createFinderSession } from "../../src/features/finder/application/finder-session";
 import { createFinderEditor } from "../../src/platform/codemirror/finder-editor";
 import { createFinderHost } from "../../src/app/create-finder-host";
@@ -22,7 +22,14 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 			state: EditorState.create({ doc: content }),
 			dispatch(spec) {
 				if (!spec.changes) return;
-				const changes = Array.isArray(spec.changes) ? spec.changes : [spec.changes];
+				const changes = [];
+				if (spec instanceof Transaction)
+					spec.changes.iterChanges(
+						(from, to, _a, _b, insert) =>
+							changes.push({ from, to, insert: insert.toString() }),
+						true,
+					);
+				else changes.push(...(Array.isArray(spec.changes) ? spec.changes : [spec.changes]));
 				let previousEnd = 0;
 				for (const { from, to } of changes) {
 					assert.ok(
@@ -35,7 +42,8 @@ function createFinder(initialContent, search = "cat", regexMode = false) {
 				for (const { from, to, insert } of [...changes].reverse()) {
 					content = content.slice(0, from) + insert + content.slice(to);
 				}
-				this.state = this.state.update({ changes }).state;
+				this.state =
+					spec instanceof Transaction ? spec.state : this.state.update({ changes }).state;
 			},
 		},
 	};

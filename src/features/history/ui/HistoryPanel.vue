@@ -9,6 +9,7 @@ import { PresetEditor, PresetList } from "../../presets/ui";
 import HistoryList from "./HistoryList.vue";
 import HistoryDetail from "./HistoryDetail.vue";
 import HistorySelectionBar from "./HistorySelectionBar.vue";
+import { Disposables } from "../../../shared/lifecycle/disposables";
 
 const props = withDefaults(
 	defineProps<{
@@ -84,27 +85,38 @@ const restoreFocus = () => {
 		else filterInput.value?.focus();
 	});
 };
-const unsubscribe = props.view.controller.subscribe(() => {
-	history.value = props.view.controller.sorted();
-	const texts = new Set(history.value.map((item) => item.text));
-	selectedTexts.value = new Set([...selectedTexts.value].filter((text) => texts.has(text)));
-	if (viewingItem.value) {
-		viewingItem.value =
-			history.value.find((item) => item.text === viewingItem.value?.text) ?? null;
-		if (!viewingItem.value) restoreFocus();
-	}
-	listSettings.value = { ...props.view.preferences() };
-});
-const unsubscribePresets = props.view.presets?.subscribe(() => {
-	presets.value = props.view.presets?.list() ?? [];
-});
+const subscriptions = new Disposables();
 onBeforeUnmount(() => {
 	disposed = true;
-	unsubscribe();
-	unsubscribePresets?.();
 	clearTimeout(undoTimer);
 	releaseViewport?.();
+	subscriptions.dispose();
 });
+try {
+	subscriptions.add(
+		props.view.controller.subscribe(() => {
+			history.value = props.view.controller.sorted();
+			const texts = new Set(history.value.map((item) => item.text));
+			selectedTexts.value = new Set(
+				[...selectedTexts.value].filter((text) => texts.has(text)),
+			);
+			if (viewingItem.value) {
+				viewingItem.value =
+					history.value.find((item) => item.text === viewingItem.value?.text) ?? null;
+				if (!viewingItem.value) restoreFocus();
+			}
+			listSettings.value = { ...props.view.preferences() };
+		}),
+	);
+	const unsubscribePresets = props.view.presets?.subscribe(() => {
+		presets.value = props.view.presets?.list() ?? [];
+	});
+	if (unsubscribePresets) subscriptions.add(unsubscribePresets);
+} catch (error) {
+	disposed = true;
+	subscriptions.dispose();
+	throw error;
+}
 onMounted(() => {
 	// Use the owner's visual viewport: a mobile keyboard can reduce it without
 	// resizing the layout viewport. Never borrow the main window in a pop-out.

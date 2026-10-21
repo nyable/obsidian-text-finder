@@ -35,7 +35,11 @@ function environment() {
 		publish: vi.fn(),
 		reveal: vi.fn(),
 		restoreMode: vi.fn(),
-		hasCommitted: (captured) => doc !== captured.doc,
+		commitResult: (captured) => ({
+			changed: doc !== captured.doc,
+			complete: doc !== captured.doc,
+			changeCount: writes.at(-1)?.length ?? 0,
+		}),
 		commit(_captured, changes) {
 			writes.push([...changes]);
 			for (const change of [...changes].reverse())

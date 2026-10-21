@@ -14,7 +14,7 @@
 | 使用全局活动编辑器；点击或异步过程可能改变活动视图 | Finder 绑定 owner；文档、文件、编辑器身份失效即拒绝旧结果或写入 | `d4f14be`；`src/app/workspace-runtime.ts:getEditorContext()`、`src/features/finder/application/finder-session.ts:isCurrentContext()`；`tests/integration/editor-isolation.test.mjs` |
 | 只映射旧高亮坐标；正文变化可能改变正则前后顾语义 | 文档变化先清高亮，新结果绑定具体 CodeMirror doc | `d4f14be`；`src/platform/codemirror/search-highlight.ts:textMatchMarker`；`tests/integration/search-highlight.test.mjs` |
 | 历史按排序下标标识；使用统计会重排 | 精确文本身份、keyed DOM，删除不误伤其他选择 | `c9f79cc`；`src/features/history/ui/HistoryPanel.vue:selectedTexts`、`HistoryList.vue`；`tests/component/history-panel.test.mjs` 的排序与选择 |
-| 复制开始就计数或完成后无条件新增；失败／晚完成会污染统计或复活删除项 | 成功后 existing-only 记录；失败不统计 | `0f79463`；`src/features/history/ui/HistoryPanel.vue:copy`、`src/features/history/model/history.ts:record()`；`tests/component/history-panel.test.mjs` 的 clipboard |
+| 复制时更新使用统计；异步完成可能污染计数或复活删除项 | 复制只输出精确文本，成功／失败均不更新时间／次数或保存；销毁后不显示迟到错误 | `src/features/history/ui/HistoryPanel.vue:copy()`；[历史交互](product/interactions.md#历史交互)；`tests/component/history-panel.test.mjs` 的 clipboard |
 | 保存可变对象并发写、等待保存再导航、读取失败写默认值 | 排队前独立快照、串行写入、UI 同步；读取失败禁止覆盖；保存失败不阻断后续任务 | `0f79463`；`src/app/create-plugin-runtime.ts`、`src/platform/obsidian/settings-storage.ts`；`tests/integration/main-settings.test.mjs`、`settings-storage.test.mjs` |
 | 假定内部 livePreview 偏好一定有值；undefined 被当作 false | 缺失／非布尔时不进行模式恢复写入 | `7a0f8fd`、`ad388ea`；`src/platform/obsidian/live-preview.ts`；`tests/component/finder-panel.test.mjs` 的关闭偏好 |
 | 长期缓存 DOM Range；节点虚拟移出时 Range 会塌缩 | 保存节点＋数字端点，挂载后再创建 Range；虚拟移动只重绘 | `326f57b`；`src/features/reading/dom/reading-text.ts:ReadingEndpoint`、`reading-search.ts:paint()`／`scroll()`；`tests/integration/reading-search.test.mjs` 的 detach／reattach |

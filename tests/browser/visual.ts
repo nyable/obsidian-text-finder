@@ -121,8 +121,10 @@ if (scenario === "preview") {
 		get state() {
 			return state;
 		},
-		dispatch(spec: Parameters<typeof state.update>[0]) {
-			state = state.update(spec).state;
+		dispatch(
+			spec: Parameters<typeof state.update>[0] | import("@codemirror/state").Transaction,
+		) {
+			state = "startState" in spec ? spec.state : state.update(spec).state;
 		},
 	};
 	const editor = {

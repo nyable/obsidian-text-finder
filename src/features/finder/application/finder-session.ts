@@ -32,6 +32,7 @@ export interface FinderState {
 	replacementTask: ReplacementTask | null;
 	replacementRetry: ((synchronous: boolean) => void) | null;
 	replacementCommittedError: boolean;
+	replacementModifiedError: boolean;
 	positionRequest: number;
 	disposed: boolean;
 	docked: boolean;
@@ -86,6 +87,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		replacementTask: null,
 		replacementRetry: null,
 		replacementCommittedError: false,
+		replacementModifiedError: false,
 		positionRequest: 0,
 		disposed: false,
 		docked: false,
@@ -273,6 +275,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.readingError = undefined;
 		uiState.workerError = false;
 		uiState.replacementCommittedError = false;
+		uiState.replacementModifiedError = false;
 		uiState.passiveEntry = true;
 		uiState.cache.visible = true;
 		uiState.docked = true;
@@ -633,6 +636,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		if (uiState.replacementTask) cancelEditing();
 		uiState.replacementRetry = null;
 		uiState.replacementCommittedError = false;
+		uiState.replacementModifiedError = false;
 		uiState.positionRequest++;
 		uiState.statusContext = runtime.editor.ownerFile();
 		// The view may update cache.search before the input handler.
@@ -993,21 +997,30 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.readingError = undefined;
 		uiState.workerError = false;
 		uiState.replacementCommittedError = false;
+		uiState.replacementModifiedError = false;
 		const options = { ...uiState.cache.options };
 		const replacement = options.regexMode ? adjustReplaceText(inputText) : inputText;
-		const failed = (error: unknown, committed: boolean) => {
+		const failed = (error: unknown, committed: boolean, modified = false) => {
 			result.status = "failed";
 			result.error = error;
-			result.navigationFailed = committed;
+			result.navigationFailed = committed && !modified;
 			uiState.readingPending = false;
 			uiState.readingError = "failed";
-			uiState.workerError = true;
+			uiState.workerError = !modified;
 			uiState.replacementCommittedError = committed;
+			uiState.replacementModifiedError = modified;
 			uiState.replacementTask = null;
 			if (committed) {
 				// Never offer to replay a write which already committed.
 				uiState.replacementRetry = null;
-				editorSearch.reportError("search.ReplacedNavigationFailed", error);
+				if (modified) {
+					uiState.cache.matches = [];
+					uiState.matchedContext = null;
+				}
+				editorSearch.reportError(
+					modified ? "search.ReplacementModified" : "search.ReplacedNavigationFailed",
+					error,
+				);
 			} else {
 				uiState.replacementRetry = (sync) => {
 					if (
@@ -1092,7 +1105,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 					rememberMatches(context);
 				},
 				commit: (changes) => runtime.editor.commit(context, changes),
-				hasCommitted: () => runtime.editor.hasCommitted(context),
+				commitResult: () => runtime.editor.commitResult(context),
 				committed() {
 					const current = getEditorContext();
 					if (

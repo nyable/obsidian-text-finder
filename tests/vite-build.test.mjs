@@ -202,7 +202,7 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 			return state;
 		},
 		dispatch(spec) {
-			state = state.update(spec).state;
+			state = spec instanceof cmState.Transaction ? spec.state : state.update(spec).state;
 		},
 	};
 	const view = Object.assign(new obsidian.MarkdownView(), {

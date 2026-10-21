@@ -4,5 +4,6 @@ export type {
 	EditingSnapshot,
 	DocumentSnapshot,
 	FileIdentity,
+	ReplacementCommitResult,
 } from "./application/editor-port";
 export type { FinderCommands } from "./application/finder-commands";
