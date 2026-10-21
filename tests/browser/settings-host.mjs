@@ -1,5 +1,16 @@
-// Declarative renderer stand-in: verifies our definitions/DOM, not Obsidian internals.
+// Public settings shell/control stand-in, not Obsidian internals or theme evidence.
 export * from "./host-stub.mjs";
+export class PluginSettingTab {
+	constructor(_app, plugin) {
+		this.containerEl = plugin.containerEl;
+	}
+	getSettingDefinitions() {
+		return [];
+	}
+}
+HTMLElement.prototype.empty = function () {
+	this.replaceChildren();
+};
 export class Setting {
 	constructor(root) {
 		const doc = root.ownerDocument;

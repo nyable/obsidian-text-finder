@@ -32,27 +32,11 @@ const actionIcons: Record<ToolbarAction, string> = {
 
 let nextSettingsId = 0;
 
-export interface AppearancePreview {
-	view: ReturnType<typeof mountView>;
-	root: HTMLElement;
-}
-export type AppearancePart = "preview" | "scope" | ToolbarKind | AppearanceColorKey;
-
 export class SettingsView {
 	private active = false;
 	private get currentPreview() {
-		if (!this.active) return undefined;
-		const preview = this.preview ? this.appearancePreview : this.sharedPreview?.();
-		return preview?.root.ownerDocument === this.containerEl.ownerDocument
-			? preview.view
-			: undefined;
-	}
-	private get currentPreviewRoot() {
-		return this.previewRoot ?? this.sharedPreview?.()?.root;
-	}
-	get appearancePreview(): AppearancePreview | undefined {
-		return this.preview && this.previewRoot
-			? { view: this.preview, root: this.previewRoot }
+		return this.active && this.previewRoot?.ownerDocument === this.containerEl.ownerDocument
+			? this.preview
 			: undefined;
 	}
 	private get settings() {
@@ -73,13 +57,10 @@ export class SettingsView {
 		"replace",
 	]);
 	private sectionId = 0;
-	private colorUpdates = new Set<() => void>();
-	refreshColors() {
-		if (this.active) this.colorUpdates.forEach((update) => update());
-	}
+	private ownerWindow: Window | null = null;
+	private onPageHide = () => this.hide();
 
 	private clearPreview() {
-		this.colorUpdates.clear();
 		this.selectControls.forEach((control) => control.destroy());
 		this.selectControls.clear();
 		this.cleanupSelect = undefined;
@@ -107,33 +88,24 @@ export class SettingsView {
 			historyEnabled: enableHistory,
 		};
 	}
-	refreshOwnPreview() {
-		if (this.active) this.preview?.update(this.previewPreferences());
-	}
 	private refreshPreview() {
 		this.currentPreview?.update(this.previewPreferences());
-		this.previewsChanged?.();
 	}
 
 	constructor(
 		readonly containerEl: HTMLElement,
 		private commands: SettingsCommands,
 		private ensureDocument: (doc: Document) => void,
-		private sharedPreview?: () => AppearancePreview | undefined,
-		private beforeInteraction?: () => void,
-		private previewsChanged?: () => void,
 	) {}
-	closeInteractions() {
-		this.cleanupDrag?.();
-		this.cleanupSelect?.();
-		this.cleanupColor?.();
-	}
 
 	display() {
 		this.cleanupDrag?.();
 		this.clearPreview();
 		this.active = true;
 		const root = this.containerEl;
+		this.ownerWindow?.removeEventListener("pagehide", this.onPageHide);
+		this.ownerWindow = root.ownerDocument.defaultView;
+		this.ownerWindow?.addEventListener("pagehide", this.onPageHide);
 		this.ensureDocument(root.ownerDocument);
 		root.empty();
 		root.classList.add("nya-settings");
@@ -155,6 +127,7 @@ export class SettingsView {
 		tabs.setAttribute("aria-labelledby", tabsLabel.id);
 		layout.append(tabs);
 		const panel = doc.createElement("div");
+		panel.id = `nya-settings-panel-${this.labelId}`;
 		panel.className = "nya-settings-panel";
 		panel.setAttribute("role", "tabpanel");
 		panel.tabIndex = 0;
@@ -165,7 +138,7 @@ export class SettingsView {
 			button.id = `nya-settings-tab-${page}`;
 			button.textContent = i18n.t(`settings.Tabs.${page}`);
 			button.setAttribute("role", "tab");
-			button.setAttribute("aria-controls", `nya-settings-panel-${page}`);
+			button.setAttribute("aria-controls", panel.id);
 			tabs.append(button);
 			button.addEventListener("click", () => select(page));
 			button.addEventListener("keydown", (event) => {
@@ -198,7 +171,6 @@ export class SettingsView {
 				button.tabIndex = pages[index] === page ? 0 : -1;
 			});
 			panel.replaceChildren();
-			panel.id = `nya-settings-panel-${page}`;
 			panel.setAttribute("aria-labelledby", `nya-settings-tab-${page}`);
 			this.renderPage(panel);
 		};
@@ -207,6 +179,8 @@ export class SettingsView {
 
 	hide() {
 		this.active = false;
+		this.ownerWindow?.removeEventListener("pagehide", this.onPageHide);
+		this.ownerWindow = null;
 		this.cleanupDrag?.();
 		this.clearPreview();
 		this.collapsed = new Set(["colors", "scope", "search", "replace"]);
@@ -223,7 +197,6 @@ export class SettingsView {
 			!this.containerEl.contains(trigger)
 		)
 			return;
-		this.beforeInteraction?.();
 		this.cleanupSelect?.();
 		this.cleanupColor?.();
 		this.cleanupDrag?.();
@@ -323,43 +296,6 @@ export class SettingsView {
 		}
 	}
 
-	/** A host-owned definition row renders only its indexed appearance control. */
-	displayAppearancePart(part: AppearancePart) {
-		this.active = true;
-		this.page = "toolbar";
-		this.ensureDocument(this.containerEl.ownerDocument);
-		this.containerEl.classList.add("nya-settings");
-		const doc = this.containerEl.ownerDocument;
-		if (part === "preview") {
-			const root = doc.createElement("div");
-			root.className = "nya-appearance-preview";
-			this.containerEl.append(root);
-			this.previewRoot = root;
-			this.preview = mountView(ToolbarPreview, root, {
-				searchToolbar: this.settings.searchToolbar,
-				replaceToolbar: this.settings.replaceToolbar,
-				defaultRegexMode: this.settings.defaultRegexMode,
-				defaultCaseSensitive: this.settings.defaultCaseSensitive,
-				defaultWholeWord: this.settings.defaultWholeWord,
-				historyEnabled: this.settings.enableHistory,
-			});
-		} else if (part === "scope") this.scopeStyles(this.containerEl);
-		else if (part === "search" || part === "replace") this.toolbar(this.containerEl, part);
-		else {
-			const root = doc.createElement("div");
-			root.className = "nya-color-group";
-			this.containerEl.append(root);
-			this.colorRows(root, appearanceColors[part].group, new Map(), [part]);
-			root.querySelector(".nya-color-row > span")!.textContent =
-				`${i18n.t(`settings.Appearance.${appearanceColors[part].group}`)}: ${i18n.t(`settings.Appearance.${part}`)}`;
-		}
-		for (const section of this.containerEl.querySelectorAll<HTMLElement>("[data-section]")) {
-			const kind = section.dataset.section as "scope" | ToolbarKind;
-			if (this.collapsed.has(kind))
-				section.querySelector<HTMLButtonElement>(".nya-settings-section-toggle")?.click();
-		}
-	}
-
 	private colors(root: HTMLElement) {
 		const doc = root.ownerDocument;
 		const updates = new Map<AppearanceColorKey, () => void>();
@@ -439,10 +375,7 @@ export class SettingsView {
 				swatch.style.backgroundColor = current;
 				reset.disabled = !this.settings.appearanceColors[key];
 			};
-			const previousUpdate = updates.get(key);
-			if (previousUpdate) this.colorUpdates.delete(previousUpdate);
 			updates.set(key, update);
-			this.colorUpdates.add(update);
 			update();
 			picker.addEventListener("click", () => {
 				if (
@@ -452,11 +385,10 @@ export class SettingsView {
 					picker.closest("[hidden]")
 				)
 					return;
-				this.beforeInteraction?.();
 				this.cleanupSelect?.();
 				this.cleanupColor?.();
 				update();
-				const previewRoot = this.currentPreviewRoot!;
+				const previewRoot = this.previewRoot!;
 				const variable = appearanceColors[key].variable;
 				this.cleanupColor = openColorPicker({
 					trigger: picker,
@@ -532,7 +464,6 @@ export class SettingsView {
 						toggle.toggleEl.closest("[hidden]")
 					)
 						return;
-					this.beforeInteraction?.();
 					this.cleanupColor?.();
 					this.cleanupSelect?.();
 					if (!value && details.contains(root.ownerDocument.activeElement))
@@ -564,7 +495,6 @@ export class SettingsView {
 					!details.hidden &&
 					this.containerEl.contains(row),
 				beforeOpen: () => {
-					this.beforeInteraction?.();
 					this.cleanupColor?.();
 					this.cleanupSelect?.();
 					this.cleanupSelect = widthSelect!.close;
@@ -671,7 +601,6 @@ export class SettingsView {
 						this.page === "toolbar" &&
 						this.containerEl.contains(placement),
 					beforeOpen: () => {
-						this.beforeInteraction?.();
 						this.cleanupColor?.();
 						this.cleanupDrag?.();
 						this.cleanupSelect?.();
@@ -713,7 +642,6 @@ export class SettingsView {
 						toggle.onChange((value) => {
 							if (!this.currentPreview || !this.containerEl.contains(toggle.toggleEl))
 								return;
-							this.beforeInteraction?.();
 							this.commands.toggle(defaultKey, value);
 							this.refreshPreview();
 						});
@@ -721,7 +649,6 @@ export class SettingsView {
 				}
 				const move = (boundary: number, controlName: string) => {
 					if (!this.currentPreview || !this.containerEl.contains(row)) return;
-					this.beforeInteraction?.();
 					commit(moveToolbarItem(this.settings[key], index, boundary));
 					render(item.id, controlName);
 					live.textContent = i18n.t("settings.Toolbar.moved", { name });
@@ -750,7 +677,6 @@ export class SettingsView {
 				handle.addEventListener("pointerdown", (event) => {
 					if (event.button !== 0 || !event.isPrimary) return;
 					if (!this.currentPreview || !this.containerEl.contains(handle)) return;
-					this.beforeInteraction?.();
 					this.cleanupSelect?.();
 					this.cleanupDrag?.();
 					let boundary = index;

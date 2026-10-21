@@ -10,7 +10,7 @@ export interface SettingsField {
 	render: (setting: Setting) => void;
 }
 
-/** One source for legacy rows and searchable definitions; writes always use commands. */
+/** Basic fields for the five-tab settings view; writes always use commands. */
 export function settingsFields(
 	commands: SettingsCommands,
 ): Record<BasicSettingsPage, SettingsField[]> {

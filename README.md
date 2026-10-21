@@ -149,7 +149,7 @@ find `(foo)(bar)` and replace with `$2-$1` to produce `bar-foo`.
 
 ## Appearance settings
 
-Obsidian 1.6–1.12 uses the five-tab layout, fixed preview and initially collapsed sections described below. In 1.13+, host groups and an Appearance subpage replace that layout: the preview scrolls with the page, six colors have individual rows, and selection/toolbars start expanded. Editing, saving and canceling work the same way.
+All supported Obsidian versions use the same five tabs: General, Find, Replace, Search history and Appearance. Appearance keeps its preview fixed above independently scrolling controls, with all four sections initially collapsed. Individual settings are not indexed by Obsidian's global settings search.
 
 - Reorder actions and choose Toolbar, More or Hidden in individual action blocks in the Appearance settings tab. The full preview stays at the top while configuration scrolls below; it always displays both find and replace rows and has no interactive controls.
 - Colors, search selection, search toolbar and replacement toolbar sections fold independently and start collapsed. An undo-style icon beside each heading shows a Restore default settings tooltip. Clicking directly restores that section; individual color resets affect only that color, with no confirmation dialog. All resets show the same brief “Default settings restored” notice.

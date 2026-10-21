@@ -11,7 +11,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
  ├─ SettingsStorage                     原目录 data.json、跨重载读写队列
  ├─ HistoryController                   精确文本历史、同步通知／异步保存
  ├─ AppearanceStyles                    每 Document 的显式 CSS 覆盖
- ├─ SettingTab → SettingsView／SettingsDefinitions 旧分类／新声明式分组、共享控件与 Vue 预览
+ ├─ SettingTab → SettingsView 统一五分类、设置控件与 Vue 预览
  │               └─ SettingsController 类型化设置更新与通知策略
  └─ EditorSearch                        workspace 事件、owner 资源及视图工厂
      ├─ registerWorkspaceCommands       命令可用性及 owner 路由
@@ -135,7 +135,7 @@ dispatch 正常返回不等于替换生效：`runReplacement()` 还调用 `Edito
 - 编辑匹配结果发布时按结果集复制并冻结一次，隔离会话内部可变数组；导航复用发布快照身份。`search-highlight.ts` 对有效、排序、不重叠结果仅更新旧／新当前项装饰，其他持久化树节点保留。结果变化或文档修改仍完整重建／清空，公开 CSS 类与单层匹配 mark 不变。发布及装饰元数据用 WeakMap 随集合释放，不持有 owner。
 - 全局转义设置变动通过 SettingsController → workspace → FinderCommands 同步取消准备阶段，不引入全局事件总线；已经提交的替换仍只重算，不重放。
 
-`settings-fields.ts` 共享旧版分类与 1.13+ 声明式行的名称／描述／控件逻辑；`settings-definitions.ts` 生成纯定义，普通设置使用 render 保留控制器副作用、整数提交与非阻塞保存。外观使用声明式子页／颜色行／复杂配置区，不用私有设置索引 API；同 Document 的多个预览按实例集合保留，工具栏修改刷新全部有效预览，交互使用最近仍连接的预览。清理一个实例不丢失其余实例，cleanup、hide 与 owner Window 的 pagehide 幂等释放资源，不依赖窗口销毁时宿主仍调用行 cleanup。分组恢复直接刷新已挂载颜色值，不依赖宿主 update 或默认持久化。搜索用 aliases 定位复杂配置区而非隐藏虚假条目。
+`SettingTab` 只实现 `display()`／`hide()`，所有支持版本由同一 `SettingsView` 渲染五分类；不覆盖新版宿主的 `getSettingDefinitions()`，明确不提供全局设置搜索逐项索引。`settings-fields.ts` 集中基本项名称／描述／控件逻辑，写入仍经 SettingsController 保留副作用、整数提交与非阻塞保存。外观预览只归属当前设置视图，不维护声明式行或共享预览集合；重绘、切分类、hide 与 owner Window 的 pagehide 释放预览、草稿、菜单和监听。分组恢复直接刷新本组控件，不依赖宿主 update 或默认持久化；字段与数据格式不变。
 
 `OwnerRegistry` 按具体 MarkdownView 懒创建资源，读取选区不预建完整 Finder／Worker；同路径分屏独立。释放时记录保留到清理结束，避免 Finder 清理失去 reading 资源。`Disposables` 逆序、幂等并聚合异常，某资源失败不跳过其他资源。workspace／插件公开 dispose 与宿主 onunload 适配；迟到 layout 回调不重建卸载对象。Modal 关闭销毁视图并取消订阅，workspace 卸载关闭全部已跟踪弹窗和菜单。
 

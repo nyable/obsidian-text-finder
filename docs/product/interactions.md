@@ -133,7 +133,7 @@
 
 ## 外观设置与预览
 
-本节固定预览、分类及默认折叠布局适用于 Obsidian 1.6–1.12；1.13+ 的布局差异见“设置搜索与生命周期”。颜色草稿、应用／取消及控件行为两条路径共用。
+本节固定预览、五分类及默认折叠布局适用于所有支持的 Obsidian 版本；不再为 1.13+ 维护独立布局或逐项设置搜索索引。
 
 - `ToolbarPreview.vue` 实时呈现保存的布局与默认选项，不读取已有 Finder 的当前状态，也不连接笔记、匹配器或替换操作。
 - “外观”页将完整预览置于滚动配置区之外，分类导航／预览固定可见，仅颜色与工具栏配置滚动；其他分类不改滚动方式。
@@ -192,14 +192,13 @@
 
 依据：`src/features/finder/application/finder-session.ts:recordSearchToHistory()`／`setVisibleFromHistory()`，`interaction/input-shortcuts.ts`；`src/features/history/ui/HistoryPanel.vue` 的订阅／select／copy；`src/features/history/model/history.ts`；`src/features/settings/ui/settings-view.ts:renderPage()`。数据规则见 [architecture](../architecture.md#持久化数据格式)。
 
-## 设置搜索与生命周期
+## 设置页面与生命周期
 
-- 1.13+ 的全局设置搜索消费公开定义：基础项／六项颜色逐项对应可操作控件，选区和工具栏通过配置区名称／aliases 命中；不隐藏非当前分类定义以免丢失索引，不使用空数组或幽灵搜索行。
-- 新版宿主控制分组及外观子页导航；复杂外观区初次展开，用户仍可折叠。旧版继续五分类。所有开关、历史整数 Enter／blur 提交、排序、颜色应用／取消、单项／分组恢复及工具栏排序均通过同一控制器；保存不阻塞导航，读取失败仍禁止覆盖磁盘。
-- 搜索索引注册不挂载预览、不读盘；外观 render 只在可见页挂载，同 Document 共享预览。开启其他行调色器、位置菜单或拖动会关闭既有交互；行重渲染／子页返回／切 Tab／关闭／插件卸载释放预览、草稿、拖动监听和菜单。旧节点不能再次修改外观配置。
-- 同 Document 出现多个有效预览时，工具栏及默认匹配选项同步刷新所有实例；清理最近实例后仍可使用其余预览，清理最后实例后外观交互失效。不将模拟多实例覆盖等同于宿主设置搜索／多窗口已验收。
+- **用户已批准：**所有支持版本统一为常规／查找／替换／搜索历史／外观五个 Tab，放弃全局设置搜索逐项索引，不维护宿主声明式分组／子页和两套界面。
+- 外观页顶部固定预览、下方配置独立滚动，四组默认折叠。所有开关、历史整数 Enter／blur 提交、排序、颜色应用／取消、单项／分组恢复及工具栏排序均通过同一控制器；保存不阻塞导航，读取失败仍禁止覆盖磁盘。
+- 只在外观 Tab 挂载该设置视图自己的预览，不维护跨行共享预览集合。切换分类保留本次访问的分组折叠状态，hide 后重新访问恢复默认折叠。开启调色器、位置菜单或拖动按既有规则关闭冲突交互；重绘／切 Tab／关闭／owner Window 的 pagehide／插件卸载释放预览、草稿、拖动监听和菜单。旧外观节点不能再次修改配置。
 
-依据：`src/features/settings/ui/settings-definitions.ts`、`settings-fields.ts`、`settings-view.ts`、`tests/integration/main-settings.test.mjs`；宿主搜索结果的真实滚动／聚焦和窗口迁移需实测。
+依据：`src/app/settings-tab.ts`、`src/features/settings/ui/settings-fields.ts`、`settings-view.ts`、`tests/integration/main-settings.test.mjs`；新版宿主实际布局、主题、滚动和窗口迁移需实测。
 
 ## 阅读状态与错误
 

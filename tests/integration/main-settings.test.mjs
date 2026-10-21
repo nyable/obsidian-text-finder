@@ -42,6 +42,10 @@ class PluginSettingTab {
 			this.containerEl.replaceChildren();
 		};
 	}
+	// 1.13+ defaults to display() when no declarative definitions are supplied.
+	getSettingDefinitions() {
+		return [];
+	}
 }
 class Setting {
 	constructor(root) {
@@ -226,69 +230,52 @@ test("floating entry setting defaults off, saves and only enabling applies it to
 	p.onunload();
 });
 
-function definitionRows(items) {
-	return items.flatMap((item) =>
-		item.items ? definitionRows(item.items) : item.render ? [item] : [],
-	);
-}
-function renderDefinition(root, def) {
-	const setting = new Setting(root).setName(def.name).setDesc(def.desc);
-	return { row: setting.settingEl, cleanup: def.render(setting, {}) };
-}
-
-test("1.13 definitions index every basic field without DOM, IO or writes, using the same controls as legacy tabs", async () => {
-	const p = plugin(null);
-	await p.onload();
-	const tab = tabs.at(-1);
-	const before = dom.window.document.body.innerHTML;
-	const read = vi.spyOn(p.app.vault.adapter, "read");
-	const definitions = tab.getSettingDefinitions();
-	assert.equal(dom.window.document.body.innerHTML, before);
-	assert.equal(read.mock.calls.length, 0);
-	assert.equal(p.writes.length, 0);
-	const rows = definitionRows(definitions);
-	assert.equal(
-		rows.filter(
-			(def) =>
-				def.name.startsWith("settings.") &&
-				!def.name.startsWith("settings.Appearance") &&
-				!def.name.startsWith("settings.Toolbar"),
-		).length,
-		12,
-	);
-	for (const page of ["general", "find", "replace", "history"]) {
+for (const modern of [false, true])
+	test(`${modern ? "1.13+" : "older"} host opens the same five-tab settings without an indexed layout or startup writes`, async () => {
+		const p = plugin(null);
+		await p.onload();
+		const tab = tabs.at(-1);
+		const before = dom.window.document.body.innerHTML;
+		const read = vi.spyOn(p.app.vault.adapter, "read");
+		assert.equal(Object.hasOwn(Object.getPrototypeOf(tab), "getSettingDefinitions"), false);
+		if (modern) assert.deepEqual(tab.getSettingDefinitions(), []);
+		else tab.getSettingDefinitions = undefined;
+		assert.equal(dom.window.document.body.innerHTML, before);
+		assert.equal(read.mock.calls.length, 0);
+		assert.equal(p.writes.length, 0);
 		tab.display();
-		if (page !== "general") tab.containerEl.querySelector(`#nya-settings-tab-${page}`).click();
-		for (const name of fields.keys())
-			assert.ok(
-				rows.some((def) => def.name === name),
-				`missing index: ${name}`,
-			);
-	}
-	let refreshes = 0;
-	p.editorSearch = { refreshToolbars: () => refreshes++, dispose() {} };
-	const row = rows.find((def) => def.name === "settings.FinderAutoDock.name");
-	renderDefinition(tab.containerEl, row);
-	fields.get(row.name).change(true);
-	await p.flushSettings();
-	assert.equal(p.settings.finderAutoDock, true);
-	assert.equal(refreshes, 1);
-	assert.equal(p.writes.length, 1);
-	p.onunload();
-});
+		assert.deepEqual(
+			[...tab.containerEl.querySelectorAll('[role="tab"]')].map((el) => el.textContent),
+			["general", "find", "replace", "history", "toolbar"].map(
+				(page) => `settings.Tabs.${page}`,
+			),
+		);
+		const names = new Set();
+		for (const page of ["general", "find", "replace", "history"]) {
+			tab.containerEl.querySelector(`#nya-settings-tab-${page}`).click();
+			for (const el of tab.containerEl.querySelectorAll("[data-name]"))
+				names.add(el.dataset.name);
+		}
+		assert.equal(names.size, 12);
+		tab.containerEl.querySelector("#nya-settings-tab-toolbar").click();
+		assert.ok(tab.containerEl.querySelector(".nya-appearance-preview"));
+		assert.ok(
+			[...tab.containerEl.querySelectorAll(".nya-settings-section-body")].every(
+				(el) => el.hidden,
+			),
+		);
+		assert.equal(read.mock.calls.length, 0);
+		assert.equal(p.writes.length, 0);
+		p.onunload();
+	});
 
-test("declarative history fields retain commit validation, IME safety, notifications and read-failure write protection", async () => {
+test("tabbed history fields retain commit validation, IME safety, notifications and read-failure write protection", async () => {
 	vi.spyOn(console, "error").mockImplementation(() => {});
 	const p = plugin(null);
 	await p.onload();
-	const tab = tabs.at(-1),
-		rows = definitionRows(tab.getSettingDefinitions());
-	const root = tab.containerEl;
-	for (const name of ["HistoryMaxCount", "HistorySortOrder", "HistoryRetention"])
-		renderDefinition(
-			root,
-			rows.find((def) => def.name === `settings.${name}.name`),
-		);
+	const tab = tabs.at(-1);
+	tab.display();
+	tab.containerEl.querySelector("#nya-settings-tab-history").click();
 	const text = fields.get("settings.HistoryMaxCount.name");
 	text.inputEl.value = "4";
 	text.inputEl.dispatchEvent(
@@ -315,218 +302,29 @@ test("declarative history fields retain commit validation, IME safety, notificat
 	broken.app.vault.adapter.read = async () => "{broken";
 	await broken.onload();
 	const failedTab = tabs.at(-1);
-	renderDefinition(
-		failedTab.containerEl,
-		definitionRows(failedTab.getSettingDefinitions()).find(
-			(def) => def.name === "settings.FinderAutoDock.name",
-		),
-	);
+	failedTab.display();
 	fields.get("settings.FinderAutoDock.name").change(true);
 	await settle();
 	assert.equal(broken.writes.length, 0);
 	broken.onunload();
 });
 
-test("declarative appearance rows are searchable, expanded, owner-local and clean up drafts, menus and stale controls", async () => {
-	const p = plugin(null);
-	await p.onload();
-	const tab = tabs.at(-1);
-	const page = tab.getSettingDefinitions().find((item) => item.type === "page");
-	assert.equal(page.name, "settings.Tabs.toolbar");
-	const rows = definitionRows(page.items);
-	assert.equal(rows.length, 10);
-	const preview = renderDefinition(tab.containerEl, rows[0]);
-	assert.ok(preview.row.querySelector(".nya-finder-preview"));
-	assert.equal(rows[0].searchable, false);
-	let appearanceRefreshes = 0;
-	p.refreshAppearance = () => appearanceRefreshes++;
-	const color = renderDefinition(
-		tab.containerEl,
-		rows.find((def) => def.name.endsWith("settings.Appearance.focusBorder")),
-	);
-	const picker = color.row.querySelector(".nya-color-picker");
-	picker.click();
-	assert.ok(document.querySelector(".nya-color-popover"));
-	const value = document.querySelector(".nya-color-value");
-	value.value = "#1234";
-	value.dispatchEvent(new dom.window.Event("input"));
-	assert.deepEqual(p.settings.appearanceColors, {});
-	document.querySelector(".nya-color-popover .mod-cta").click();
-	await p.flushSettings();
-	assert.equal(p.settings.appearanceColors.focusBorder, "#11223344");
-	assert.equal(appearanceRefreshes, 1);
-	const scope = renderDefinition(
-		tab.containerEl,
-		rows.find((def) => def.name === "settings.Appearance.scope"),
-	);
-	assert.equal(scope.row.querySelector(".nya-settings-section-body").hidden, false);
-	fields.get("settings.Appearance.scopeBorderEnabled").toggleEl.click();
-	assert.equal(p.settings.scopeAppearance.border, true);
-	const toolbar = renderDefinition(
-		tab.containerEl,
-		rows.find((def) => def.name === "settings.Toolbar.search"),
-	);
-	assert.equal(toolbar.row.querySelector(".nya-settings-section-body").hidden, false);
-	const more = toolbar.row.querySelector('[data-control="placement"]');
-	picker.click();
-	assert.ok(document.querySelector(".nya-color-popover"));
-	more.click();
-	assert.equal(document.querySelector(".nya-color-popover"), null);
-	assert.ok(document.querySelector(".nya-settings-select-popover"));
-	picker.click();
-	assert.equal(document.querySelector(".nya-settings-select-popover"), null);
-	assert.ok(document.querySelector(".nya-color-popover"));
-	more.click();
-	toolbar.cleanup();
-	assert.equal(document.querySelector(".nya-settings-select-popover"), null);
-	await p.flushSettings();
-	const before = p.writes.length;
-	const defaultToggle = fields.get("settings.Toolbar.defaultEnabled");
-	more.click();
-	assert.equal(document.querySelector(".nya-settings-select-popover"), null);
-	picker.click();
-	assert.ok(document.querySelector(".nya-color-popover"));
-	tab.hide();
-	assert.equal(document.querySelector(".nya-color-popover"), null);
-	assert.equal(preview.row.querySelector(".nya-finder-preview"), null);
-	picker.click();
-	assert.equal(document.querySelector(".nya-color-popover"), null);
-	defaultToggle.change(true);
-	await p.flushSettings();
-	assert.equal(p.writes.length, before);
-	color.cleanup();
-	scope.cleanup();
-	preview.cleanup();
-	p.onunload();
-});
-
-test("multiple same-document previews update together and cleanup retains surviving ownership", async () => {
-	const p = plugin(null);
-	await p.onload();
-	const tab = tabs.at(-1);
-	const rows = definitionRows(
-		tab.getSettingDefinitions().find((item) => item.type === "page").items,
-	);
-	const first = renderDefinition(tab.containerEl, rows[0]);
-	const second = renderDefinition(tab.containerEl, rows[0]);
-	const toolbar = renderDefinition(
-		tab.containerEl,
-		rows.find((def) => def.name === "settings.Toolbar.search"),
-	);
-	const toggle = toolbar.row.querySelector('[data-action="regex"] .nya-toolbar-default button');
-	toggle.click();
-	await tick();
-	for (const preview of [first, second])
-		assert.equal(
-			preview.row.querySelector('[data-preview-action="regex"]').dataset.active,
-			"true",
-		);
-	const color = renderDefinition(
-		tab.containerEl,
-		rows.find((def) => def.name.endsWith("settings.Appearance.focusBorder")),
-	);
-	second.cleanup();
-	color.row.querySelector(".nya-color-picker").click();
-	assert.ok(
-		document.querySelector(".nya-color-popover"),
-		"surviving preview still owns interactions",
-	);
-	first.cleanup();
-	assert.equal(document.querySelector(".nya-color-popover"), null);
-	await p.flushSettings();
-	const accepted = p.writes.length;
-	toggle.click();
-	await p.flushSettings();
-	assert.equal(p.settings.defaultRegexMode, true, "no preview means old controls are inert");
-	assert.equal(p.writes.length, accepted);
-	const replacement = renderDefinition(tab.containerEl, rows[0]);
-	color.row.querySelector(".nya-color-picker").click();
-	assert.ok(document.querySelector(".nya-color-popover"));
-	tab.hide();
-	assert.equal(document.querySelector(".nya-color-popover"), null);
-	for (const item of [first, second, replacement, color, toolbar]) item.cleanup();
-	p.onunload();
-});
-
-test("declarative color group reset refreshes rows without host update and preserves scope preferences", async () => {
-	const p = plugin(null);
-	await p.onload();
-	const tab = tabs.at(-1);
-	p.settings.appearanceColors = { focusBorder: "#123456", scopeBorder: "#654321" };
-	const update = vi.fn();
-	tab.update = update;
-	const page = tab.getSettingDefinitions().find((item) => item.type === "page");
-	const group = page.items.find((item) => item.type === "group");
-	const preview = renderDefinition(tab.containerEl, definitionRows(page.items)[0]);
-	const color = renderDefinition(
-		tab.containerEl,
-		definitionRows(page.items).find((def) =>
-			def.name.endsWith("settings.Appearance.focusBorder"),
-		),
-	);
-	let click;
-	const button = {
-		extraSettingsEl: tab.containerEl,
-		setIcon() {
-			return this;
-		},
-		setTooltip() {
-			return this;
-		},
-		onClick(fn) {
-			click = fn;
-			return this;
-		},
-	};
-	group.extraButtons[0](button);
-	click();
-	await p.flushSettings();
-	assert.deepEqual(p.settings.appearanceColors, { scopeBorder: "#654321" });
-	assert.equal(update.mock.calls.length, 0);
-	assert.equal(color.row.querySelector(".nya-color-reset").disabled, true);
-	assert.equal(p.writes.length, 1);
-	preview.cleanup();
-	color.cleanup();
-	click();
-	assert.equal(p.writes.length, 1, "detached group reset is inert");
-	p.onunload();
-});
-
-test("declarative appearance uses owner labels and rejects a foreign-document preview", async () => {
+test("tabbed appearance owns its popup document and releases previews and stale controls on pagehide", async () => {
 	const p = plugin(null);
 	await p.onload();
 	const tab = tabs.at(-1);
 	const foreign = new JSDOM("<!doctype html><html><body></body></html>", {
 		pretendToBeVisual: true,
 	});
-	const root = foreign.window.document.body;
-	const rows = definitionRows(
-		tab.getSettingDefinitions().find((item) => item.type === "page").items,
-	);
-	const preview = renderDefinition(tab.containerEl, rows[0]);
-	const colorDef = rows.find((def) => def.name.endsWith("settings.Appearance.focusBorder"));
-	const color = renderDefinition(root, colorDef);
-	color.row.querySelector(".nya-color-picker").click();
-	assert.equal(
-		root.querySelector(".nya-color-popover"),
-		null,
-		"foreign preview cannot own this picker",
-	);
-	const ownerPreview = renderDefinition(root, rows[0]);
-	const mainColor = renderDefinition(tab.containerEl, colorDef);
-	mainColor.row.querySelector(".nya-color-picker").click();
-	assert.ok(
-		dom.window.document.querySelector(".nya-color-popover"),
-		"second Document must not steal the first preview",
-	);
-	const scope = renderDefinition(
-		root,
-		rows.find((def) => def.name === "settings.Appearance.scope"),
-	);
-	const toolbar = renderDefinition(
-		root,
-		rows.find((def) => def.name === "settings.Toolbar.search"),
-	);
+	const root = tab.containerEl;
+	foreign.window.document.body.append(root);
+	tab.display();
+	root.querySelector("#nya-settings-tab-toolbar").click();
+	root.querySelector('[data-section="colors"] .nya-settings-section-toggle').click();
+	const picker = root.querySelector(".nya-color-picker");
+	picker.click();
+	assert.ok(foreign.window.document.querySelector(".nya-color-popover"));
+	assert.equal(document.querySelector(".nya-color-popover"), null);
 	for (const el of root.querySelectorAll("[aria-labelledby], [aria-controls]")) {
 		for (const attr of ["aria-labelledby", "aria-controls"]) {
 			for (const id of (el.getAttribute(attr) ?? "").split(/\s+/).filter(Boolean))
@@ -542,28 +340,25 @@ test("declarative appearance uses owner labels and rejects a foreign-document pr
 		root.querySelector("[data-section][aria-label], .nya-color-group[aria-label]"),
 		null,
 	);
-	assert.ok(color.row.querySelector(".nya-color-picker").getAttribute("aria-label"));
-	color.row.querySelector(".nya-color-picker").click();
-	assert.ok(root.querySelector(".nya-color-popover"));
-	assert.equal(tab.containerEl.querySelector(".nya-color-popover"), null);
-	preview.cleanup();
-	assert.ok(
-		root.querySelector(".nya-color-popover"),
-		"old preview cleanup cannot destroy the replacement",
-	);
+	assert.ok(picker.getAttribute("aria-label"));
+	await p.flushSettings();
+	const writes = p.writes.length;
+	const toggle = root.querySelector('[data-action="regex"] .nya-toolbar-default button');
 	foreign.window.dispatchEvent(new foreign.window.Event("pagehide"));
-	assert.equal(root.querySelector(".nya-color-popover"), null);
+	assert.equal(foreign.window.document.querySelector(".nya-color-popover"), null);
 	assert.equal(root.querySelector(".nya-finder-preview"), null);
-	color.row.querySelector(".nya-color-picker").click();
-	assert.equal(root.querySelector(".nya-color-popover"), null);
+	picker.click();
+	toggle.click();
+	await p.flushSettings();
+	assert.equal(foreign.window.document.querySelector(".nya-color-popover"), null);
+	assert.equal(p.writes.length, writes);
+	assert.equal(p.settings.defaultRegexMode, false);
+	tab.hide();
+	tab.display();
+	assert.ok(root.querySelector(".nya-finder-preview"));
+	assert.ok([...root.querySelectorAll(".nya-settings-section-body")].every((el) => el.hidden));
 	p.onunload();
-	assert.equal(root.querySelector(".nya-color-popover"), null);
 	assert.equal(root.querySelector(".nya-finder-preview"), null);
-	color.cleanup();
-	mainColor.cleanup();
-	ownerPreview.cleanup();
-	scope.cleanup();
-	toolbar.cleanup();
 	foreign.window.close();
 });
 function resetSection(section) {
@@ -863,16 +658,13 @@ test("global escape settings route immediate replacement invalidation through th
 		dispose() {},
 	};
 	const tab = tabs.at(-1);
-	const row = definitionRows(tab.getSettingDefinitions()).find(
-		(def) => def.name === "settings.UseEscapeCharInReplace.name",
-	);
-	const rendered = renderDefinition(tab.containerEl, row);
+	tab.display();
+	tab.containerEl.querySelector("#nya-settings-tab-replace").click();
 	const control = fields.get("settings.UseEscapeCharInReplace.name");
 	control.change(false);
 	control.change(true);
 	control.change(true);
 	assert.equal(invalidations, 2);
-	rendered.cleanup?.();
 	await p.flushSettings();
 	p.onunload();
 });

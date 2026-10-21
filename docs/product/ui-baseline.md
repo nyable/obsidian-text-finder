@@ -35,7 +35,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 ## 当前布局与主题事实
 
-**设置版本分支：**下表五分类和固定预览描述适用于 Obsidian 1.6–1.12 的旧渲染路径。1.13+ 使用宿主声明式分组，常规项在顶部、查找／替换／历史分组及外观子页；外观预览位于页首并随页滚动，六项颜色独立行，选区及两套工具栏初次展开且保留折叠／恢复。`.setting-item.nya-settings-definition` 只重置自定义行布局，不影响其他宿主设置，不新增容器 aria-label。旧分类截图不证明新版设置页的宿主视觉通过。依据：`src/features/settings/ui/settings-definitions.ts`、`settings-view.ts`、`src/styles/index.scss`。
+**设置统一布局：**按用户批准，所有支持版本均使用下表的五分类、固定预览和默认折叠布局，不再维护 1.13+ 声明式分组／外观子页或全局设置搜索逐项索引。移除仅服务声明式行的局部 CSS，其余设置与 Finder 公开样式保持。模拟截图不证明新版宿主视觉通过。依据：`src/app/settings-tab.ts`、`src/features/settings/ui/settings-view.ts`、`src/styles/index.scss`。
 
 | 区域 | 源码事实 | 依据 |
 | --- | --- | --- |

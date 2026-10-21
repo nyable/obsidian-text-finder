@@ -108,13 +108,6 @@ body {
 }
 
 // Settings-only styles: never change the finder or Obsidian's other settings pages.
-.setting-item.nya-settings-definition {
-	display: block;
-	min-width: 0;
-	.nya-settings-section-header h3 {
-		margin: 0;
-	}
-}
 .nya-settings {
 	&.nya-settings--appearance {
 		height: 100%;
