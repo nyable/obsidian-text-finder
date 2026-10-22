@@ -55,19 +55,13 @@ const componentStyles = (
 	)
 ).flat();
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>");
-const style = dom.window.document.createElement("style");
+const style = document.createElement("style");
 // Simulate host mobile textarea metrics before the plugin styles. jsdom does
 // not faithfully resolve specificity between separately injected stylesheets.
 style.textContent =
 	"body.is-mobile textarea { padding: 12px 10px; line-height: 32px; min-height: 52px; height: 52px; box-sizing: content-box; }\n" +
 	componentStyles.join("\n");
-dom.window.document.head.append(style);
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.CustomEvent = dom.window.CustomEvent;
-globalThis.Element = dom.window.Element;
-globalThis.SVGElement = dom.window.SVGElement;
+document.head.append(style);
 
 function createPanel(target, owner, host, cid) {
 	return mountFinder(target, {
@@ -232,6 +226,54 @@ function setReplacement(h, value) {
 	assert.ok(input, "replacement input must be mounted");
 	input.value = value;
 	input.dispatchEvent(new input.ownerDocument.defaultView.Event("input", { bubbles: true }));
+}
+
+for (const entry of ["single", "all", "button", "enter"]) {
+	test(`readOnly refuses ${entry} replacement while keeping real Finder search and navigation`, async () => {
+		const h = mount();
+		const cm = h.view.editor.cm;
+		cm.state = EditorState.create({
+			doc: "cat cat",
+			extensions: [searchScopeField, EditorState.readOnly.of(true)],
+		});
+		h.component.showReplace("cat");
+		await tick();
+		setReplacement(h, "dog");
+		h.component.matchAgain(false);
+		await settlePosition();
+		assert.equal(h.component.getSearchCache().matches.length, 2);
+		h.component.toNextMatch();
+		await settlePosition();
+		assert.equal(h.component.getSearchCache().index, 1);
+		h.scrolls.length = 0;
+		h.specs.length = 0;
+		if (entry === "single" || entry === "all") {
+			const result = await (entry === "single"
+				? h.component.replaceOnce()
+				: h.component.replaceAllMatchedText("dog"));
+			assert.equal(result.changed, false);
+			assert.equal(result.changeCount, 0);
+			assert.equal(result.status, "failed");
+		} else if (entry === "button") {
+			h.target.querySelector('[data-toolbar-action="replace"]').click();
+		} else {
+			h.target.querySelector(".replacer textarea").dispatchEvent(
+				new window.KeyboardEvent("keydown", {
+					key: "Enter",
+					code: "Enter",
+					bubbles: true,
+				}),
+			);
+		}
+		await settlePosition();
+		assert.equal(cm.state.doc.toString(), "cat cat");
+		assert.equal(
+			h.specs.some((spec) => "changes" in spec),
+			false,
+		);
+		assert.deepEqual(h.scrolls, []);
+		assert.equal(h.component.getSearchCache().index, 1);
+	});
 }
 
 test("preset application preserves exact scope, does not write, and follows global escape settings", async (t) => {
@@ -657,14 +699,19 @@ test("compact entry uses quiet theme surfaces, rounded interactions and unchange
 		const css = window.getComputedStyle(node),
 			buttonCss = window.getComputedStyle(button);
 		assert.equal(css.backgroundColor, "var(--background-secondary)");
-		assert.equal(css.borderColor, "var(--background-modifier-border)");
+		// jsdom 30 resolves unset var() border colors to currentColor.
+		// Verify the theme binding in compiled CSS; Chromium covers its painting.
+		assert.match(
+			style.textContent,
+			/\.nya-finder--docked[^{}]*\{[^}]*border-color:\s*var\(--background-modifier-border\)/,
+		);
 		assert.equal(css.borderRadius, "8px");
 		assert.equal(css.boxShadow, "none");
 		assert.equal(css.width, mobile ? "40px" : "30px");
 		assert.equal(css.height, mobile ? "40px" : "30px");
 		assert.equal(buttonCss.color, "var(--text-normal)");
-		assert.equal(window.getComputedStyle(tab).borderRadius, "inherit");
-		assert.equal(buttonCss.borderRadius, "inherit");
+		assert.equal(window.getComputedStyle(tab).borderRadius, css.borderRadius);
+		assert.equal(buttonCss.borderRadius, css.borderRadius);
 		assert.equal(button.getAttribute("aria-label"), null);
 		assert.equal(button.getAttribute("title"), null);
 		assert.ok(document.getElementById(button.getAttribute("aria-labelledby"))?.textContent);
@@ -1424,7 +1471,7 @@ test("mobile inputs override host padding and line height without hiding multi-l
 		const css = window.getComputedStyle(input);
 		assert.equal(css.boxSizing, "border-box");
 		assert.equal(css.height, "30px");
-		assert.equal(css.minHeight, "0");
+		assert.equal(parseFloat(css.minHeight), 0);
 		assert.equal(css.lineHeight, "20px");
 		assert.equal(css.fontSize, "16px");
 		assert.equal(css.paddingTop, "4px");
@@ -1502,6 +1549,7 @@ test("mobile center grip drags directly and cancels without making counters or c
 	}
 	sendPointer(handle.querySelector(".nya-move-bar"), "pointerdown", 200, 70);
 	sendPointer(document, "pointermove", 220, 120);
+	await new Promise((resolve) => window.requestAnimationFrame(resolve));
 	assert.equal(node.style.translate, "20px 50px");
 	assert.equal(window.getComputedStyle(node).opacity, "0.8");
 	sendPointer(document, "pointercancel", 220, 120);
@@ -2180,6 +2228,34 @@ async function mountReplacement(t) {
 	setReplacement(h, "cat!");
 	return { ...h, matcher };
 }
+
+test("readOnly enabled while a replacement candidate is pending refuses the late write", async (t) => {
+	const h = await mountReplacement(t);
+	const pending = h.component.replaceOnce();
+	const cm = h.view.editor.cm;
+	cm.dispatch({
+		effects: stateModule.StateEffect.appendConfig.of(EditorState.readOnly.of(true)),
+	});
+	h.specs.length = 0;
+	h.scrolls.length = 0;
+	h.matcher.replacements[0].resolve(candidates());
+	const result = await pending;
+	await settlePosition();
+	assert.equal(result.changed, false);
+	assert.equal(result.changeCount, 0);
+	assert.equal(result.status, "failed");
+	assert.equal(cm.state.doc.toString(), "cat cat");
+	assert.equal(
+		h.specs.some((spec) => "changes" in spec),
+		false,
+	);
+	assert.deepEqual(h.scrolls, []);
+	assert.equal(
+		h.matcher.replacements.length,
+		1,
+		"a rejected write is not automatically replayed",
+	);
+});
 
 test("global escape changes cancel pending replacements even after applying a legacy preset", async (t) => {
 	const h = await mountReplacement(t);
@@ -3780,7 +3856,18 @@ test("default toolbar keeps inline order and geometry with selection in More", a
 	await tick();
 	assert.ok(button.classList.contains("nya-btn--active"));
 	assert.equal(button.getAttribute("aria-pressed"), "true");
-	assert.equal(window.getComputedStyle(button).backgroundColor, "rgba(36, 137, 219, 0.51)");
+	// Measure the actual active classes without jsdom 30's synthetic click/hover
+	// state. The real control's state is checked above; Chromium covers painting.
+	const notHovered = button.cloneNode(true);
+	button.after(notHovered);
+	try {
+		assert.equal(
+			window.getComputedStyle(notHovered).backgroundColor,
+			"rgba(36, 137, 219, 0.51)",
+		);
+	} finally {
+		notHovered.remove();
+	}
 	button.click();
 	await tick();
 	assert.ok(!button.classList.contains("nya-btn--active"));

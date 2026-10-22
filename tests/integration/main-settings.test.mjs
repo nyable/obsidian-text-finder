@@ -12,10 +12,8 @@ vi.mock("../../src/i18n", () => ({
 }));
 vi.mock("../../src/app/workspace-runtime", () => ({ editorExtensionProvider() {} }));
 
-const dom = new JSDOM("<!doctype html><html><body></body></html>", { pretendToBeVisual: true });
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.CustomEvent = dom.window.CustomEvent;
+// Use Vitest's owner realm rather than replacing Window's read-only document.
+const dom = { window };
 const notices = [];
 const tabs = [];
 const fields = new Map();

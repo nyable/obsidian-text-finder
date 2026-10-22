@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { nextTick } from "vue";
-import { i18n } from "../../src/i18n";
+import { i18n, initializeLanguage } from "../../src/i18n";
 import { mountView } from "../../src/shared/ui/mount-view";
 import HistoryList from "../../src/features/history/ui/HistoryList.vue";
 import PresetList from "../../src/features/presets/ui/PresetList.vue";
@@ -12,12 +12,17 @@ vi.mock("../../src/platform/obsidian/date-format", () => ({
 	formatRelativeDate: () => "recent",
 }));
 
-for (const language of ["en", "zh_cn"]) {
+for (const [language, locale] of [
+	["en", "en"],
+	["zh_cn", "zh-cn"],
+]) {
 	test(`real ${language} interpolation preserves exact text in names and announcements without HTML`, async () => {
-		await i18n.changeLanguage(language);
+		initializeLanguage(locale);
+		await nextTick();
+		assert.equal(i18n.language, language);
 		const target = document.createElement("div");
 		document.body.append(target);
-		const text = `a < b && x > 0 " ' <img src=x onerror=alert(1)>`;
+		const text = `a < b && x > 0 " ' <img src=x onerror=alert(1)> {{count}} $t(secret) $&`;
 		const history = mountView(HistoryList, target, {
 			history: [{ text, count: 1, createdAt: 0, lastUsedAt: 0 }],
 			settings: { historySortOrder: "lastUsedAt" },

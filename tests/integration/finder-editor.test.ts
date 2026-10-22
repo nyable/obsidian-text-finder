@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from "vitest";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { createFinderEditor } from "../../src/platform/codemirror/finder-editor";
 import type { EditorContext } from "../../src/platform/codemirror/editor-context";
@@ -106,6 +106,46 @@ it("commits once and rejects replay of that snapshot", () => {
 	expect(() => h.port.commit(captured, [{ from: 0, to: 3, insert: "bad" }])).toThrow();
 	expect(h.dispatch).toHaveBeenCalledOnce();
 });
+it.each(["initial", "after capture"])("rejects readOnly enabled %s without writing", (when) => {
+	const permission = new Compartment();
+	const filter = vi.fn((tr: import("@codemirror/state").Transaction) => tr);
+	const h = environment([
+		permission.of(EditorState.readOnly.of(when === "initial")),
+		EditorState.transactionFilter.of(filter),
+	]);
+	const captured = h.port.current()!;
+	if (when === "after capture")
+		h.initial.editorView.dispatch({
+			effects: permission.reconfigure(EditorState.readOnly.of(true)),
+		});
+	h.dispatch.mockClear();
+	filter.mockClear();
+	expect(() => h.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }])).toThrow("read-only");
+	expect(h.initial.editorView.state.doc.toString()).toBe("cat cat");
+	expect(h.dispatch).not.toHaveBeenCalled();
+	expect(filter).not.toHaveBeenCalled();
+	expect(h.port.commitResult(captured)).toEqual({
+		changed: false,
+		complete: false,
+		changeCount: 0,
+	});
+});
+
+it("keeps highlight publication available in readOnly and does not treat editable as permission", () => {
+	const readOnly = environment(EditorState.readOnly.of(true));
+	readOnly.port.publish(readOnly.port.current()!, {
+		visible: true,
+		index: 0,
+		matches: [{ from: 0, to: 3, index: 0 }],
+	});
+	expect(readOnly.dispatch).toHaveBeenCalledOnce();
+	expect(readOnly.initial.editorView.state.doc.toString()).toBe("cat cat");
+	const notEditable = environment(EditorView.editable.of(false));
+	const captured = notEditable.port.current()!;
+	notEditable.port.commit(captured, [{ from: 0, to: 3, insert: "dog" }]);
+	expect(notEditable.port.commitResult(captured).complete).toBe(true);
+});
+
 it("distinguishes a filtered transaction from an accepted same-text replacement", () => {
 	const rejected = environment(
 		EditorState.transactionFilter.of((tr) => (tr.docChanged ? [] : tr)),

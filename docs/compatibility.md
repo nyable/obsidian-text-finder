@@ -10,6 +10,7 @@
 - 开发 Node／pnpm、SDK 和依赖版本以 `.node-version`、`package.json`、`pnpm-lock.yaml` 为准，不在此复制版本清单。
 - 最低宿主版本为 1.6.0，与生产使用的公开 `Menu.forEvent()`（SDK 标注 since 1.6.0）对齐；`setTooltip()` 为 1.4.4，菜单分组／图标等更早。开发 SDK 版本不是最低运行版本，不因 API 类型覆盖而升级所有依赖。阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与最低版本、开发 SDK 是不同证据，不能推定 1.6.0 的阅读私有形状或全部运行时能力已实测。
 - Vite／Rolldown 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron／Node 内建模块为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。主构建与内嵌 Worker／调色器均显式 target ES2018，不代表所有宿主运行时 API 可用。
+- 依赖升级以最新稳定且满足 peer／宿主契约的组合为准：CodeMirror state/view 对齐开发 SDK 的精确 peer，TypeScript 遵守 typescript-eslint 支持范围，Node 类型跟随开发 Node 主版本。Lucide 新包 `@lucide/vue` 改变现有图标轮廓，未经独立视觉批准仍保留旧包；不能通过更新截图或放宽比较完成依赖升级。
 
 依据：`src/platform/obsidian/preview-renderer.ts:rendererFor()` 的私有形状说明、`manifest.json`、`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`pnpm-workspace.yaml`。
 
@@ -33,6 +34,7 @@
 | Obsidian setTooltip／aria-label 自动悬浮提示 | 控件功能说明 | 用户反馈确认宿主会由 aria-label 产生提示；非操作容器改为 aria-labelledby 标题引用，真实操作保留提示。自动测试检查标签结构，不证明宿主提示实际位置／消失时机 | `src/features/settings/ui/settings-view.ts:section()`、`color-picker.ts`、`src/features/finder/ui/FinderToolbar.vue`、`tests/integration/main-settings.test.mjs` |
 | DOM combobox／listbox、owner Window 视口与焦点 | 外观页位置下拉 | body 挂载避免滚动裁切，限制视口并上翻，关闭／销毁清监听；jsdom 验证导航、提交、清理与模拟定位，不证明 Obsidian 主题绘制、触屏、读屏或默认开启的实际视觉对齐 | `src/features/settings/ui/settings-select.ts`、`settings-view.ts`、`tests/component/settings-select.test.mjs`、`tests/integration/main-settings.test.mjs` |
 | 内部 `editor.cm` | CodeMirror 文档、事务及高亮 | 缺失时返回无编辑上下文，不向其他活动编辑器借用目标 | `src/app/workspace-runtime.ts:getEditorContext()` |
+| CodeMirror `EditorState.readOnly` | 替换写入资格 | 提交时检查当前 state，拒绝只读正文写入；查找／高亮／导航仍可用，不把 `EditorView.editable` 当作同义权限。不是文件系统权限或宿主额外锁定能力的替代 | `src/platform/codemirror/finder-editor.ts:commit()`、`tests/integration/finder-editor.test.ts`、`tests/component/finder-panel.test.mjs` |
 | CodeMirror layer／mark DOM client rects／lineBlockAt／coordsAtPos／SVG | 搜索选区可选外轮廓、换行匹配标记 | 测量已渲染文字；同范围完整选中且可见的普通空白行依据源码及实际行坐标补轮廓连接，真实换行匹配用独立 `↵` layer。拒绝折叠／替换块、隐藏坐标与歧义 bidi 连接；不以矩形猜测写入范围。旧宿主无 layer 保留背景／文字高亮；不可用行测量不补几何。实际字体、缩放、行尾裁切、引用／列表、实时预览和移动绘制需实测；SVG／marker 不拦截输入，资源随 owner layer 清理 | `src/platform/codemirror/editor-geometry.ts`、`scope-geometry.ts`、`search-highlight.ts`、`search-scope.ts`、`tests/integration/editor-whitespace.test.mjs` |
 | Pointer Events／CSS translate／VisualViewport／safe-area env／ResizeObserver | Finder 临时拖动与贴边、菜单和状态避让 | owner 可见边界与视口取交集；VisualViewport 缺失回退 innerWidth／innerHeight，Observer 缺失仍处理窗口事件；销毁清监听。窗口迁移重建位置控制器，工具栏／行对齐／状态浮层更新或测量时释放旧 Window 资源并绑定新 owner；临时坐标不跨 Document 保留。jsdom 不证明软键盘动画、缩放、系统手势、拖动主题绘制或触屏不误触 | `src/features/finder/interaction/panel-presentation.ts`、`finder-position.ts`、`mobile-toolbar.ts`、`row-alignment.ts`、`src/features/finder/ui/FinderToolbar.vue`、`SearchStatus.vue` |
 | Pointer Capture／requestAnimationFrame | 拖动指针保持及帧合并 | 捕获缺失／失败回退 Document 监听；丢失捕获取消，结束／销毁释放捕获和待绘制帧。无 rAF 时同步更新缓存坐标。自动测试可证明无长按和合并机制，不能把“跟手”实机主观验收写成通过 | `src/features/finder/interaction/finder-position.ts`、`tests/unit/finder-position.test.mjs` |

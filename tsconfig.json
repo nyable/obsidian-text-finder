@@ -1,8 +1,7 @@
 {
 	"compilerOptions": {
 		"types": ["node"],
-		"baseUrl": ".",
-		"paths": { "@/*": ["src/*"] },
+		"paths": { "@/*": ["./src/*"] },
 		"module": "ESNext",
 		"target": "ES2018",
 		"allowJs": true,

@@ -37,6 +37,8 @@ git diff --check
 ## 主要覆盖
 
 - 提交与生命周期边界：`finder-editor.test.ts` 覆盖全拒绝、同值接受、部分过滤／改写后的失败结果、未知数量及禁止重放；`layout-migration.test.ts` 覆盖工具栏／行对齐／状态浮层 adopt 后的 Window、viewport 和 Observer 清理／重建；`search-library.test.ts` 覆盖预设初始订阅失败时立即释放历史订阅；`main-settings.test.mjs` 覆盖松手坐标与最后 move 不同及同 Document 双实例标签引用。这些模拟检查不替代 Obsidian popout、触屏拖动和悬浮提示实机验收。
+- 只读替换：`finder-editor.test.ts` 使用真实 EditorView 检查初始／捕获后启用 readOnly、拒绝时无事务过滤／写入、仍可发布高亮及 editable 不等于权限；`finder-panel.test.mjs` 覆盖单次／全部／按钮／Enter 入口、查找导航保留及候选等待期间变为只读后不写入或自动重放。实际宿主或其他插件如何配置只读仍需实机验证。
+- Finder／历史组件及主设置页夹具使用 Vitest 提供的 Window／Document，不替换只读 document 属性；独立 JSDOM 仍用于隔离 DOM 或明确的第二 Document 场景。涉及 rAF 的断言等待帧，不依赖旧环境缺少 rAF；CSS 变量／继承和模拟 click 的 hover 状态与真实浏览器不同，颜色契约结合编译 CSS／无伪状态副本及严格 Chromium 基线，不修改生产样式迎合模拟器。
 
 - 审计边界回归：`regex-replacement.test.mjs` 的嵌套美元模板对照原生语义；`presets.test.ts`／`search-library.test.ts` 的同毫秒并发编辑冲突、排序后保存和另存保留；历史／预设故障订阅不阻断其他回调及保存；`search-highlight.test.mjs` 的高密度当前项切换保留无关装饰；`settings-storage.test.mjs` 的慢写入合并、读取封存屏障及跨重载；`finder-panel.test.mjs` 的全局转义变化立即取消及改回不复活；`main-settings.test.mjs` 的双 Document 预览独立。浏览器 TypeScript 入口同样纳入 `tsconfig.test.json`，翻译静态调用按源码目录自动发现，不维护文件白名单。
 

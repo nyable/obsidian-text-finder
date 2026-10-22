@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import assert from "node:assert/strict";
 import { test, vi, onTestFinished } from "vitest";
-import { JSDOM } from "jsdom";
 import { HistoryController } from "../../src/features/history";
 import { mountView } from "../../src/shared/ui/mount-view";
 import HistoryPanel from "../../src/features/history/ui/HistoryPanel.vue";
@@ -40,14 +39,6 @@ const attachHistory = (plugin) => {
 		},
 	);
 };
-
-const dom = new JSDOM("<!doctype html><html><body></body></html>");
-globalThis.window = dom.window;
-globalThis.document = dom.window.document;
-globalThis.CustomEvent = dom.window.CustomEvent;
-Object.defineProperty(globalThis, "navigator", { configurable: true, value: dom.window.navigator });
-globalThis.Element = dom.window.Element;
-globalThis.SVGElement = dom.window.SVGElement;
 
 function mount(_t, sortOrder = "lastUsedAt", texts = ["A", "B", "C"], sharedPlugin) {
 	const copied = [];

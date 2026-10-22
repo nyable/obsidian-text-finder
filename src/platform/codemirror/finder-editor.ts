@@ -116,6 +116,9 @@ export function createFinderEditor(
 			)
 				throw new Error("Editing context changed before replacement commit");
 			const state = captured.editorView.state;
+			// Programmatic dispatch does not enforce this editing-command contract.
+			// Keep current()/publish() available for search and navigation in readOnly.
+			if (state.readOnly) throw new Error("Cannot replace text in a read-only editor");
 			const requested = ChangeSet.of(changes, captured.doc.length, state.lineBreak);
 			// Resolve host filters once, inspect their actual changes, then dispatch
 			// that exact transaction (never replay the original specs through filters).
