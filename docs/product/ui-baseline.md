@@ -13,10 +13,10 @@ Finder 模板／CSS 在 `src/features/finder/ui/FinderPanel.vue`，交互效果�
 - 固定布局／状态样式使用 CSS：Modal content 的 flex／溢出／padding 由 `.nya-library-host` 定义，Finder 隐藏／收起由既有状态类控制，阅读 overlay 用 `nya-reading-overlay--hidden`，安全区探针用 `nya-safe-area-probe`。动态位置、尺寸、裁切和颜色仍按 owner 测量写入；`inert`／aria-hidden／焦点防护继续独立同步。收起隐藏规则位于 desktop／custom／mobile display 声明之后，保持全部布局一致。
 - `src/features/settings/ui/ToolbarPreview.vue` 与真实 Finder／Toolbar 通过 `src/styles/finder-primitives.scss` 共享面板、输入、按钮、计数和焦点样式，容器定位与窄宽布局独立。
 - `src/features/settings/ui/appearance-styles.ts:AppearanceStyles` 为显式自定义颜色及已开启的选区边框粗细生成按 Document 管理的 `body` 变量覆盖（`!important`）；默认没有覆盖样式，恢复时移除对应声明，卸载／窗口关闭移除插件样式，不改写宿主 inline style。更具体或 inline 的 `!important` 用户规则仍可能优先，不能承诺覆盖任意 CSS。
-- README 公开 `.nya-finder`（位置）、`.nya-toggle`（装饰）、`.nya-text-finder-match`、`.nya-text-finder-match-current` 和下列变量的自定义示例。
+- 公开 CSS 类包括 `.nya-finder`（面板位置）、`.nya-toggle`（替换行折叠箭头）、`.nya-dragger`（左侧装饰条／桌面拖动入口）、`.nya-text-finder-match` 和 `.nya-text-finder-match-current`（编辑匹配高亮）。README 只链接本节，不再展开 CSS 示例；删除首页示例不改变这些兼容接口。
 - **兼容性推断：**公开类／变量是用户 CSS 接口，须保留名称与作用；框架自动生成的 scope ID 不视为公开接口。改变 CSS 注入／作用域时须核对级联和宿主窗口，不只复制全局 SCSS。
 
-依据：`src/styles/index.scss`、各 Vue SFC 的 `<style>`、`vite.config.mjs`、`tools/vite-build.mjs`、`README-zh_CN.md` 的“自定义样式”、`style-settings.css`。
+依据：`src/styles/index.scss`、`src/features/finder/ui/FinderPanel.vue` 及其他 Vue SFC 的 `<style>`、`vite.config.mjs`、`tools/vite-build.mjs`、`style-settings.css`。
 
 | 公开变量 | 当前默认值 | 用途 |
 | --- | --- | --- |
@@ -31,7 +31,23 @@ Finder 模板／CSS 在 `src/features/finder/ui/FinderPanel.vue`，交互效果�
 | `--nya-scope-border-color` | `var(--interactive-accent)` | 搜索选区轮廓色 |
 | `--nya-scope-border-width` | `0px` | 搜索选区边框，0px 隐藏；设置开启后覆盖为 1–3px |
 
-Style Settings 配置文件是独立示例，不是插件自动注册的设置页：`style-settings.css` 没有作为构建入口导入。
+### CSS 自定义
+
+优先使用插件“外观”设置；进一步自定义可使用 [Obsidian CSS 代码片段](https://help.obsidian.md/Extending+Obsidian/CSS+snippets)。例如，下列变量同时影响编辑与阅读匹配颜色，装饰条使用独立变量，不通过给折叠箭头添加边框来改色：
+
+```css
+body {
+	--nya-match-bgColor: #ea5c0054;
+	--nya-match-color: inherit;
+	--nya-match-curbgColor: #ffcc00;
+	--nya-match-curColor: #000000;
+	--nya-dragger-color: #39c5bb;
+}
+```
+
+编辑高亮类还可设置边框／圆角，但阅读 Custom Highlight API 不支持全部相同效果。显式外观颜色会以 `!important` 覆盖变量；若要重新继承片段／主题，先恢复对应颜色设置。面板位置优先通过拖动调整，避免固定像素定位与移动端／分屏约束冲突。
+
+[Style Settings 配置文件](../../style-settings.css)是独立示例，不是插件自动注册的设置页：`style-settings.css` 没有作为构建入口导入。使用时将该文件保存为 Vault 的 CSS 代码片段并启用，再打开 [Style Settings 插件](https://github.com/mgmeyers/obsidian-style-settings)；仅安装该插件不会自动注册此示例。
 
 ## 当前布局与主题事实
 
@@ -71,7 +87,7 @@ Style Settings 配置文件是独立示例，不是插件自动注册的设置�
 
 面板／历史／设置主要采用 Obsidian `--background-*`、`--text-*`、`--interactive-*` 和字体变量，没有独立深浅主题分支。仍有固定选项蓝色／白字、非空无结果红色、黑色阴影；不能据此声称所有主题对比度合格。
 
-搜索选区外观补充：默认淡背景无边框；独立第四折叠组支持背景／边框 alpha、轮廓开关及 1–3px 粗细，单项及分组恢复作用域独立。正文 `.nya-scope-layer`／`.nya-scope-outline` 以矩形并集外边绘制，不给每个 mark 加边框，不拦截输入；设置增加 `.nya-preview-scope` 两行静态样例及相同测量算法。默认继承宿主背景／强调色，不固定新配色。同范围完整选中且可见的普通空白行按上下文字共同宽度连接，无重叠时经实际插入点形成窄阶梯；不填满整行或改变背景。隐藏／折叠源码、歧义 bidi 片段与独立选区仍可断开；主题、折行、缩放、滚动、实时预览及移动设备实际绘制待验收。依据：`src/platform/codemirror/scope-geometry.ts`、`search-scope.ts`、`src/shared/geometry/scope-outline.ts`、`src/features/settings/ui/ToolbarPreview.vue`、`settings-view.ts:scopeStyles()`。
+搜索选区外观补充：默认淡背景无边框；独立的“搜索选区”折叠组支持背景／边框 alpha、轮廓开关及 1–3px 粗细，单项及分组恢复作用域独立。正文 `.nya-scope-layer`／`.nya-scope-outline` 以矩形并集外边绘制，不给每个 mark 加边框，不拦截输入；设置增加 `.nya-preview-scope` 两行静态样例及相同测量算法。默认继承宿主背景／强调色，不固定新配色。同范围完整选中且可见的普通空白行按上下文字共同宽度连接，无重叠时经实际插入点形成窄阶梯；不填满整行或改变背景。隐藏／折叠源码、歧义 bidi 片段与独立选区仍可断开；主题、折行、缩放、滚动、实时预览及移动设备实际绘制待验收。依据：`src/platform/codemirror/scope-geometry.ts`、`search-scope.ts`、`src/shared/geometry/scope-outline.ts`、`src/features/settings/ui/ToolbarPreview.vue`、`settings-view.ts:scopeStyles()`。
 
 换行匹配：编辑模式 `.nya-newline-layer` 的 `.nya-newline-match` 用 `::before` 显示小型 `↵`（RTL 镜像），置于真实换行的测量行尾，复用普通／当前匹配类和颜色；大小按测得字符宽度及行高约束。仅绘制已匹配换行，不标软折行或无换行的文末；连续换行每个位置可见，计数按原匹配。marker 不占布局、不插入 DOM 文本、无交互／焦点／额外提示，aria-hidden；阅读和现有两行设置样例不增源码标记。行尾裁切、深浅主题对比度及引用／列表／实时预览需实测。依据：`src/platform/codemirror/search-highlight.ts:newlineMatchLayer`、`src/styles/index.scss`、`tests/integration/editor-whitespace.test.mjs`。
 

@@ -16,7 +16,7 @@ pnpm test:browser
 git diff --check
 ```
 
-`pnpm verify` 是本地统一质量入口，涵盖上述检查和产物校验。标准测试使用 Vitest 直接导入 TypeScript／Vue，位于 `tests/unit/`、`tests/component/`、`tests/integration/`；官方 Vue Vite 插件编译组件，Vue Test Utils 和 owner renderer 分别覆盖组件与跨 Document 场景。宿主渲染器与 Highlight API 使用显式替身，不等同于真实宿主。源码抽取加载器及旧组件 API 夹具已移除。生产 TypeScript 与新增 TypeScript 测试都纳入严格类型检查；既有 mjs 套件由 Vitest 执行，不宣称它们全部已类型化。
+`pnpm verify` 是本地统一质量入口，涵盖上述 pnpm 检查和产物校验；`git diff --check` 需另行执行。标准测试使用 Vitest 直接导入 TypeScript／Vue，位于 `tests/unit/`、`tests/component/`、`tests/integration/`；官方 Vue Vite 插件编译组件，Vue Test Utils 和 owner renderer 分别覆盖组件与跨 Document 场景。宿主渲染器与 Highlight API 使用显式替身，不等同于真实宿主。源码抽取加载器及旧组件 API 夹具已移除。生产 TypeScript 与新增 TypeScript 测试都纳入严格类型检查；既有 mjs 套件由 Vitest 执行，不宣称它们全部已类型化。
 
 `vitest.config.mjs` 将并发限制为两个 worker，并显式保留 `isolate: true`，避免 DOM 全局对象和模块 mock 跨文件泄漏；不为提速关闭隔离或跳过套件。低内存环境使用 `pnpm test --maxWorkers=1`；目标回归使用 `pnpm exec vitest run <测试路径>`，再运行 `pnpm typecheck` 尽早发现测试自身的类型错误。交付前仍运行完整 `pnpm verify`。比较耗时时保持 Node、依赖、测试集合及缓存条件一致，串行执行对照命令，不与构建或其他测试同时运行；Vitest 导入阶段统计和 `/usr/bin/time` 的单进程峰值内存不能分别当作完整墙钟拆分或全部 worker 的总内存。
 
