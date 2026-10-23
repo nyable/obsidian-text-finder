@@ -17,6 +17,7 @@ export class SettingTab extends PluginSettingTab {
 			refreshAppearance: () => plugin.refreshAppearance(),
 			replacementPreferencesChanged: () =>
 				plugin.editorSearch?.replacementPreferencesChanged(),
+			reportError: (error) => plugin.reportError("history.SubscriberFailed", error),
 		});
 		this.view = new SettingsView(this.containerEl, commands, (doc) =>
 			plugin.ensureAppearanceDocument(doc),

@@ -29,6 +29,7 @@ const props = withDefaults(
 		workerError?: boolean;
 		committed?: boolean;
 		modified?: boolean;
+		rejection?: "readOnly" | "rejected" | undefined;
 		replacing?: boolean;
 		rematching?: boolean;
 		synchronousRetry?: () => void;
@@ -110,25 +111,29 @@ function position(node: HTMLElement) {
 }
 onBeforeUnmount(() => clearTimeout(local.timer));
 const message = computed(() =>
-	props.modified
-		? "search.ReplacementModified"
-		: props.committed
-			? "search.ReplacedNavigationFailed"
-			: props.workerError
-				? "search.WorkerFailed"
-				: props.error
-					? props.error === "timeout"
-						? "search.ReadingTimeout"
-						: "search.ReadingFailed"
-					: props.unsupported
-						? "search.ReadingUnsupported"
-						: props.replacing
-							? "search.ReplacementPending"
-							: props.rematching
-								? "search.ReplacementRematching"
-								: props.readingMode
-									? "search.ReadingPending"
-									: "search.MatchPending",
+	props.rejection
+		? props.rejection === "readOnly"
+			? "search.ReplacementReadOnly"
+			: "search.ReplacementRejected"
+		: props.modified
+			? "search.ReplacementModified"
+			: props.committed
+				? "search.ReplacedNavigationFailed"
+				: props.workerError
+					? "search.WorkerFailed"
+					: props.error
+						? props.error === "timeout"
+							? "search.ReadingTimeout"
+							: "search.ReadingFailed"
+						: props.unsupported
+							? "search.ReadingUnsupported"
+							: props.replacing
+								? "search.ReplacementPending"
+								: props.rematching
+									? "search.ReplacementRematching"
+									: props.readingMode
+										? "search.ReadingPending"
+										: "search.MatchPending",
 );
 watchEffect(() => update(props.visible && props.pending, props.query, props.context));
 const { delayed, above } = toRefs(local);
@@ -161,7 +166,7 @@ const vPosition = actionDirective(position);
 			<span>{{ i18n.t(message) }}</span>
 			<template v-if="error || unsupported">
 				<div class="nya-status-actions">
-					<template v-if="error"
+					<template v-if="error && !props.rejection"
 						><button type="button" @click="retry">
 							{{ i18n.t("search.Retry") }}
 						</button></template

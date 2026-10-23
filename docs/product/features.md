@@ -40,7 +40,7 @@
 - 空查询、空正文、无结果、无效正则均返回空匹配；零宽匹配不计数、不替换。无效正则当前没有独立语法错误界面。
 - 编辑模式下匹配包含真实换行时，在每个已匹配换行的行尾绘制非交互 `↵`（RTL 镜像），空白行也可见；沿用普通／当前匹配颜色。不把软折行或无换行的文末标记出来，连续换行属于一次匹配时计数仍为一项。只改变展示，不插入字符、修改排版或替换坐标；阅读模式不添加源码换行标记。依据：`src/platform/codemirror/search-highlight.ts:newlineMatchLayer`、`tests/integration/editor-whitespace.test.mjs`。
 - 单次替换和全部替换基于当前原文重新计算。全部替换通过一个 CodeMirror changes 事务提交，不递归处理新插入文本。
-- 替换提交遵守当前 CodeMirror `readOnly`，候选计算期间变为只读也拒绝写入；查找、高亮和导航不因此禁用。此检查不等于文件系统权限校验，详见 [compatibility](../compatibility.md)。
+- 替换提交遵守当前 CodeMirror `readOnly`，候选计算期间变为只读也拒绝写入；查找、高亮和导航不因此禁用。只读／未写入的事务拒绝显示专用提示，不提供不适用的 Worker 重试；恢复可编辑后可主动再次替换。此检查不等于文件系统权限校验，详见 [compatibility](../compatibility.md)。
 - 单次替换只展开目标模板，不预先创建所有候选插入文本；不限制既有捕获、前缀／后缀或转义能力。
 - 正则替换支持 `$1`–`$99`、`$<name>`、`$&`、`$$`、原文前缀 `` $` `` 和后缀 `$'`；遵循 JavaScript 模板语义。
 - 正则模式且转义设置开启时，替换输入单次解析 `\n`、`\t`、`\\`；未知转义、末尾反斜杠和真实 NUL 保留。普通文本替换不展开美元模板或反斜杠转义。
@@ -125,7 +125,7 @@
 | 设置页 | 字段 | 默认／语义 |
 | --- | --- | --- |
 | 常规 | `showFloatingFinderOnOpen` | 默认关闭；打开 Markdown 笔记时显示收起的小图标，启用后也应用于已有笔记；不自动搜索或抢焦点，主动关闭后同视图同笔记不因标签激活而重现 |
-| 查找 | `clearAfterHidden` | 默认关闭；清空范围的已批准约束见 interactions |
+| 查找 | `clearAfterHidden` | 默认关闭；开启后关闭 Finder 同时清空查询和替换输入，保留匹配选项，详见 interactions 的关闭契约 |
 | 查找 | `enableInputHotkeys` | 默认开启；输入框 Enter 快捷操作 |
 | 查找 | `useSelectionAsSearch` | 默认开启；打开时取所属视图选区 |
 | 查找 | `sourceModeWhenSearch` | 默认开启；编辑匹配定位时强制源码模式 |

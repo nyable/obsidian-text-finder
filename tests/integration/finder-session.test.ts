@@ -354,6 +354,36 @@ describe("Finder application with explicit owner ports", () => {
 		expect(h.session.getSearchCache().matches).toEqual([]);
 		h.dispose();
 	});
+	it.each(["migration", "closed"])(
+		"rejects late navigation after owner window %s without relying on layout events",
+		async (change) => {
+			const h = environment();
+			let window: object = {};
+			let closed = false;
+			h.host.environment = () => window;
+			h.host.environmentClosed = () => closed;
+			h.session.setFindText("cat", false);
+			let resolve!: () => void;
+			vi.mocked(h.editor.reveal).mockImplementationOnce(
+				() =>
+					new Promise<void>((done) => {
+						resolve = done;
+					}),
+			);
+			vi.mocked(h.editor.publish).mockClear();
+			const navigation = h.session.scrollToMatch();
+			if (change === "migration") window = {};
+			else closed = true;
+			resolve();
+			expect(await navigation).toBe(false);
+			expect(h.editor.publish).not.toHaveBeenCalled();
+			expect(h.host.reportError).not.toHaveBeenCalled();
+			closed = false;
+			expect(h.session.scrollToMatch()).toBe(true);
+			expect(h.editor.publish).toHaveBeenCalledOnce();
+			h.dispose();
+		},
+	);
 	it("does not lend cache or option state to host command readers", () => {
 		const h = environment();
 		h.session.setFindText("cat", false);

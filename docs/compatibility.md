@@ -67,7 +67,7 @@
 
 - DOM 创建保留原生 `ownerDocument.createElement()`／`createElementNS()`，不机械替换为全局宿主 helpers，也不为隐藏告警套无实际职责的包装。renderer 必须在每次创建时读取当前 owner Document，保留命名空间及原生参数；owner／adopt 回归不等于 Obsidian 弹窗实测。
 - `match-worker.ts` 的 `globalThis` 是 Worker 全局，没有 Window；`settings-storage.ts` 的共享 realm 队列不能随 `activeWindow` 拆分；`unique-id.ts` 的 UUID 是非 DOM 数据能力。三者不是操作错误窗口的证据。Worker 启动计时器则明确由捕获的 owner Window 创建和清理。
-- `composition-input.ts` 的 `keyCode === 229` 与 `isComposing`／composition 事件共同保护 IME，保留 legacy 229 回归；弃用提示不能替代目标输入法兼容证据。
+- `composition-input.ts` 的 `keyCode === 229` 与 `isComposing`／事件目标的 composition 状态共同保护输入快捷操作及 owner Escape；失焦清除状态、销毁释放监听。保留 legacy 229 回归；模拟事件不证明特定输入法会产生相同事件组合，弃用提示不能替代目标输入法兼容证据。
 - 匹配异常保留 `console.debug`，只输出固定消息及错误类型，不输出查询、正文或可能带查询的正则错误消息。Worker／宿主异常仍保留必要告警，不统一禁用诊断。
 - 设置页统一使用 `display()` 的五分类布局，最低版本仍为 1.6.0；1.13+ 未提供非空声明式定义时仍使用此公开兼容路径。按用户批准放弃逐项全局设置搜索，不覆盖 `getSettingDefinitions()`，不引入宿主私有索引 API 或新版专用布局。控件继续走 SettingsController，不采用宿主默认 saveData；hide 和 owner Window 的 pagehide 释放外观资源。SDK 已将 display 标记 deprecated，这是明确接受的兼容依赖；未来宿主若移除此路径需重新评估，实际主题布局与移动端仍须实机验收。
 

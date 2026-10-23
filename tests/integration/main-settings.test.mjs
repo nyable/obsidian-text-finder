@@ -228,6 +228,27 @@ test("floating entry setting defaults off, saves and only enabling applies it to
 	p.onunload();
 });
 
+test("settings refresh failure reports the view error but still persists the changed preference", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const error = new Error("toolbar failed"),
+		report = vi.spyOn(p, "reportError").mockImplementation(() => {});
+	p.editorSearch = {
+		refreshToolbars() {
+			throw error;
+		},
+		dispose() {},
+	};
+	const tab = tabs.at(-1);
+	tab.display();
+	assert.doesNotThrow(() => fields.get("settings.FinderAutoDock.name").change(true));
+	await p.flushSettings();
+	assert.equal(p.settings.finderAutoDock, true);
+	assert.equal(p.writes.at(-1).finderAutoDock, true);
+	assert.deepEqual(report.mock.calls, [["history.SubscriberFailed", error]]);
+	p.onunload();
+});
+
 for (const modern of [false, true])
 	test(`${modern ? "1.13+" : "older"} host opens the same five-tab settings without an indexed layout or startup writes`, async () => {
 		const p = plugin(null);

@@ -26,6 +26,8 @@
 		"EditorFailed": "无法更新编辑器位置或模式。请在视图就绪后重试。",
 		"ReplacedNavigationFailed": "替换已完成，但定位失败。再次替换前请检查正文。",
 		"ReplacementModified": "宿主仅部分应用或改写了替换。请先检查正文；不会自动重复执行替换。",
+		"ReplacementReadOnly": "当前编辑器为只读，未执行替换。请在笔记恢复可编辑后再执行替换。",
+		"ReplacementRejected": "编辑器拒绝了替换，正文未修改。请检查笔记和编辑器状态后再执行替换。",
 		"Retry": "重试",
 		"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
 		"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",

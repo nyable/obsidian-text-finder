@@ -13,6 +13,7 @@ function environment() {
 			calls.push("history");
 		}),
 		resizeHistory: vi.fn(),
+		reportError: vi.fn(),
 		replacementPreferencesChanged: vi.fn(),
 		refreshToolbars: vi.fn(() => {
 			calls.push("toolbar");
@@ -114,4 +115,129 @@ it("accepts readonly toolbar values without lending their mutable identity to st
 	expect(h.settings.searchToolbar).toEqual(items);
 	expect(h.settings.searchToolbar).not.toBe(items);
 	expect(h.settings.searchToolbar[0]).not.toBe(items[0]);
+});
+
+it.each([
+	[
+		"auto dock",
+		"refreshToolbars",
+		(h) => h.controller.toggle("finderAutoDock", true),
+		(h) => expect(h.settings.finderAutoDock).toBe(true),
+	],
+	[
+		"floating entry",
+		"syncFloatingEntries",
+		(h) => h.controller.toggle("showFloatingFinderOnOpen", true),
+		(h) => expect(h.settings.showFloatingFinderOnOpen).toBe(true),
+	],
+	[
+		"replacement escapes",
+		"replacementPreferencesChanged",
+		(h) => h.controller.toggle("useEscapeCharInReplace", false),
+		(h) => expect(h.settings.useEscapeCharInReplace).toBe(false),
+	],
+	[
+		"history order",
+		"historyChanged",
+		(h) => h.controller.historyOrder("count"),
+		(h) => expect(h.settings.historySortOrder).toBe("count"),
+	],
+	[
+		"history retention",
+		"historyChanged",
+		(h) => h.controller.historyRetention("count"),
+		(h) => expect(h.settings.historyRetention).toBe("count"),
+	],
+	[
+		"color",
+		"refreshAppearance",
+		(h) => h.controller.color("focusBorder", "#123456"),
+		(h) => expect(h.settings.appearanceColors.focusBorder).toBe("#123456"),
+	],
+	[
+		"scope border",
+		"refreshAppearance",
+		(h) => h.controller.scopeBorder(true),
+		(h) => expect(h.settings.scopeAppearance.border).toBe(true),
+	],
+	[
+		"scope width",
+		"refreshAppearance",
+		(h) => h.controller.scopeWidth(3),
+		(h) => expect(h.settings.scopeAppearance.width).toBe(3),
+	],
+	[
+		"toolbar",
+		"refreshToolbars",
+		(h) => h.controller.toolbar("search", [{ id: "regex", placement: "hidden" }]),
+		(h) => expect(h.settings.searchToolbar).toEqual([{ id: "regex", placement: "hidden" }]),
+	],
+	[
+		"reset toolbar",
+		"refreshToolbars",
+		(h) => {
+			h.settings.defaultRegexMode = true;
+			h.controller.resetToolbar("search");
+		},
+		(h) => expect(h.settings.defaultRegexMode).toBe(false),
+	],
+	[
+		"reset colors",
+		"refreshAppearance",
+		(h) => {
+			h.settings.appearanceColors.focusBorder = "#123456";
+			h.controller.resetColors();
+		},
+		(h) => expect(h.settings.appearanceColors).toEqual({}),
+	],
+	[
+		"reset scope",
+		"refreshAppearance",
+		(h) => {
+			h.settings.scopeAppearance.border = true;
+			h.controller.resetScope();
+		},
+		(h) => expect(h.settings.scopeAppearance.border).toBe(false),
+	],
+] satisfies [
+	string,
+	keyof ReturnType<typeof environment>["effects"],
+	(h: ReturnType<typeof environment>) => unknown,
+	(h: ReturnType<typeof environment>) => void,
+][])("saves changed %s even when its notification throws", (_name, effect, change, check) => {
+	const h = environment(),
+		error = new Error("refresh failed");
+	h.effects[effect].mockImplementationOnce(() => {
+		throw error;
+	});
+	expect(() => change(h)).not.toThrow();
+	check(h);
+	expect(h.effects.reportError).toHaveBeenCalledExactlyOnceWith(error);
+	expect(h.effects.save).toHaveBeenCalledOnce();
+});
+
+it("continues remaining notifications and saves after a history notification fails", () => {
+	const h = environment(),
+		error = new Error("history failed");
+	h.effects.historyChanged.mockImplementationOnce(() => {
+		throw error;
+	});
+	h.controller.toggle("enableHistory", false);
+	expect(h.settings.enableHistory).toBe(false);
+	expect(h.effects.reportError).toHaveBeenCalledExactlyOnceWith(error);
+	expect(h.calls).toEqual(["toolbar", "save"]);
+});
+
+it("still requests saving when reporting the failed refresh also throws", () => {
+	const h = environment(),
+		error = new Error("reporting failed");
+	h.effects.refreshAppearance.mockImplementationOnce(() => {
+		throw new Error("refresh failed");
+	});
+	h.effects.reportError.mockImplementationOnce(() => {
+		throw error;
+	});
+	expect(() => h.controller.scopeWidth(3)).toThrow(error);
+	expect(h.settings.scopeAppearance.width).toBe(3);
+	expect(h.effects.save).toHaveBeenCalledOnce();
 });

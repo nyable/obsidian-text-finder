@@ -389,6 +389,7 @@ test("hidden, modified and consumed Escape events never close Finder", () => {
 	visible = true;
 	key({ metaKey: true });
 	key({ isComposing: true });
+	key({ keyCode: 229 });
 	assert.equal(closes, 0);
 	const consumed = new h.dom.window.KeyboardEvent("keydown", { key: "Escape", cancelable: true });
 	consumed.preventDefault();
@@ -397,6 +398,50 @@ test("hidden, modified and consumed Escape events never close Finder", () => {
 	key();
 	assert.equal(closes, 1);
 	h.search.dispose();
+});
+
+test("view Escape tracks the composing event target and releases composition listeners", () => {
+	const h = environment();
+	h.view.containerEl = h.root;
+	const input = h.dom.window.document.createElement("textarea");
+	h.root.append(input);
+	const added = vi.spyOn(h.root, "addEventListener");
+	const removed = vi.spyOn(h.root, "removeEventListener");
+	let closes = 0;
+	h.search.registerFinderEvent(h.view, { isVisible: () => true, closeFinder: () => closes++ });
+	const escape = () =>
+		input.dispatchEvent(
+			new h.dom.window.KeyboardEvent("keydown", {
+				key: "Escape",
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+	input.dispatchEvent(new h.dom.window.CompositionEvent("compositionstart", { bubbles: true }));
+	escape();
+	assert.equal(closes, 0);
+	input.dispatchEvent(new h.dom.window.CompositionEvent("compositionend", { bubbles: true }));
+	escape();
+	assert.equal(closes, 1);
+	input.dispatchEvent(new h.dom.window.CompositionEvent("compositionstart", { bubbles: true }));
+	input.dispatchEvent(new h.dom.window.FocusEvent("blur"));
+	escape();
+	assert.equal(closes, 2);
+	h.search.dispose();
+	for (const type of ["compositionstart", "compositionend", "blur", "keydown"]) {
+		const registration = added.mock.calls.find(([name]) => name === type);
+		assert.ok(registration, `${type} was registered`);
+		assert.ok(
+			removed.mock.calls.some(
+				(args) =>
+					args[0] === type && args[1] === registration[1] && args[2] === registration[2],
+			),
+			`${type} was released with the same capture option`,
+		);
+	}
+	escape();
+	assert.equal(closes, 2);
+	h.dom.window.close();
 });
 
 test("late layout callbacks do not initialize unloaded plugins and initialization is idempotent", () => {

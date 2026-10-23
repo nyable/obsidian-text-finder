@@ -1407,6 +1407,15 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 					filtered.view.editor.getValue() !== "cat CAT cat2"
 				)
 					throw Error("filtered Worker replacement was reported as committed");
+				await nextTick();
+				const status = filteredTarget.querySelector(".nya-search-status");
+				if (
+					!status?.textContent.includes("The editor refused the replacement.") ||
+					status.textContent.includes("Search execution failed.") ||
+					status.textContent.includes("Retry") ||
+					!status.textContent.includes("Use native find")
+				)
+					throw Error("host refusal showed inappropriate Worker recovery actions");
 			} finally {
 				filtered.destroy();
 				filteredTarget.remove();

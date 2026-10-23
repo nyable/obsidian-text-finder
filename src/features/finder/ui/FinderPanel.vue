@@ -65,6 +65,7 @@ const {
 	replacementTask,
 	replacementCommittedError,
 	replacementModifiedError,
+	replacementRejection,
 	docked,
 	dockSide,
 	autoDock,
@@ -130,6 +131,7 @@ defineExpose(vm.commands);
 			:cancel="() => setVisible(false)"
 			:committed="replacementCommittedError"
 			:modified="replacementModifiedError"
+			:rejection="replacementRejection"
 			:replacing="!!replacementTask && replacementTask.phase !== 'committed'"
 			:rematching="replacementTask?.phase === 'committed'"
 			:nativeFind="props.host.openNativeSearch"

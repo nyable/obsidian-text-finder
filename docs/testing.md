@@ -37,7 +37,8 @@ git diff --check
 ## 主要覆盖
 
 - 提交与生命周期边界：`finder-editor.test.ts` 覆盖全拒绝、同值接受、部分过滤／改写后的失败结果、未知数量及禁止重放；`layout-migration.test.ts` 覆盖工具栏／行对齐／状态浮层 adopt 后的 Window、viewport 和 Observer 清理／重建；`search-library.test.ts` 覆盖预设初始订阅失败时立即释放历史订阅；`main-settings.test.mjs` 覆盖松手坐标与最后 move 不同及同 Document 双实例标签引用。这些模拟检查不替代 Obsidian popout、触屏拖动和悬浮提示实机验收。
-- 只读替换：`finder-editor.test.ts` 使用真实 EditorView 检查初始／捕获后启用 readOnly、拒绝时无事务过滤／写入、仍可发布高亮及 editable 不等于权限；`finder-panel.test.mjs` 覆盖单次／全部／按钮／Enter 入口、查找导航保留及候选等待期间变为只读后不写入或自动重放。实际宿主或其他插件如何配置只读仍需实机验证。
+- 只读替换：`finder-editor.test.ts` 使用真实 EditorView 检查初始／捕获后启用 readOnly、拒绝时无事务过滤／写入、结构化拒绝类别、仍可发布高亮及 editable 不等于权限；`finder-panel.test.mjs` 覆盖单次／全部／按钮／Enter 入口、查找导航保留及候选等待期间变为只读后不写入或自动重放，并区分只读／宿主拒绝文案、不提供 Worker 重试。实际宿主或其他插件如何配置只读仍需实机验证。
+- 设置异常路径：`settings-controller.test.ts` 注入工具栏、历史、外观、替换偏好和悬浮入口异常，检查已修改设置保留、错误报告及保存恰好一次；`main-settings.test.mjs` 验证真实设置页装配后刷新失败仍写入偏好，`floating-entry.test.mjs` 验证坏 owner 不阻断下一分屏和失败入口后续可重试。异常注入不代表正常宿主中该故障常见。
 - Finder／历史组件及主设置页夹具使用 Vitest 提供的 Window／Document，不替换只读 document 属性；独立 JSDOM 仍用于隔离 DOM 或明确的第二 Document 场景。涉及 rAF 的断言等待帧，不依赖旧环境缺少 rAF；CSS 变量／继承和模拟 click 的 hover 状态与真实浏览器不同，颜色契约结合编译 CSS／无伪状态副本及严格 Chromium 基线，不修改生产样式迎合模拟器。
 
 - 审计边界回归：`regex-replacement.test.mjs` 的嵌套美元模板对照原生语义；`presets.test.ts`／`search-library.test.ts` 的同毫秒并发编辑冲突、排序后保存和另存保留；历史／预设故障订阅不阻断其他回调及保存；`search-highlight.test.mjs` 的高密度当前项切换保留无关装饰；`settings-storage.test.mjs` 的慢写入合并、读取封存屏障及跨重载；`finder-panel.test.mjs` 的全局转义变化立即取消及改回不复活；`main-settings.test.mjs` 的双 Document 预览独立。浏览器 TypeScript 入口同样纳入 `tsconfig.test.json`，翻译静态调用按源码目录自动发现，不维护文件白名单。
@@ -65,7 +66,7 @@ git diff --check
 - 隐藏文本、折叠正文、行尾空白和空表格单元格。
 - 视图隔离、模式／文件切换、窗口迁移及资源释放。
 - 编辑模式查找与替换、正则模板、历史统计、迁移和保存队列回归。
-- 输入法组合输入期间的 Enter／NumpadEnter 与上下键不触发导航、替换或历史操作。
+- 输入法组合输入期间的 Enter／NumpadEnter、上下键及 Escape 不触发导航、替换、历史或关闭；`finder-panel.test.mjs` 覆盖 `isComposing`／composition 生命周期／旧式 229，开启关闭清空时也保留输入，`reading-commands.test.mjs` 覆盖目标失焦及 owner 监听释放。带 Shift／Ctrl／Alt／Meta 的上下键保留原生编辑，普通上下键仍浏览历史。
 - 单次替换的按钮、Enter 与命令入口一致性，以及隐藏面板焦点和重新打开后的选中状态。
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
 - 预设只填充 Finder，旧 `interpretEscapes` 不覆盖全局设置；全局开关后续变化仍影响替换并使待提交候选失效。入口：`finder-session.test.ts` 的 `ignores legacy preset escapes`、`finder-panel.test.mjs` 的 `global escape changes cancel pending replacements`。`search-library.test.ts` 与浏览器 harness 覆盖编辑页仅保留两项其他设置、常显短说明及有效 aria-describedby，不替代 Obsidian 实机悬浮提示验收。
@@ -79,7 +80,7 @@ git diff --check
 - 移动手势隔离：`finder-position.test.mjs` 的 `mobile pointer ownership captures on down and bypasses ancestor swipe handlers even without capture` 模拟会阻止冒泡的宿主祖先监听，覆盖 capture 可用／抛错／缺失及真实取消回滚；`mobile capture-phase listeners and early pointer capture are released on every teardown path` 覆盖监听 capture 参数匹配及生命周期释放。真实组件的 `mobile compact gesture isolates host pointer and touch swipes without blocking other touches or taps` 检查宿主滑动隔离、Pointer／Touch 不重复移动、未参与手指及输入不屏蔽、短按保留与隐藏清理；`mobile touch guards release on destruction and owner blur without leaking document listeners` 检查 touch 释放。这些是模拟 DOM 事件，不证明 Android WebView 的 capture／click 或 Obsidian 更早阶段手势已实机通过。
 - 快捷键展开聚焦：`finder-panel.test.mjs` 的 `empty-query compact command expansion focuses only after layout with preventScroll and no ancestor panning` 用模拟几何／焦点滚动检查展开 DOM、位置和替换行先于聚焦提交，无查询中间焦点；`compact query focus is invalidated by close, re-collapse, owner changes or destruction` 覆盖迟到请求，`non-compact query opening keeps immediate focus without scrolling and still navigates real matches` 区分焦点滚动与正文导航。jsdom 不实现真实焦点滚动，不能据此宣称宿主 header 横滑已实机消失；需复测空查询的显示／切换查找和替换命令、左右停放／窄分屏／移动软键盘。
 - 历史项重排／删除／裁剪后的邻近项浏览；跨模块实例存储队列、损坏 JSON 和 I/O 失败；迟到布局初始化。
-- 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。
+- 异步模式切换拒绝、乱序完成、编辑器重建与关闭／查询变化／卸载后的迟到定位；替换正文只提交一次。`finder-session.test.ts` 另覆盖 doc／EditorView 不变且没有 layout 通知时，owner 窗口迁移／关闭后的旧导航不得 publish；端口模拟不证明真实宿主会保留相同对象和事件顺序。
 - `consistency.test.mjs` 检查版本、翻译键、设置／命令文档及 CSS 示例默认值；CI 核对构建 manifest 与源文件一致。
 - 外观位置下拉的鼠标／键盘临时导航与单次提交、同值不保存、标题引用、owner Document、视口上翻、旧选项失效与监听释放；切页／隐藏／折叠／重排／恢复／卸载关闭，与调色草稿互斥。sm／md 与 content／fill 组合、触发器和列表同宽／视口限制、全选项测量占位以及每次打开同步主题字体有结构及模拟几何回归。入口为 `settings-select.test.mjs`、`main-settings.test.mjs`；`appearance.test.mjs` 检查共享尺寸／字体／文字起点样式和默认开启居中规则，不代替宿主视觉／触屏／读屏验收。
 
@@ -188,7 +189,8 @@ pnpm exec vitest run tests/integration/worker-probe.test.mjs tests/integration/w
 
 | 场景 | 操作与预期 |
 | --- | --- |
-| IME | 中文输入法在查找／替换框确认候选词：Enter 不导航／替换，上下键不浏览历史；组合结束后普通 Enter 恢复操作 |
+| IME | 中文输入法在查找／替换框确认候选词：Enter 不导航／替换，上下键不浏览历史，Escape 取消候选不关闭 Finder／清空输入；组合结束后普通 Enter／Escape 恢复操作，失焦不遗留组合状态 |
+| 修饰键与只读 | 查询首／末行 Shift＋上下键保持文本选择，Ctrl／Alt／Meta 组合不浏览历史或清空；普通上下键仍可用。只读编辑器执行替换显示专用拒绝提示、不显示 Worker 重试，正文不变且查找导航正常；解除只读后主动替换可用 |
 | 单次替换入口 | 对 `cat cat` 执行 `cat → cat!`，分别用按钮、Enter 和命令；文本、当前匹配及滚动位置一致 |
 | 隐藏与重新打开 | 关闭后 Tab／Shift+Tab 不进入隐藏控件，More 关闭；重新打开聚焦并选中查询。覆盖编辑／阅读、展开／折叠及目标移动平台 |
 | 文档安全 | 同文件双分屏独立当前项；改正文、撤销／重做、换文件／模式后不使用旧坐标；后台重算不主动滚动 |

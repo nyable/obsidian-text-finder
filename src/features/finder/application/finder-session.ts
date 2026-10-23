@@ -33,6 +33,7 @@ export interface FinderState {
 	replacementRetry: ((synchronous: boolean) => void) | null;
 	replacementCommittedError: boolean;
 	replacementModifiedError: boolean;
+	replacementRejection: "readOnly" | "rejected" | undefined;
 	positionRequest: number;
 	disposed: boolean;
 	docked: boolean;
@@ -88,6 +89,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		replacementRetry: null,
 		replacementCommittedError: false,
 		replacementModifiedError: false,
+		replacementRejection: undefined,
 		positionRequest: 0,
 		disposed: false,
 		docked: false,
@@ -276,6 +278,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.workerError = false;
 		uiState.replacementCommittedError = false;
 		uiState.replacementModifiedError = false;
+		uiState.replacementRejection = undefined;
 		uiState.passiveEntry = true;
 		uiState.cache.visible = true;
 		uiState.docked = true;
@@ -637,6 +640,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.replacementRetry = null;
 		uiState.replacementCommittedError = false;
 		uiState.replacementModifiedError = false;
+		uiState.replacementRejection = undefined;
 		uiState.positionRequest++;
 		uiState.statusContext = runtime.editor.ownerFile();
 		// The view may update cache.search before the input handler.
@@ -875,6 +879,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			const request = ++uiState.positionRequest;
 			const requestQuery = queryKey();
 			const requestIndex = uiState.cache.index;
+			const window = editorSearch.environment();
 			const visible = uiState.cache.visible;
 			const { from, to } = matched;
 			const { sourceModeWhenSearch, moveCursorToMatch } = editorSearch.preferences();
@@ -884,6 +889,8 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 				uiState.cache.visible === visible &&
 				queryKey() === requestQuery &&
 				uiState.cache.index === requestIndex &&
+				editorSearch.environment() === window &&
+				!editorSearch.environmentClosed(window) &&
 				runtime.editor.ownerFile() === activeEditor.file;
 			return navigateToMatch({
 				currentRequest,
@@ -998,6 +1005,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		uiState.workerError = false;
 		uiState.replacementCommittedError = false;
 		uiState.replacementModifiedError = false;
+		uiState.replacementRejection = undefined;
 		const options = { ...uiState.cache.options };
 		const replacement = options.regexMode ? adjustReplaceText(inputText) : inputText;
 		const failed = (error: unknown, committed: boolean, modified = false) => {
@@ -1141,8 +1149,12 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 					}
 				},
 				noChanges: () => emitChange(true, undefined, context),
-				commitFailed() {
+				commitFailed(commit) {
 					uiState.replacementRetry = null;
+					if (!commit.changed) {
+						uiState.workerError = false;
+						uiState.replacementRejection = commit.rejection ?? "rejected";
+					}
 				},
 				replace: (source, text) => {
 					if (!replace) throw new Error("Replacement executor unavailable");

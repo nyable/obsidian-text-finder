@@ -88,6 +88,7 @@ function environment(_t, enabled = true) {
 			},
 		},
 		registerEvent() {},
+		reportError: vi.fn(),
 		addCommand: (command) => commands.set(command.id, command),
 	};
 	vi.mocked(mountFinder).mockImplementation((target, props) => new Finder({ target, props }));
@@ -216,4 +217,39 @@ test("replacement UI commands route only to the editable owner and availability 
 	}
 	assert.equal(finder.replaceToggles, 1);
 	assert.equal(h.finders[1].replaceToggles, undefined);
+});
+
+for (const method of ["refreshToolbars", "replacementPreferencesChanged"]) {
+	test(`${method} isolates a failed owner and continues notifying the next split`, () => {
+		const h = environment(),
+			error = new Error("owner refresh failed");
+		const command = method === "refreshToolbars" ? "refreshToolbar" : method;
+		h.finders[0][command] = () => {
+			throw error;
+		};
+		h.finders[1][command] = vi.fn();
+		assert.doesNotThrow(() => h.search[method]());
+		assert.equal(h.finders[1][command].mock.calls.length, 1);
+		assert.deepEqual(h.plugin.reportError.mock.calls, [["history.SubscriberFailed", error]]);
+	});
+}
+
+test("floating entry failure does not block other owners or mark the failed entry as applied", () => {
+	const h = environment(undefined, false),
+		error = new Error("entry failed");
+	const a = h.search.getFinder(h.a),
+		b = h.search.getFinder(h.b);
+	const original = a.showFloatingEntry;
+	a.showFloatingEntry = () => {
+		throw error;
+	};
+	h.plugin.settings.showFloatingFinderOnOpen = true;
+	assert.doesNotThrow(() => h.search.syncFloatingEntries());
+	assert.equal(b.entries, 1);
+	assert.equal(h.search.owners.get(h.a).entryPath, undefined);
+	assert.deepEqual(h.plugin.reportError.mock.calls, [["history.SubscriberFailed", error]]);
+	a.showFloatingEntry = original;
+	h.search.syncFloatingEntries();
+	assert.equal(a.entries, 1);
+	assert.equal(b.entries, 1);
 });

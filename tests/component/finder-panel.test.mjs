@@ -204,6 +204,21 @@ for (const replacement of ["dog", "cat"]) {
 		assert.equal(cm.state.doc.toString(), "cat cat");
 		assert.deepEqual(h.scrolls, []);
 		assert.equal(h.component.getSearchCache().index, 0);
+		assert.equal(
+			h.target.querySelector(".nya-search-status span").textContent,
+			"search.ReplacementRejected",
+		);
+		assert.equal(h.target.textContent.includes("search.SynchronousRetry"), false);
+		assert.equal(h.target.textContent.includes("search.Retry"), false);
+		assert.equal(h.target.textContent.includes("search.UseNativeFind"), true);
+		cm.state = EditorState.create({ doc: "cat cat", extensions: [searchScopeField] });
+		h.component.matchAgain(false);
+		await settlePosition();
+		assert.equal(h.target.querySelector(".nya-search-status"), null);
+		const retried = await h.component.replaceMatchedText("dog");
+		await retried.navigationCompletion;
+		assert.equal(retried.changed, true);
+		assert.equal(cm.state.doc.toString(), "dog cat");
 	});
 }
 
@@ -273,6 +288,22 @@ for (const entry of ["single", "all", "button", "enter"]) {
 		);
 		assert.deepEqual(h.scrolls, []);
 		assert.equal(h.component.getSearchCache().index, 1);
+		assert.equal(
+			h.target.querySelector(".nya-search-status span").textContent,
+			"search.ReplacementReadOnly",
+		);
+		assert.equal(h.target.textContent.includes("search.WorkerFailed"), false);
+		assert.equal(h.target.textContent.includes("search.SynchronousRetry"), false);
+		assert.equal(h.target.textContent.includes("search.Retry"), false);
+		assert.equal(h.target.textContent.includes("search.UseNativeFind"), true);
+		cm.state = EditorState.create({ doc: "cat cat", extensions: [searchScopeField] });
+		h.component.matchAgain(false);
+		await settlePosition();
+		assert.equal(h.target.querySelector(".nya-search-status"), null);
+		const retried = await h.component.replaceMatchedText("dog");
+		await retried.navigationCompletion;
+		assert.equal(retried.changed, true);
+		assert.equal(cm.state.doc.toString(), "cat dog");
 	});
 }
 
@@ -3548,7 +3579,87 @@ test("actual SearchBox navigation buttons use the owner context and update resul
 	assert.equal(h.scrolls.length, 2);
 });
 
+for (const modifier of ["shiftKey", "ctrlKey", "altKey", "metaKey"]) {
+	for (const code of ["ArrowUp", "ArrowDown"]) {
+		test(`history leaves ${modifier} ${code} to native text editing`, async () => {
+			const h = mount();
+			await tick();
+			h.plugin.history.record("dog");
+			const input = h.target.querySelector("textarea");
+			input.setSelectionRange(
+				code === "ArrowUp" ? 0 : input.value.length,
+				code === "ArrowUp" ? 0 : input.value.length,
+			);
+			const event = new window.KeyboardEvent("keydown", {
+				key: code,
+				code,
+				[modifier]: true,
+				bubbles: true,
+				cancelable: true,
+			});
+			const saves = h.saves();
+			input.dispatchEvent(event);
+			await tick();
+			assert.equal(event.defaultPrevented, false);
+			assert.equal(h.component.getSearchCache().search, "cat");
+			assert.equal(h.saves(), saves);
+			input.dispatchEvent(
+				new window.KeyboardEvent("keydown", { key: code, code, bubbles: true }),
+			);
+			await tick();
+			assert.equal(h.component.getSearchCache().search, code === "ArrowUp" ? "dog" : "");
+		});
+	}
+}
+
 for (const signal of ["isComposing", "composition events", "legacy 229"]) {
+	for (const selector of [".finder textarea", ".replacer textarea"]) {
+		test(`IME ${signal}: Escape in ${selector} does not close or clear the real Finder`, async () => {
+			const h = mount(undefined, undefined, { clearAfterHidden: true });
+			h.component.showReplace("cat");
+			await tick();
+			setReplacement(h, "dog");
+			const search = new EditorSearch({
+				...h.plugin,
+				registerEvent() {},
+				addCommand() {},
+				app: { workspace: { on() {} } },
+			});
+			search.registerFinderEvent(h.view, h.component);
+			onTestFinished(() => search.dispose());
+			const input = h.target.querySelector(selector);
+			if (signal === "composition events")
+				input.dispatchEvent(
+					new window.CompositionEvent("compositionstart", { bubbles: true }),
+				);
+			const event = new window.KeyboardEvent("keydown", {
+				key: "Escape",
+				code: "Escape",
+				bubbles: true,
+				cancelable: true,
+				isComposing: signal === "isComposing",
+				keyCode: signal === "legacy 229" ? 229 : 0,
+			});
+			input.dispatchEvent(event);
+			await tick();
+			assert.equal(event.defaultPrevented, false);
+			assert.equal(h.component.isVisible(), true);
+			assert.equal(h.component.getSearchCache().search, "cat");
+			assert.equal(h.component.getSearchCache().replace, "dog");
+			input.dispatchEvent(new window.CompositionEvent("compositionend", { bubbles: true }));
+			input.dispatchEvent(
+				new window.KeyboardEvent("keydown", {
+					key: "Escape",
+					bubbles: true,
+					cancelable: true,
+				}),
+			);
+			await tick();
+			assert.equal(h.component.isVisible(), false);
+			assert.equal(h.component.getSearchCache().search, "");
+			assert.equal(h.component.getSearchCache().replace, "");
+		});
+	}
 	for (const code of ["Enter", "NumpadEnter", "ArrowUp", "ArrowDown"]) {
 		test(`IME ${signal}: search ${code} does not navigate or change history`, async (t) => {
 			const h = mount(t);

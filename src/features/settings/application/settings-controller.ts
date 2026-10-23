@@ -36,6 +36,7 @@ interface SettingsEffects {
 	syncFloatingEntries(): void;
 	refreshAppearance(): void;
 	replacementPreferencesChanged(): void;
+	reportError(error: unknown): void;
 }
 
 /** Synchronous updates and notifications precede a non-blocking save request.
@@ -48,28 +49,43 @@ export class SettingsController {
 	preferences(): SettingsPreferences {
 		return this.settings();
 	}
+	private commit(...notifications: (() => void)[]): void {
+		try {
+			for (const notify of notifications) {
+				try {
+					notify();
+				} catch (error) {
+					this.effects.reportError(error);
+				}
+			}
+		} finally {
+			// A failed UI refresh must not discard an already changed preference.
+			this.effects.save();
+		}
+	}
 	toggle(key: ToggleKey, value: boolean): void {
 		const changed = this.settings()[key] !== value;
 		this.settings()[key] = value;
-		if (key === "useEscapeCharInReplace" && changed)
-			this.effects.replacementPreferencesChanged();
-		if (key === "finderAutoDock") this.effects.refreshToolbars();
-		if (key === "showFloatingFinderOnOpen" && value) this.effects.syncFloatingEntries();
-		if (key === "enableHistory") {
-			this.effects.historyChanged();
-			this.effects.refreshToolbars();
-		}
-		this.effects.save();
+		this.commit(
+			() => {
+				if (key === "useEscapeCharInReplace" && changed)
+					this.effects.replacementPreferencesChanged();
+				if (key === "finderAutoDock") this.effects.refreshToolbars();
+				if (key === "showFloatingFinderOnOpen" && value) this.effects.syncFloatingEntries();
+				if (key === "enableHistory") this.effects.historyChanged();
+			},
+			() => {
+				if (key === "enableHistory") this.effects.refreshToolbars();
+			},
+		);
 	}
 	historyOrder(order: HistorySortOrderType): void {
 		this.settings().historySortOrder = order;
-		this.effects.historyChanged();
-		this.effects.save();
+		this.commit(() => this.effects.historyChanged());
 	}
 	historyRetention(order: HistorySortOrderType): void {
 		this.settings().historyRetention = order;
-		this.effects.historyChanged();
-		this.effects.save();
+		this.commit(() => this.effects.historyChanged());
 	}
 	resizeHistory(limit: number): void {
 		this.effects.resizeHistory(limit);
@@ -101,15 +117,13 @@ export class SettingsController {
 		this.appearanceChanged();
 	}
 	private appearanceChanged(): void {
-		this.effects.refreshAppearance();
-		this.effects.save();
+		this.commit(() => this.effects.refreshAppearance());
 	}
 	toolbar(kind: ToolbarKind, items: readonly Readonly<ToolbarItem>[]): boolean {
 		const key = kind === "search" ? "searchToolbar" : "replaceToolbar";
 		if (items === this.settings()[key]) return false;
 		this.settings()[key] = items.map((item) => ({ ...item }));
-		this.effects.refreshToolbars();
-		this.effects.save();
+		this.commit(() => this.effects.refreshToolbars());
 		return true;
 	}
 	resetToolbar(kind: ToolbarKind): void {

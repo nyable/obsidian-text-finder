@@ -7,7 +7,11 @@ import {
 	searchScopeDecoration,
 } from "../platform/codemirror/search-highlight";
 import { Editor, MarkdownView, Notice, Menu, WorkspaceLeaf, type MarkdownFileInfo } from "obsidian";
-import { mountFinder, type Finder as SearchBox } from "../features/finder/ui";
+import {
+	mountFinder,
+	createCompositionInput,
+	type Finder as SearchBox,
+} from "../features/finder/ui";
 import { i18n } from "../i18n";
 import { generateUniqueId } from "../shared/lifecycle/unique-id";
 import { HistoryModal } from "./history-modal";
@@ -259,9 +263,13 @@ export class EditorSearch {
 			if (!(view instanceof MarkdownView) || !view.file) return;
 			const path = view.file.path;
 			if (this.owners.get(view)?.entryPath === path) return;
-			const finder = this.getFinder(view);
-			this.owners.ensure(view).entryPath = path;
-			if (!finder.isVisible()) finder.showFloatingEntry();
+			try {
+				const finder = this.getFinder(view);
+				if (!finder.isVisible()) finder.showFloatingEntry();
+				this.owners.ensure(view).entryPath = path;
+			} catch (error) {
+				this.plugin.reportError("history.SubscriberFailed", error);
+			}
 		});
 	}
 
@@ -379,11 +387,22 @@ export class EditorSearch {
 		this.owners.get(view)?.reading?.clear();
 	}
 	refreshToolbars() {
-		for (const [, resources] of this.owners.entries()) resources.finder?.refreshToolbar();
+		for (const [, resources] of this.owners.entries()) {
+			try {
+				resources.finder?.refreshToolbar();
+			} catch (error) {
+				this.plugin.reportError("history.SubscriberFailed", error);
+			}
+		}
 	}
 	replacementPreferencesChanged() {
-		for (const [, resources] of this.owners.entries())
-			resources.finder?.replacementPreferencesChanged();
+		for (const [, resources] of this.owners.entries()) {
+			try {
+				resources.finder?.replacementPreferencesChanged();
+			} catch (error) {
+				this.plugin.reportError("history.SubscriberFailed", error);
+			}
+		}
 	}
 	openHistory(tab: "history" | "presets" = "history", recipe?: SearchRecipe) {
 		if (this.disposed) return;
@@ -438,12 +457,14 @@ export class EditorSearch {
 	 */
 	private registerFinderEvent(view: MarkdownView, finder: SearchBox) {
 		const mountEl = view.containerEl;
+		const composition = createCompositionInput();
+		const tracker = composition.track(mountEl);
 		const listener = (e: KeyboardEvent) => {
 			// press esc
 			if (
 				e.key === "Escape" &&
 				!e.defaultPrevented &&
-				!e.isComposing &&
+				!composition.isComposing(e) &&
 				!e.altKey &&
 				!e.ctrlKey &&
 				!e.metaKey &&
@@ -455,8 +476,10 @@ export class EditorSearch {
 			}
 		};
 		mountEl.addEventListener("keydown", listener);
-		this.owners.ensure(view).removeFinderEvents = () =>
+		this.owners.ensure(view).removeFinderEvents = () => {
 			mountEl.removeEventListener("keydown", listener);
+			tracker.destroy();
+		};
 	}
 	private registerEvent() {
 		const workspace = this.plugin.app.workspace;

@@ -128,6 +128,7 @@ it.each(["initial", "after capture"])("rejects readOnly enabled %s without writi
 		changed: false,
 		complete: false,
 		changeCount: 0,
+		rejection: "readOnly",
 	});
 });
 

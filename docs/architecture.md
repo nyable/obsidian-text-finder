@@ -51,7 +51,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 | 查询、替换、选项、可见／折叠、当前项、结果、历史浏览周期 | Finder 会话及 `HistoryNavigation` |
 | 待执行查询和累积导航方向、接受的 promise、matcher 能力 | `QueryLane`，不放进 Vue state |
 | 范围身份、代次、失效保护 | `application/search-scope.ts`；数字范围由 EditorPort 或 ReadingPort 提供 |
-| 替换阶段与提交后重算／定位结果 | `replacement-operation.ts` 和会话，提交后失败不得重放；EditorPort.commitResult 返回写入、完整性与可确认数量，部分过滤／改写数量为 null |
+| 替换阶段与提交后重算／定位结果 | `replacement-operation.ts` 和会话，提交后失败不得重放；EditorPort.commitResult 返回写入、完整性、可确认数量及可选只读拒绝类别，部分过滤／改写数量为 null |
 | DOM refs、IME、面板焦点／菜单／手势、尺寸／位置 | `useFinderViewModel`、`panel-presentation` 及 interaction 控制器 |
 | 原始 MarkdownView／Editor／CodeMirror doc／文件对象 | app 和 `platform/codemirror/finder-editor.ts`；通过稳定 token 和 DocumentSnapshot 提供身份 |
 | 设置、共享历史及保存可读性封锁 | 插件装配、SettingsController、HistoryController、SettingsStorage |
@@ -64,7 +64,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 输入 → `setFindText()` → 编辑／阅读路由 → 捕获查询、范围与 owner 身份 → 计算 → 校验当前身份 → 发布结果／导航。编辑发布绑定不可变 doc，正文变化先清旧高亮。`QueryLane` 使用 idle／pending 可辨识状态；同查询追加导航意图，收起面板只暂停定位，过期 promise 不发布。文件、编辑器、文档、模式、Window token、查询和范围代次分别校验，不合并成一个全局序号。
 
-`scrollToMatch()` 保留同步和异步宿主定位时序；模式切换可能重建编辑器，完成后须重新校验，过期请求不得提交 selection。无匹配不滚动。保存历史不是导航的一部分，不等待磁盘。
+`scrollToMatch()` 保留同步和异步宿主定位时序；模式切换可能重建编辑器，完成后须重新校验，包括捕获的环境 token 未变及 `environmentClosed()` 为 false，不依赖 layout 事件及时使旧请求失效。过期请求不得提交 selection。无匹配不滚动。保存历史不是导航的一部分，不等待磁盘。回归：`tests/integration/finder-session.test.ts` 的 `rejects late navigation after owner window`。
 
 `showFloatingEntry()` 只显示被动收起入口，不聚焦、不匹配旧查询。布局提交后的修正再次校验 panel intent、文件和 Document；手动位置不重置。展开命令与点击使用不同的原有焦点策略，关闭契约见 interactions，不从内部方法名推导产品行为。
 
@@ -77,6 +77,8 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 `ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示完整提交后重算及定位完成；定位失败提示“已替换但定位失败”，宿主部分过滤／改写则明确提示检查正文，均不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
 
 dispatch 正常返回不等于完整替换：适配器从原始 State 解析一次宿主过滤器，对比实际与请求的 ChangeSet，再提交同一 Transaction，避免过滤器二次执行；过滤后再次校验 owner 身份。`runReplacement()` 读取 `EditorPort.commitResult()`，要求已接受文档事务、变化集合及最终文本均符合预期。完全拒绝返回 changed=false／changeCount=0；部分过滤／改写返回失败、changed=true／changeCount=null，不执行重算定位或额外前进，也不提供重放。即使最终文本相同也须核对实际变化，不能把同值部分接受视为全部成功。真实 CodeMirror 过滤器、纯端口、Finder 组件及浏览器 Worker 回归分别覆盖该边界。
+
+只读拒绝由适配器以 `ReplacementCommitResult.rejection: "readOnly"` 明确传递，不解析错误文本。`commitFailed()` 清除替换重试；未写入时会话区分 readOnly／rejected，状态提示不提供 Worker／同步重试。后续新查询或主动替换清除旧拒绝状态，不改变准备阶段的 Worker 失败恢复语义。
 
 ### Worker
 
@@ -131,7 +133,7 @@ dispatch 正常返回不等于完整替换：适配器从原始 State 解析一�
 ## 生命周期与视觉边界
 
 - `PresetController.put()` 接收编辑器的可选原始快照；有基线的编辑按 ID、名称、规则及时间比较，不因排序变化拒绝，不以毫秒时间戳单独识别冲突。UI 始终提交建立草稿时的复制基线，冲突保留草稿并允许另存，不新增持久化字段。
-- 历史／预设通知逐项捕获订阅异常并经装配层提示，保存请求在 finally 中保证发出；数据更新仍同步，初次订阅失败移除回调。
+- 历史／预设通知逐项捕获订阅异常并经装配层提示，保存请求在 finally 中保证发出；数据更新仍同步，初次订阅失败移除回调。SettingsController 的 `commit()` 同样隔离同步副作用并在 finally 请求保存，保留已修改设置；workspace 的工具栏／替换偏好／悬浮入口按 owner 隔离，失败入口不提前记录 entryPath。回归：`settings-controller.test.ts`、`main-settings.test.mjs`、`floating-entry.test.mjs`。
 - 编辑匹配结果发布时按结果集复制并冻结一次，隔离会话内部可变数组；导航复用发布快照身份。`search-highlight.ts` 对有效、排序、不重叠结果仅更新旧／新当前项装饰，其他持久化树节点保留。结果变化或文档修改仍完整重建／清空，公开 CSS 类与单层匹配 mark 不变。发布及装饰元数据用 WeakMap 随集合释放，不持有 owner。
 - 全局转义设置变动通过 SettingsController → workspace → FinderCommands 同步取消准备阶段，不引入全局事件总线；已经提交的替换仍只重算，不重放。
 

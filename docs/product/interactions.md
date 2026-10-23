@@ -29,7 +29,7 @@
 1. 关闭按钮、视图内 Escape、关闭命令、切换查找的关闭分支共用关闭语义，以关闭按钮为基准。
    - 基准：`closeFinder()` 在可编辑 owner 存在且 `sourceModeWhenSearch` 开启时，根据有效的全局 livePreview 偏好恢复 `state.source`，然后隐藏面板。
     - 偏好缺失、非布尔或读取抛错时不写模式；恢复的是全局偏好，不是保存的打开前视图状态。
-    - 模式恢复失败仍隐藏面板；Promise 拒绝被处理并提示。面板已经隐藏时关闭无副作用；Escape 仅在可见、未被消费、无修饰键且非组合输入时生效。
+    - 模式恢复失败仍隐藏面板；Promise 拒绝被处理并提示。面板已经隐藏时关闭无副作用；Escape 仅在可见、未被消费、无修饰键且非组合输入时生效。组合输入同时检查 `isComposing`、旧式 229 及事件目标的 composition 状态；目标失焦清除状态，owner 销毁释放监听。
 2. 开启 `clearAfterHidden` 后，关闭应同时清空查询和替换输入；关闭仍不等于重置所有查询选项。
     - 默认保留查找和替换文本及匹配选项；开启清空后也保留选项，不把关闭当作重置会话偏好。
 
@@ -94,9 +94,11 @@
 ## 导航与替换
 
 - 前后导航循环；过期文档／查询先重算。编辑定位滚动后可强制源码、选中匹配；保存历史不参与等待链。
+- 异步宿主定位完成后再次核对捕获的 owner Window token 和窗口未关闭，不等待 layout 事件使旧操作失效；窗口迁移／关闭后不得发布旧选区或高亮。已经交给宿主的滚动／模式切换本身无法撤销。
 - 正文变化、文件打开、活动视图变化及布局刷新采用不主动滚动的重新匹配。
 - 替换前重新取得 owner 的 Editor、CodeMirror 和文档，重新计算原文变化。已关闭视图、阅读模式或上下文失效不作为写入目标。
 - 最终写入边界遵守当前 CodeMirror `EditorState.readOnly`，包括候选准备后才变为只读的情况；拒绝后不报告成功、不定位或自动重试写入。只读仍可查找、高亮和导航；`EditorView.editable: false` 只控制 DOM 编辑性，不单独作为替换权限。
+- 未写入的只读拒绝和宿主事务拒绝分别显示专用提示，不误报 Worker 故障，不提供“重试”或“同步重试”；保留原生查找入口。解除只读或检查编辑器后，可主动再次执行替换；不新增提前禁用替换控件的规则。
 - 单次替换按钮、替换框 Enter 和命令调用 `replaceOnce()`：替换后重算；数量未变且文档／编辑器仍有效时再前进一项，否则定位重算后的当前项。不成功或写入中换文件时不额外前进。
 - 替换先异步计算完整原文的候选；提交前再次校验具体文件、Editor、CodeMirror doc、窗口、查询、替换输入和转义选项。正文同步提交后异步重算，再完成宿主定位，最后才决定额外前进。请求被新操作、关闭／重新打开、查询变化、文档变化或销毁取代后，不再提交旧候选、选区或额外前进；宿主重建编辑器时只后台重算，不复用旧坐标。不能取消已交给宿主的模式切换本身。
 - 全部替换一次提交所有原文变化，不套用单次替换的额外前进规则。
@@ -104,7 +106,7 @@
 - 匹配始终保留完整原文上下文，选区开启时只扫描允许范围内起点并接受完整包含的匹配；单次操作只展开目标匹配的模板，全部替换才展开所有模板。写入后定位失败提示“替换已完成”，不把它当作未写入，也不再额外前进。
 - 隐藏面板仍可通过编辑命令执行替换；安全来自写入前重算，而不是假设隐藏期间结果有效。
 
-依据：`src/features/finder/application/finder-session.ts` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`replaceMatches()`、`replacement-operation.ts:runReplacement()`；`src/app/workspace-runtime.ts:registerEvent()`。回归：`tests/integration/editor-isolation.test.mjs`、`replacement.test.mjs`、`finder-editor.test.ts`。
+依据：`src/features/finder/application/finder-session.ts` 的 `navigateMatch()`／`scrollToMatch()`／`replaceOnce()`／`replaceMatches()`、`replacement-operation.ts:runReplacement()`；`src/app/workspace-runtime.ts:registerEvent()`。回归：`tests/integration/editor-isolation.test.mjs`、`replacement.test.mjs`、`finder-editor.test.ts`、`finder-session.test.ts`、`tests/component/finder-panel.test.mjs`。
 
 ## 输入、焦点与菜单
 
@@ -120,7 +122,7 @@
 依据：`src/app/workspace-runtime.ts:connectReadingMenu()`／`selectionMenu()`／`showSelectedText()`／`registerEvent()`；`src/features/finder/application/finder-session.ts:findSelectedText()`／`findInCapturedSelection()`；`src/features/reading/dom/reading-selection.ts:stamp()`。回归：`tests/integration/finder-menus.test.mjs`、`tests/component/finder-panel.test.mjs`；宿主方法检查 `tools/diagnostics/menu-host-check.mjs` 不等于 GUI 验收。
 
 - `enableInputHotkeys` 开启时，普通 Enter／NumpadEnter 在查找框导航下一项，在替换框替换一次；排除 Alt／Ctrl／Shift／Meta，避免截获系统或用户快捷键。
-- IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter 和历史上下键不触发快捷操作。输入事件本身仍会更新查询。
+- IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter、历史上下键和视图内 Escape 不触发导航、替换或关闭。输入事件本身仍会更新查询。
 - 查询 textarea 支持多行；不自动纠错／大写、不检查拼写、不允许用户 resize。
 - 隐藏面板同步设 `visibility: hidden` 和 `aria-hidden`，移除 Tab 入口，blur 内部焦点并拒绝迟到聚焦；不承诺统一把焦点送回编辑器。
 - More 是工具栏延伸的紧凑图标按钮面板，不是文字列表／勾选菜单；同外部按钮几何、激活／禁用／提示样式，横排并在宽度不足时换行，宽高受 owner／可见视口限制。容器用 `role="group"`／`aria-labelledby`，模式用 `aria-pressed`，不用 menu／menuitemcheckbox。
@@ -130,7 +132,7 @@
 - 设置分类支持左右键／Home／End；工具栏排序后恢复对应按钮／手柄焦点。拖动有 4px 启动阈值，pointercancel、窗口失焦和 Escape 可取消；切页／隐藏设置清理拖动。
 - 历史复用及常显复选框使用原生 button，Enter／Space 原生点击分别复用／选择，不触发页面滚动。详情／复制／删除与复用为兄弟控件，不再嵌套；操作常显，不依赖 hover。
 
-依据：`src/features/finder/interaction/panel-presentation.ts`、`composition-input.ts`、`input-shortcuts.ts` 和 `src/features/finder/ui/FinderPanel.vue` 的 textarea 模板；`FinderToolbar.vue:menuKeys()`；`src/features/settings/ui/settings-view.ts`；`src/features/history/ui/HistoryList.vue`。回归：`tests/component/finder-panel.test.mjs`、`history-panel.test.mjs`。
+依据：`src/features/finder/interaction/panel-presentation.ts`、`composition-input.ts`、`input-shortcuts.ts` 和 `src/features/finder/ui/FinderPanel.vue` 的 textarea 模板；`FinderToolbar.vue:panelKeys()`；`src/app/workspace-runtime.ts:registerFinderEvent()`；`src/features/settings/ui/settings-view.ts`；`src/features/history/ui/HistoryList.vue`。回归：`tests/component/finder-panel.test.mjs`、`history-panel.test.mjs`、`tests/integration/reading-commands.test.mjs`。
 
 ## 外观设置与预览
 
@@ -161,7 +163,7 @@
 
 - 单纯输入不立即记录。匹配导航记录非空查询，不要求一定有匹配；阅读导航还检查当前不处于 unsupported／error。
 - 同查询连续导航只计一次使用，后续更新时间；A → B → A 开始新周期。明确复用计一次，紧接导航不重复计数。
-- 第一行 ArrowUp 从当前排序首项向较旧／低优先级项浏览；最后一行 ArrowDown 向前返回，离开历史浏览时恢复暂存输入。未进入历史浏览时 ArrowDown 清空非空查询。
+- 第一行无修饰键 ArrowUp 从当前排序首项向较旧／低优先级项浏览；最后一行无修饰键 ArrowDown 向前返回，离开历史浏览时恢复暂存输入。未进入历史浏览时普通 ArrowDown 清空非空查询；Alt／Ctrl／Shift／Meta 组合方向键保留原生编辑／选择行为，不浏览历史或清空查询。
 - 浏览身份是精确文本。重排保留当前项；删除或裁剪当前项时优先转到原排序的下一个存活邻近项，无则前一项。列表清空恢复暂存输入；手动输入退出浏览。订阅修复结果不主动滚动笔记。
 - 复用作用于操作时当前可搜索 Markdown 视图；成功才关闭弹窗，失败保留弹窗并提示。不因为打开历史弹窗就固定未来复用目标。
 - 复制使用所属 Modal Document 的 Clipboard，只复制精确文字，不更新时间／次数或请求保存；复制拒绝提示失败，异步完成不修改历史或复活删除项，弹窗销毁后不显示迟到错误。
@@ -197,9 +199,10 @@
 
 - **用户已批准：**所有支持版本统一为常规／查找／替换／搜索历史／外观五个 Tab，放弃全局设置搜索逐项索引，不维护宿主声明式分组／子页和两套界面。
 - 外观页顶部固定预览、下方配置独立滚动，四组默认折叠。所有开关、历史整数 Enter／blur 提交、排序、颜色应用／取消、单项／分组恢复及工具栏排序均通过同一控制器；保存不阻塞导航，读取失败仍禁止覆盖磁盘。
+- 设置内存值更新后，即使同步外观／工具栏／悬浮入口等副作用抛错，仍请求保存，不回滚内存；错误按既有视图刷新失败路径提示，保存失败仍由存储路径报告。历史通知与工具栏刷新互不阻断，多 owner 工具栏／替换偏好／悬浮入口通知逐项隔离；失败的自动入口不标记为已应用，后续正常扫描可再尝试。
 - 只在外观 Tab 挂载该设置视图自己的预览，不维护跨行共享预览集合。切换分类保留本次访问的分组折叠状态，hide 后重新访问恢复默认折叠。开启调色器、位置菜单或拖动按既有规则关闭冲突交互；重绘／切 Tab／关闭／owner Window 的 pagehide／插件卸载释放预览、草稿、拖动监听和菜单。旧外观节点不能再次修改配置。
 
-依据：`src/app/settings-tab.ts`、`src/features/settings/ui/settings-fields.ts`、`settings-view.ts`、`tests/integration/main-settings.test.mjs`；新版宿主实际布局、主题、滚动和窗口迁移需实测。
+依据：`src/app/settings-tab.ts`、`src/features/settings/application/settings-controller.ts:commit()`、`src/app/workspace-runtime.ts:refreshToolbars()`／`replacementPreferencesChanged()`／`syncFloatingEntries()`、`src/features/settings/ui/settings-fields.ts`、`settings-view.ts`；回归：`tests/unit/settings-controller.test.ts`、`tests/integration/main-settings.test.mjs`、`floating-entry.test.mjs`。新版宿主实际布局、主题、滚动和窗口迁移需实测。
 
 ## 阅读状态与错误
 

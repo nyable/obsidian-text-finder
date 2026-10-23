@@ -26,6 +26,8 @@
 		"EditorFailed": "Could not update the editor position or mode. Try again after the view is ready.",
 		"ReplacedNavigationFailed": "Replacement was applied, but positioning failed. Check the text before replacing again.",
 		"ReplacementModified": "The host only partially applied or modified the replacement. Check the text before replacing again; it will not be replayed automatically.",
+		"ReplacementReadOnly": "This editor is read-only. No replacement was applied. Make the note editable before replacing again.",
+		"ReplacementRejected": "The editor refused the replacement. No edit was applied. Check the note and editor state before replacing again.",
 		"Retry": "Retry",
 		"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
 		"ReadingTimeout": "Reading render timed out. Retry, or use native find.",

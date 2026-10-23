@@ -21,7 +21,14 @@ export function createInputShortcuts(commands: InputCommands) {
 	return {
 		onQueryKeyDown(this: void, event: KeyboardEvent) {
 			if (commands.isComposing(event)) return;
-			if (commands.historyEnabled() && ["ArrowUp", "ArrowDown"].includes(event.code)) {
+			if (
+				commands.historyEnabled() &&
+				["ArrowUp", "ArrowDown"].includes(event.code) &&
+				!event.altKey &&
+				!event.ctrlKey &&
+				!event.shiftKey &&
+				!event.metaKey
+			) {
 				const input = commands.searchInput();
 				const up = event.code === "ArrowUp";
 				const boundary = up ? input.value.indexOf("\n") : input.value.lastIndexOf("\n");

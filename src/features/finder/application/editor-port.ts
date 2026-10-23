@@ -20,6 +20,8 @@ export interface EditingSnapshot {
 export interface ReplacementCommitResult {
 	changed: boolean;
 	complete: boolean;
+	/** A known write refusal, distinct from a matching/Worker failure. */
+	rejection?: "readOnly";
 	/** Unknown when the host changed the document differently from the request. */
 	changeCount: number | null;
 }

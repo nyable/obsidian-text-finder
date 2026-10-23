@@ -27,7 +27,7 @@ interface ReplacementEffects {
 	failed(error: unknown, committed: boolean, modified?: boolean): void;
 	clear(): void;
 	noChanges(): void;
-	commitFailed(): void;
+	commitFailed(result: ReplacementCommitResult): void;
 	replace(source: string, replacement: string): MatchResult | Promise<MatchResult>;
 	match(source: string): MatchResult | Promise<MatchResult>;
 }
@@ -95,7 +95,7 @@ export function runReplacement(
 			result.changeCount = commit.changeCount;
 			if (commit.changed && !commit.complete) effects.failed(error, true, true);
 			else effects.failed(error, commit.changed);
-			effects.commitFailed();
+			effects.commitFailed(commit);
 			return result;
 		} finally {
 			if (task.phase === "committing") task.phase = "prepare";
