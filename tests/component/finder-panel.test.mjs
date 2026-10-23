@@ -570,6 +570,81 @@ test("real Finder enables reading scope, keeps query and More state, blocks inva
 	assert.equal(h.view.editor.getValue(), "cat cat");
 });
 
+test("reading and editing mode switches exit scope, preserve inputs and options and allow immediate recapture", async () => {
+	const h = mount();
+	await tick();
+	window.CSS = { highlights: new Map() };
+	window.Highlight = class extends Set {
+		priority = 0;
+	};
+	const root = document.createElement("div"),
+		section = document.createElement("div");
+	section.innerHTML = "<p>cat cat cat</p>";
+	root.append(section);
+	h.target.append(root);
+	const renderer = {
+		sections: [{ el: section, rendered: true }],
+		text: "md",
+		lastText: "md",
+		parsing: false,
+		rendered: null,
+		previewEl: root,
+		showSection() {},
+		applyScrollSection() {
+			return true;
+		},
+		updateVirtualDisplay() {},
+		onRendered() {},
+	};
+	h.view.previewMode = { containerEl: root, renderer };
+	const reading = new ReadingSearch(
+		h.view,
+		() => true,
+		() => h.component.matchAgain(false),
+	);
+	onTestFinished(() => reading.destroy());
+	h.editorSearch.getReadingSearch = () => reading;
+	h.editorSearch.clearReadingSearch = () => reading.clear();
+	h.editorSearch.canSearchReading = () => true;
+	const node = section.querySelector("p").firstChild;
+	h.editorSearch.getReadingSelection = () => [
+		{ start: { node, offset: 4 }, end: { node, offset: 7 } },
+	];
+	h.component.setReplacementText("dog");
+	h.component.toggleWholeWordMode();
+	h.view.getMode = () => "preview";
+	h.component.matchAgain(false);
+	assert.equal(h.component.findInSelection(), true);
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 1);
+	const before = h.component.getSearchCache(),
+		scrolls = h.scrolls.length;
+	h.view.getMode = () => "source";
+	h.component.matchAgain(false);
+	await tick();
+	assert.equal(h.component.hasSelectionScope(), false);
+	assert.equal(reading.getScopeRanges(), undefined);
+	assert.equal(h.component.getSearchCache().matches.length, 2);
+	assert.equal(h.component.getSearchCache().search, before.search);
+	assert.equal(h.component.getSearchCache().replace, before.replace);
+	assert.deepEqual(h.component.getSearchCache().options, before.options);
+	assert.equal(h.view.editor.getValue(), "cat cat");
+	assert.equal(h.scrolls.length, scrolls);
+	selectScope(h, [{ from: 4, to: 7 }]);
+	assert.equal(h.component.findInSelection(), true);
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 1);
+	h.view.getMode = () => "preview";
+	h.component.matchAgain(false);
+	await tick();
+	assert.equal(h.component.hasSelectionScope(), false);
+	assert.equal(h.view.editor.cm.state.field(searchScopeField).ranges, null);
+	assert.equal(h.component.getSearchCache().matches.length, 3);
+	assert.equal(h.component.findInSelection(), true);
+	await tick();
+	assert.equal(h.component.getSearchCache().matches.length, 1);
+});
+
 test("menu selected-text action clears active and blocked scope and seeds query even from a docked Finder", async (t) => {
 	const h = mount(t, undefined, {}, false);
 	await tick();
@@ -968,7 +1043,7 @@ test("mobile marker expansion stays inside bounds after positional animations wo
 	}
 });
 
-test("mobile position transitions are disabled without changing desktop transitions or reduced-motion rules", async (t) => {
+test("desktop and mobile position transitions are disabled while opacity and reduced-motion rules remain", async (t) => {
 	onTestFinished(() => {
 		Platform.isMobile = false;
 		document.body.classList.remove("is-mobile");
@@ -980,11 +1055,7 @@ test("mobile position transitions are disabled without changing desktop transiti
 		await tick();
 		const node = h.target.querySelector(".nya-finder"),
 			transition = window.getComputedStyle(node).transition;
-		if (mobile) assert.equal(transition, "opacity 0.2s linear");
-		else {
-			assert.match(transition, /transform 0.2s linear/);
-			assert.match(transition, /right 0.3s/);
-		}
+		assert.equal(transition, "opacity 0.2s linear");
 		node.classList.add("nya-finder--dragging");
 		assert.equal(window.getComputedStyle(node).transition, "opacity 0.12s ease");
 	}
@@ -2332,7 +2403,7 @@ test("escape preference notifications immediately cancel candidates and changing
 	assert.equal(h.view.editor.getValue(), "cat cat");
 });
 
-for (const action of ["reselect", "clear", "close", "edit"]) {
+for (const action of ["reselect", "clear", "close", "edit", "mode round trip"]) {
 	test(`pending scoped replacement cannot commit after ${action}`, async (t) => {
 		const h = await mountReplacement(t);
 		selectScope(h, [{ from: 4, to: 7 }]);
@@ -2346,6 +2417,20 @@ for (const action of ["reselect", "clear", "close", "edit"]) {
 		if (action === "clear") h.component.toggleFindInSelection();
 		if (action === "close") h.component.setVisible(false);
 		if (action === "edit") h.view.editor.cm.dispatch({ changes: { from: 0, insert: "x" } });
+		if (action === "mode round trip") {
+			const reading = new ReadingSearch(
+				h.view,
+				() => true,
+				() => h.component.matchAgain(false),
+			);
+			h.editorSearch.getReadingSearch = () => reading;
+			onTestFinished(() => reading.destroy());
+			h.view.getMode = () => "preview";
+			h.component.matchAgain(false);
+			h.view.getMode = () => "source";
+			h.component.matchAgain(false);
+			assert.equal(h.component.hasSelectionScope(), false);
+		}
 		h.matcher.replacements[0].resolve({
 			...matchedCats,
 			matches: [{ from: 4, to: 7, index: 0 }],
@@ -4275,7 +4360,7 @@ test("More ordinary actions close the panel and disabled actions do not execute"
 	assert.equal(more.classList.contains("nya-btn--active"), false);
 });
 
-test("reading mode keeps invalid source scope visible in More until the user explicitly clears it", async (t) => {
+test("switching to reading clears the source scope and its More indicator without changing other options", async (t) => {
 	const h = mount(t);
 	await tick();
 	selectScope(h, [{ from: 4, to: 7 }]);
@@ -4300,12 +4385,14 @@ test("reading mode keeps invalid source scope visible in More until the user exp
 	h.component.matchAgain(false);
 	await tick();
 	assert.equal(more.classList.contains("nya-btn--active"), false);
-	assert.ok(more.querySelector(".nya-toolbar-indicator"));
+	assert.equal(more.querySelector(".nya-toolbar-indicator"), null);
+	assert.equal(h.component.hasSelectionScope(), false);
+	assert.equal(h.view.editor.cm.state.field(searchScopeField).ranges, null);
 	more.click();
 	await tick();
 	const scope = h.target.querySelector('[data-overflow-action="selection"]');
-	assert.equal(scope.getAttribute("aria-pressed"), "true");
-	assert.equal(scope.getAttribute("aria-label"), "search.tip.FindInSelectionUnavailable");
+	assert.equal(scope.getAttribute("aria-pressed"), "false");
+	assert.equal(scope.getAttribute("aria-label"), "search.tip.FindInSelection");
 	assert.ok(h.target.querySelector('[data-overflow-action="wholeWord"]'));
 });
 

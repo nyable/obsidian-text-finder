@@ -410,10 +410,8 @@ defineExpose(vm.commands);
 .nya-finder {
 	@include finder.surface;
 	position: absolute;
-	transition:
-		transform 0.2s linear,
-		opacity 0.2s linear,
-		right 0.3s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+	// Position measurement must never bake an animated transform/right into translate.
+	transition: opacity 0.2s linear;
 	height: 72px;
 	min-width: min(var(--nya-default-width), var(--nya-available-width, 100vw));
 	max-width: var(--nya-available-width, calc(100vw - 16px));

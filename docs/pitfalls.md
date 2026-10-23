@@ -31,6 +31,6 @@
 | 缓存历史排序下标；删除或缩容后索引越界 | 精确文本浏览身份，删除转存活邻近项，清空恢复暂存输入 | `src/features/history/model/history.ts:HistoryNavigation`；`tests/unit/history-contracts.test.mjs`、`tests/component/finder-panel.test.mjs` 的邻近项 |
 | 为单次替换展开所有模板；前缀／后缀造成多余字符串工作 | 全文匹配保持语义，只展开写入目标 | `src/core/search/text-matching.ts:prepareReplacements()`；`tests/unit/regex-replacement.test.mjs` 的 lazily expands |
 | 将 setState Promise 返回当作定位成功；拒绝前已额外前进 | 提交不重试，异步定位成功且请求／身份有效后才前进；同查询乱序也用代次区分 | `src/features/finder/application/finder-session.ts:scrollToMatch()`／`replaceOnce()`；`tests/component/finder-panel.test.mjs` 的 async replacement／out-of-order／mode rebuild |
-| 用动画中基础坐标计算独立 translate；动画结束后补偿过期 | 移动收起／展开不动画 right／transform，tick 只等待 DOM 提交；保留 opacity 和宽度校正 | `src/features/finder/ui/FinderPanel.vue` 移动 CSS、`src/features/finder/interaction/finder-position.ts:measure()`；`tests/component/finder-panel.test.mjs` 的 mobile marker expansion 回归（非 Android 动画实测） |
+| 用动画中基础坐标计算独立 translate；动画结束后补偿过期，桌面关闭重开后即使等超过一秒仍可能在按下时上跳一个面板高度 | 桌面／移动收起、展开及重开不动画 right／transform，tick 只等待 DOM 提交；保留 opacity 和宽度校正，按下／阈值前松开不主动纠正位置 | `src/features/finder/ui/FinderPanel.vue`、`src/features/finder/interaction/finder-position.ts:measureGeometry()`；`tests/component/finder-panel.test.mjs` 的 mobile marker expansion、`tests/browser/drag.spec.mjs` 的手动位置重开回归（Chromium，非宿主／Android 验收） |
 
 使用这些经验时引用对应行为契约，而不是把历史实现原样复制回来。新的回归经验应说明具体症状、原因和可执行证据；尚未确认的风险放在兼容性验证边界，不伪装成历史缺陷。

@@ -41,8 +41,9 @@
 
 - 此交互经维护者批准，源码实现不代表全部宿主验收。展开／贴边／关闭分别表达显示完整控件、显示边缘标签、结束可见查找。`cache.visible` 在贴边时仍为 true，以保留匹配与高亮；关闭沿用原契约。
 - 桌面装饰条统一作为拖动区，移动端手柄仍在结果栏；约 3px 移动后立即进入拖动（80% 透明度），无长按。折叠箭头仅切换替换行；收起标记不移动时仍单击展开，拖动后抑制 pointer click、不吞键盘激活。使用 Pointer Capture（不支持／失败回退 Document 监听），取消捕获／pointercancel／Escape／失焦／pagehide 回滚；隐藏／销毁清帧、捕获、计时器和监听。
+- 桌面有效主指针按下拖动入口时取消原生默认聚焦，不主动转移输入焦点，避免聚焦滚动和将输入的 focus-visible 状态带到拖动柄；Tab 进入后的可见键盘焦点、方向键／Home 移动保留。按下只采样当前几何，未达到 3px 阈值的移动、松开及取消不重写位置／宽度；真实 resize／scroll 等布局通知仍约束可达边界，移动端短按默认行为保留。依据：`src/features/finder/interaction/drag-handle.ts`、`finder-position.ts:measureGeometry()`；`tests/unit/drag-handle.test.ts`、`finder-position.test.mjs`、`tests/browser/drag.spec.mjs`。浏览器回归不替代 Obsidian 的主题／布局及祖先滚动实机验收。
 - 自动贴边配置默认关闭；仅完整框移动后的 pointerup 确认，不由 resize／打开触发。满宽（85%）用横向 56px 和方向优势 1.4 倍，非满宽用朝边缘 12px 移动及 16px 距离；候选移回撤销、替换时禁用。收起标记可二维自由移动，不靠边就停在松手处，靠边吸附左右；保持收起形态不展开。满宽展开居中、保留标记高度，其他宽度围绕标记位置展开并限制边界。
-- 移动完整框与收起标记均不对 right／transform 做位置过渡，仅保留 opacity（普通态 0.2s linear，拖动／收起态 0.12s ease），避免展开定位器读取动画中间基础坐标并留下过期 translate。DOM 提交后的既有校正保留，不增加延迟展开或等待动画结束；桌面位置过渡不变，reduced-motion 优先禁用所有状态过渡。此移动展开越界修正经维护者批准，有模拟几何与实际组件 CSS 回归，Android 最终绘制仍需复测。
+- 桌面及移动完整框与收起标记均不对 right／transform 做位置过渡，仅保留 opacity（普通态 0.2s linear，拖动／收起态 0.12s ease），避免重新打开／展开时定位器读取动画中间基础坐标并留下过期 translate，之后在按下重测时跳位。DOM 提交后的既有校正保留，不增加延迟展开、固定偏移补偿或等待动画结束；reduced-motion 优先禁用所有状态过渡。此定位／过渡规则经维护者批准，有模拟几何、实际组件 CSS 及桌面 Chromium 重开回归，宿主与 Android 最终绘制仍需复测。
 - 临时位置属于具体 MarkdownView；关开、换文件、换模式保留位置，但销毁后不恢复。尺寸／软键盘变化只约束可见位置，不覆盖保存的手动意图。恢复位置保留当前视图命令、桌面收起标记右键及移动控件聚焦后的 Home，不再提供常规设置中的跨视图恢复按钮。恢复位置不改查询、选项或正文；自动显示但尚未使用的入口恢复时保持小图标，不激活匹配或原生查找。
 - 收起 blur 输入、同步 inert／aria-hidden 并移出 Tab；More 关闭，拒绝迟到输入聚焦。标签展开不聚焦查询，焦点回原移动入口；命令打开仍聚焦／全选。桌面右键菜单提供关闭／恢复；关闭与重新打开取消迟到焦点。
 - 移动端收起图标／移动手柄阻止 contextmenu 默认行为及冒泡，不打开插件关闭／恢复菜单，局部禁用 touch callout／文字选择；不影响输入框选词／复制粘贴。移动端按住至少 500ms 后松手／取消，或已经收到 contextmenu 时，抑制随后指针 click（复用 700ms 过期清理）；短按单击展开、长按后拖动及键盘 click 正常，约 3px 直接拖动不增加等待。移动端关闭可点图标展开后使用关闭按钮，恢复使用已有命令。此移动长按契约经维护者批准，系统实际触控事件仍需真机验收。
@@ -63,16 +64,17 @@
 - 范围随 CodeMirror changes 映射：边界插入包含在范围内，范围完整替换包含新插入文本；只删除范围保留空锚点，撤销可恢复。删除跨越边界无法无损映射，移除受影响范围，撤销不凭猜测扩大它；其他存活范围保留。空范围显示不可用、匹配为零、不写入。
 - 范围变化参与查询身份和请求代次，取消旧候选／查询／定位；提交前核验 doc／owner／范围，提交后按同一事务映射的新范围重算，不以新范围身份误判自身写入失败。
 - 收起保留范围。关闭清除正文范围并取消任务，留下写入阻断保护；该会话的隐藏替换不得转成全文。明确重新打开普通 Finder 后开启新的全文会话；从未限定范围的隐藏替换保持旧契约。
-- 换文件、切模式、编辑器 State 重建丢失范围字段、窗口迁移使范围失效，查找／替换保持空范围保护，需重选或明确清除，不把源码范围用于阅读或反向转换。阅读同样展示选区按钮及失效状态。销毁释放所属范围装饰，不影响其他 owner。
+- **已批准的模式切换规则：**编辑与阅读双向切换自动结束当前范围及失效限制，关闭选区按钮、清除旧范围装饰并按原查询重新全文查找；保留查询、替换文本与正则／大小写／全字选项，不自动捕获另一模式选区或转换坐标，不执行替换。取消旧候选／查询／定位，往返不恢复旧范围；源码与实时预览均属编辑模式，二者切换本身不清范围。
+- 换文件、编辑器 State 重建丢失范围字段、窗口迁移等同模式失效仍保持空范围保护，需重选或明确清除。阅读同样展示选区按钮及失效状态；显式编辑／阅读切换按上一条结束限制。销毁释放所属范围装饰，不影响其他 owner。
 - 工具栏默认 More，常驻及 More 均用 `aria-pressed`；隐藏按钮不清范围，也不添加额外标记。选区启用以按钮激活态为准，More 汇总其内部模式；计数旁不增加文字／清除入口。空／失效范围仍保持激活和写入限制，按钮提示说明需重选或关闭限制。正文默认淡背景，可明确开启外轮廓，无下划线，不给非操作容器添加 tooltip 标签。
 
-依据：`src/platform/codemirror/search-scope.ts`、`src/features/finder/application/search-scope.ts`、`finder-session.ts:replaceMatches()`、`src/app/workspace-runtime.ts`。回归：`tests/integration/search-scope.test.mjs` 和 `tests/component/finder-panel.test.mjs` 的 selection/scoped 系列。
+依据：`src/platform/codemirror/search-scope.ts`、`src/features/finder/application/search-scope.ts:syncMode()`、`finder-session.ts:replaceMatches()`／`matchAgain()`、`src/app/workspace-runtime.ts`。回归：`tests/unit/search-scope.test.ts`、`tests/integration/search-scope.test.mjs` 和 `tests/component/finder-panel.test.mjs` 的 selection/scoped 系列。
 
 ### 阅读范围及换行
 
 - `ReadingSelectionTracker` 为已打开阅读视图捕获候选（不必先创建 Finder），在所属 Document selectionchange、离开正文前的 pointerdown／keydown 取节点＋数字端点；正文重新交互／明确清空候选不沿用旧选择。输入框或命令面板聚焦不重定义正文候选；其他正文选区不借用。独立命令保留查询，普通打开的选区填词行为不变。
 - 完整 renderer 就绪才允许确认范围；DOM 两端必须位于 owner 正文，文本／元素端点按索引反向映射。折叠空白部分选择向内取整，不猜测 Markdown 源坐标，不用选择字符串重搜；零长度／未索引端点拒绝。浏览器提供多 Range 则逐个校验，不拼接间隙。
-- 请求携带范围代次，Worker／同步共用 ranges；空查询仍建立范围背景，清查询不解除范围。导航／浏览器 Selection 变化不重捕获。虚拟挂载同节点保留；源快照／文件／renderer／Document／文字或数字节点映射改变失效，重试失败也不自动全文。明确关闭范围或关闭后普通重开才结束限制。
+- 请求携带范围代次，Worker／同步共用 ranges；空查询仍建立范围背景，清查询不解除范围。导航／浏览器 Selection 变化不重捕获。虚拟挂载同节点保留；源快照／文件／renderer／Document／文字或数字节点映射改变失效，重试失败也不自动全文。明确关闭范围、关闭后普通重开或显式编辑／阅读切换结束限制。
 - `<br>`、`pre` 保留换行及正文块边界记录独立锚点；纯换行结果不再要求文本端点，先挂载目标分块再定位。连续换行一次匹配仍计一项，按匹配位置绘制 `↵`；排除内容保护边界和末尾合成分隔符不单独成为结果，自动折行不造换行。阅读展示的是渲染逻辑边界，不是源码换行。
 - 背景注册表按 Document 合并 owner，scope priority -1／匹配 0／当前 1；轮廓与换行在 body 的独立 fixed portal，aria-hidden、pointer-events none、不写正文。滚动先隐藏旧几何、按帧重测，ResizeObserver／字体／viewport／外观变更请求绘制，按 owner 与裁切祖先限制显示。挂回重建临时 Range，不缓存 live Range；销毁释放监听、Observer、rAF 和覆盖层。
 - 普通查找统一使用插件，不兼容时提示并回退原生；显式范围命令使用插件能力，失败说明原因，不打开原生全文冒充范围。阅读替换／文件写入／切编辑模式保持禁止。

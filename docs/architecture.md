@@ -68,6 +68,10 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 `showFloatingEntry()` 只显示被动收起入口，不聚焦、不匹配旧查询。布局提交后的修正再次校验 panel intent、文件和 Document；手动位置不重置。展开命令与点击使用不同的原有焦点策略，关闭契约见 interactions，不从内部方法名推导产品行为。
 
+`createFinderPosition()` 将几何采样 `measureGeometry()` 与布局约束／绘制 `measure()` 分开；拖动按下只读当前几何，未达阈值的松开／取消不写位置或宽度，真实布局事件仍更新约束且不覆盖手动位置意图。桌面／移动均仅过渡 opacity，避免将动画中基础坐标计入独立 translate；鼠标按下不主动聚焦，键盘焦点仍由原控件和 presentation 管理。回归：`tests/unit/finder-position.test.mjs`、`tests/browser/drag.spec.mjs`。
+
+`createSearchScope()` 独立记录 source／preview 模式；`syncMode()` 在 owner 刷新、范围同步及激活时检测双向切换，取消旧任务／定位、推进范围代次并清除限制。模式变更不把旧范围转成另一套坐标，也不重新捕获当前选区；同模式身份失效仍使用 `clear(true)` 保持 [] 保护。`matchAgain()` 在后台任务保留判断前同步模式，避免旧候选经快速往返复活。回归：`tests/unit/search-scope.test.ts`、真实 Finder 的 mode switches／pending scoped replacement 测试。
+
 ### 替换安全
 
 同步兼容路径和 Worker 路径都从本次原文快照准备候选，不能复用隐藏面板的旧坐标。全文正则上下文及模板展开在 `core/search/text-matching.ts`，单次只展开目标模板，全部才展开全部；没有二次正则切片验证或递归替换模板。
@@ -97,7 +101,7 @@ dispatch 正常返回不等于完整替换：适配器从原始 State 解析一�
 - 不长期持有 DOM Range：保存节点和数字端点，仅挂载后创建 Range。虚拟同节点移出／挂回只重绘；节点替换、源／renderer／Document 变化令索引或范围失效。
 - 查询／选项可复用有效索引；MutationObserver 观察正文及离屏分块的相关文本／属性，导航前消费待处理 records；主题变化显式失效。
 - 同步重试是 `ReadingPort.search()` 的本次请求参数，等待渲染时仅同查询／选项／范围、文件、源版本、renderer 和 Document 的后台刷新可保留；清理／超时或替换请求不继承，执行前消费一次。回归见 `reading-search.test.mjs` 的 synchronous reading retry 系列。
-- 阅读选区 tracker 在 Finder 懒创建前捕获候选；确认范围需要就绪全文，映射折叠空白向内收紧，排除端点拒绝。失效范围保持 [] 限制，不自动恢复全文。
+- 阅读选区 tracker 在 Finder 懒创建前捕获候选；确认范围需要就绪全文，映射折叠空白向内收紧，排除端点拒绝。同模式失效范围保持 [] 限制，不自动恢复全文；显式编辑／阅读切换由 Finder 会话结束旧范围限制。
 - 高亮注册表按 Document 合并视图所有权，范围／普通／当前项有独立优先级。关闭一个 owner 不清其他视图。`reading-overlay.ts` 在 owner body 创建非交互 portal，不污染正文索引；scroll／resize／字体／外观变更合并 owner rAF，销毁取消帧和监听。
 - 换行 breaks 区分 hard／text／block／barrier，保留既有正文字符串，保护边界／末尾合成字符不成为独立可导航换行。几何缺失不猜测坐标，段落／表格间未知空隙不强连。
 - 阅读轮廓按 Text Range 包围盒递归排除离屏片段，再测量候选片段及邻接余量内的完整矩形／换行，不假定字符偏移的视觉顺序。CSS 裁切不代替几何筛选。`paddedScopeOutlines()` 按纵向邻近矩形扫描间距，不再让长文每行和全文两两比较；全文索引、匹配数量及数字范围不截断。初始 Range 包围盒仍可能读取整个挂载文本块，不能宣称所有主线程工作均与视口大小无关。`tests/browser/reading.spec.mjs` 覆盖大型挂载代码块的测量次数与路径工作量，`scope-outline.test.mjs` 对照原间距算法。

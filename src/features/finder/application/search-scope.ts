@@ -25,6 +25,7 @@ export function createSearchScope(
 	resetIndex: () => void,
 ) {
 	const reading = () => host.mode() === "preview";
+	let readingMode = reading();
 	const stored = (snapshot: EditingSnapshot | null) =>
 		snapshot ? editor.scope(snapshot) : undefined;
 	const clearEditor = (snapshot: EditingSnapshot | null) => {
@@ -55,10 +56,24 @@ export function createSearchScope(
 				)
 			: undefined;
 	};
+	const syncMode = () => {
+		const next = reading();
+		if (next === readingMode) return;
+		readingMode = next;
+		if (!state.scopeEnabled && !state.scopeBlocked && !state.readingScope) return;
+		// Rendered-text and source coordinates cannot be carried across modes.
+		// An explicit mode switch ends this restriction, unlike identity loss.
+		cancel();
+		invalidatePosition();
+		clear();
+		resetIndex();
+	};
 	return {
 		clear,
 		ranges,
+		syncMode,
 		sync(this: void, snapshot: EditingSnapshot | null) {
+			syncMode();
 			if (state.readingScope) {
 				if (!reading() || state.scopeWindow !== host.environment()) clear(true);
 				return;
@@ -78,6 +93,7 @@ export function createSearchScope(
 		},
 		activate(this: void, selection?: ScopeSelection): boolean {
 			if (state.disposed) return false;
+			syncMode();
 			if (reading()) {
 				const selected = selection ?? host.selection();
 				if (!selected || !host.canRead()) {

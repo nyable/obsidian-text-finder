@@ -247,6 +247,57 @@ test("direct drag begins after 3px without waiting; a stationary press remains a
 	assert.equal(h.node.classList.contains("nya-finder--dragging"), false);
 });
 
+test("press, sub-threshold movement and release only sample geometry without correcting a parked position", (t) => {
+	for (const docked of [false, true]) {
+		for (const ending of ["pointerup", "pointercancel", "escape"]) {
+			const h = environment(t);
+			if (docked) h.setBase(rect(300, 148, 30, 30));
+			h.update({ docked });
+			h.position.moveBy(-20, 8);
+			// A changed CSS origin must not turn a stationary press into a layout correction.
+			h.setBase(rect(300, 186, docked ? 30 : 448, docked ? 30 : 38));
+			const before = h.node.getBoundingClientRect(),
+				css = h.node.style.cssText;
+			let paints = 0;
+			h.node.addEventListener("nya-finder-position", () => paints++);
+			h.pointer(h.node, "pointerdown", 300, 148);
+			assert.deepEqual(h.node.getBoundingClientRect(), before);
+			assert.equal(h.node.style.cssText, css);
+			h.pointer(h.doc, "pointermove", 301, 149);
+			if (ending === "escape")
+				h.doc.dispatchEvent(
+					new h.win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+				);
+			else h.pointer(h.doc, ending, 301, 149);
+			assert.deepEqual(h.node.getBoundingClientRect(), before, ending);
+			assert.equal(h.node.style.cssText, css, ending);
+			assert.equal(paints, 0);
+			// Real layout events still correct reachability; no permanent position freeze.
+			h.win.dispatchEvent(new h.win.Event("resize"));
+			assert.equal(h.node.getBoundingClientRect().top, before.top - 38);
+		}
+	}
+});
+
+test("a real layout change during a stationary press still clamps the panel and cancellation keeps that correction", (t) => {
+	const h = environment(t);
+	h.update();
+	h.position.moveBy(0, 20);
+	h.pointer(h.node, "pointerdown", 300, 168);
+	Object.assign(h.viewport, { offsetTop: 190, height: 250 });
+	h.viewport.dispatchEvent(new h.win.Event("resize"));
+	assert.equal(h.node.getBoundingClientRect().top, 230);
+	h.pointer(h.doc, "pointercancel", 300, 168);
+	assert.equal(h.node.getBoundingClientRect().top, 230);
+	Object.assign(h.viewport, { offsetTop: 0, height: 768 });
+	h.viewport.dispatchEvent(new h.win.Event("resize"));
+	assert.equal(
+		h.node.getBoundingClientRect().top,
+		168,
+		"layout clamp did not overwrite manual intent",
+	);
+});
+
 test("optional held-click suppression leaves short taps and keyboard activation intact and expires", (t) => {
 	const h = environment(t);
 	h.update();

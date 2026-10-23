@@ -50,7 +50,13 @@ export function dragHandle(
 		win?.addEventListener("pagehide", cleanupTouch);
 	};
 	const start = (event: PointerEvent) => {
-		if (enabled) placement()?.start(event, mobile);
+		if (!enabled || event.button !== 0 || event.isPrimary === false) return;
+		if (!mobile) {
+			// Prevent native focus scrolling without transferring the query's
+			// focus-visible state to the handle. Keyboard focus remains available.
+			event.preventDefault();
+		}
+		placement()?.start(event, mobile);
 	};
 	const context = (event: MouseEvent) => {
 		if (!enabled) return;

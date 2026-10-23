@@ -1179,6 +1179,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		historyNavigation.move(direction, uiState.cache.search, getSortedHistory());
 	const resetHistory = () => historyNavigation.reset();
 	const matchAgain = (scroll = true) => {
+		scope.syncMode();
 		syncFinderVisibility();
 		if (uiState.passiveEntry) {
 			uiState.readingMode = isReading();

@@ -119,32 +119,37 @@ export function createFinderPosition(
 			if (win) node.dispatchEvent(new win.Event("nya-finder-position"));
 		}
 	}
-	function measure() {
+	function measureGeometry(updateWidth: boolean) {
 		if (
 			destroyed ||
 			!state.visible ||
 			!node.isConnected ||
 			node.ownerDocument !== owner.ownerDocument
 		)
-			return;
+			return false;
 		const bounds = area();
 		if (bounds.right <= bounds.left || bounds.bottom <= bounds.top) {
 			geometry = null;
-			return;
+			return false;
 		}
-		node.style.setProperty("--nya-available-width", `${bounds.right - bounds.left}px`);
+		if (updateWidth)
+			node.style.setProperty("--nya-available-width", `${bounds.right - bounds.left}px`);
 		const box = node.getBoundingClientRect();
 		// A background tab can have a reachable owner but no rendered finder yet.
 		// Keep edge/manual intent and wait for the existing layout observers.
 		if (box.width <= 0 || box.height <= 0) {
 			geometry = null;
-			return;
+			return false;
 		}
 		// translate is independent of the existing desktop/mobile transform rules.
 		const base = { x: box.left - translation.x, y: box.top - translation.y };
 		const toolsHeight =
 			node.querySelector<HTMLElement>(".nya-float-act")?.offsetHeight || state.toolsHeight;
 		geometry = { bounds, base, width: box.width, height: box.height, tools: toolsHeight };
+		return true;
+	}
+	function measure() {
+		if (!measureGeometry(true)) return;
 		if (refreshDrag) refreshDrag();
 		else paint();
 	}
@@ -169,8 +174,9 @@ export function createFinderPosition(
 		const originalMarker = marker && { ...marker },
 			originalEdge = markerEdge;
 		const wasCentered = centered;
-		measure();
-		if (!geometry) return;
+		// A press samples the rendered origin, but must not correct position or width.
+		// Real layout observers still constrain reachability before dragging begins.
+		if (!measureGeometry(false) || !geometry) return;
 		// Own a mobile drag from its beginning, before the host's bubbling swipe
 		// recognizer can see it. Do not cancel down/up defaults: short taps click.
 		if (mobileGesture) event.stopPropagation();
@@ -266,6 +272,7 @@ export function createFinderPosition(
 		};
 		const cancel = () => {
 			cleanup();
+			if (!ready) return;
 			manual = original;
 			marker = originalMarker;
 			markerEdge = originalEdge;
@@ -298,10 +305,10 @@ export function createFinderPosition(
 			if (mobileGesture) e.stopPropagation();
 			// Flush the final pointer coordinate even if the next frame hasn't run.
 			latest = { x: e.clientX, y: e.clientY };
-			refreshDrag?.();
+			if (ready) refreshDrag?.();
 			if (state.docked && ready) markerEdge = candidate;
 			cleanup();
-			if (state.docked) paint();
+			if (state.docked && ready) paint();
 			else if (candidate && moved && state.autoDock && canDock()) onDock(candidate);
 		};
 		const escape = (e: KeyboardEvent) => {
