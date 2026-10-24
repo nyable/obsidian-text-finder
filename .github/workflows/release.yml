@@ -1,0 +1,77 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "*.*.*"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: release-${{ github.ref }}
+    cancel-in-progress: false
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+                  cache: pnpm
+            - name: Validate tag and version files
+              env:
+                  TAG: ${{ github.ref_name }}
+              run: |
+                  set -euo pipefail
+                  VERSION=$(node -p "require('./manifest.json').version")
+                  if [ "$TAG" != "$VERSION" ]; then
+                      echo "::error::Tag $TAG must exactly match manifest.json version $VERSION (no v prefix)."
+                      exit 1
+                  fi
+                  node --input-type=module -e '
+                      import { readFileSync } from "node:fs";
+                      const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+                      const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+                      const versions = JSON.parse(readFileSync("versions.json", "utf8"));
+                      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(manifest.version))
+                          throw new Error(`manifest.json version is not a supported release version: ${manifest.version}`);
+                      if (pkg.version !== manifest.version)
+                          throw new Error("package.json and manifest.json versions differ");
+                      if (versions[manifest.version] !== manifest.minAppVersion)
+                          throw new Error("versions.json is missing the current version/minAppVersion");
+                  '
+            - name: Install locked dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Regression tests
+              run: pnpm test
+            - name: Build plugin
+              run: pnpm build
+            - name: Verify build outputs
+              run: node tools/build/verify-artifacts.mjs
+            - name: Create or update draft release
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  set -euo pipefail
+                  VERSION=$(node -p "require('./manifest.json').version")
+                  if gh release view "$VERSION" >/dev/null 2>&1; then
+                      if [ "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" != "true" ]; then
+                          echo "::error::Release $VERSION is already published; bump the version before releasing again."
+                          exit 1
+                      fi
+                      gh release upload "$VERSION" dist/main.js dist/manifest.json dist/styles.css --clobber
+                  else
+                      gh release create "$VERSION" \
+                          dist/main.js dist/manifest.json dist/styles.css \
+                          --draft \
+                          --verify-tag \
+                          --title "Text Finder $VERSION" \
+                          --generate-notes
+                  fi

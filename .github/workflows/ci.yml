@@ -71,6 +71,13 @@ jobs:
               run: pnpm build
             - name: Verify build outputs
               run: node tools/build/verify-artifacts.mjs
+            - name: Upload plugin build
+              if: runner.os == 'Linux'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: plugin-dist
+                  path: dist/
+                  if-no-files-found: error
             - name: Install browser for Windows smoke
               if: runner.os == 'Windows'
               run: pnpm exec playwright install chromium

@@ -46,6 +46,16 @@ pnpm verify
 
 `pnpm dev` 使用 `vite build --watch --mode development` 监听构建，不启动网页服务器或承诺 Obsidian 内 HMR。正式产物保持 CommonJS `main.js`、`styles.css`、原样 `manifest.json`；匹配 Worker 和颜色选择器内嵌，不新增运行时下载。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
 
+## 发布
+
+1. 在目标提交上执行 `pnpm version X.Y.Z --tag-version-prefix ""`，提交 `package.json`、`manifest.json` 和 `versions.json`。tag 必须与 `manifest.json` 版本完全一致且不带 `v` 前缀。
+2. 确认 `.github/workflows/release.yml` 已在目标提交上，再推送分支和 tag：`git push origin master`、`git push origin X.Y.Z`。
+3. `.github/workflows/release.yml` 在 tag push 时运行测试、构建并创建或更新同名 **draft** release；资产仅为 `main.js`、`manifest.json`、`styles.css`。已发布同版本时工作流失败，不会覆盖线上 release。
+4. 在 GitHub Releases 检查 draft，确认资产后手动 Publish。draft 对用户不可见，也不会被 Obsidian 的更新检查读取。
+5. 仓库需在 **Settings → Actions → General → Workflow permissions** 允许 **Read and write permissions**，release job 才能创建 draft。
+
+`rc/**` 的 CI 会在 Linux verify 后上传 `plugin-dist` artifact，可用于发布前在测试库安装验收。标签只在确认发布时创建；不要用 `rc/**` push 自动生成 draft，避免 tag 指向旧提交。
+
 ## 依赖与 CI
 
 - 本仓库使用 pnpm，不使用 npm 或 Yarn 安装依赖。
