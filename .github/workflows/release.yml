@@ -72,6 +72,6 @@ jobs:
                           dist/main.js dist/manifest.json dist/styles.css \
                           --draft \
                           --verify-tag \
-                          --title "Text Finder $VERSION" \
+                          --title "$VERSION" \
                           --generate-notes
                   fi
