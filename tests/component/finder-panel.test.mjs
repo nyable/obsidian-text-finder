@@ -1543,6 +1543,22 @@ test("real mobile branch uses equal row heights, centered top grip and original 
 	assert.equal(panelStyle.boxSizing, "border-box");
 	// The shared surface adds two 1px outer borders (theme color is unresolved in jsdom).
 	assert.equal(parseFloat(rowStyle.minHeight) + 2, parseFloat(barStyle.minHeight));
+	const toggle = h.target.querySelector(".nya-toggle"),
+		toggleStyle = window.getComputedStyle(toggle);
+	assert.equal(toggleStyle.height, "auto");
+	assert.equal(toggleStyle.alignSelf, "stretch");
+	assert.equal(toggleStyle.marginTop, "2px");
+	assert.equal(toggleStyle.marginBottom, "2px");
+	assert.equal(toggleStyle.width, "16px");
+	assert.equal(toggle.querySelector("svg").getAttribute("height"), "18");
+	assert.equal(toggle.getAttribute("aria-label"), "search.tip.ToggleReplace");
+	assert.equal(toggle.getAttribute("title"), null);
+	for (const collapsed of [false, true]) {
+		toggle.click();
+		await tick();
+		assert.equal(h.component.getSearchCache().collapse, collapsed);
+		assert.equal(window.getComputedStyle(toggle).alignSelf, "stretch");
+	}
 	h.component.dockFinder();
 	await tick();
 	assert.equal(window.getComputedStyle(h.target.querySelector(".main-part")).display, "none");

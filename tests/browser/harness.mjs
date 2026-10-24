@@ -1476,6 +1476,84 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 		report.checks.push(
 			"production Finder in second realm: real Worker match/replacement, IME, live owner adoption and unmount",
 		);
+		await page.goto(`${base}/production?mobile=true`);
+		await page.evaluate(() => {
+			document.body.classList.add("is-mobile");
+			window.mobileFixture = window.productionApi.mountFixture(
+				document.querySelector("#owner"),
+			);
+			window.mobileFixture.finder.setVisible(true, "cat");
+		});
+		for (const width of [360, 600]) {
+			await page.setViewportSize({ width, height: 844 });
+			for (const custom of [false, true]) {
+				await page.evaluate(async (custom) => {
+					const h = window.mobileFixture;
+					// A custom toolbar uses the same mobile arrow and natural-height panel.
+					h.settings.searchToolbar = h.settings.searchToolbar.map((item) =>
+						item.id === "case"
+							? { ...item, placement: custom ? "more" : "inline" }
+							: item,
+					);
+					h.finder.refreshToolbar();
+					await window.productionApi.nextTick();
+				}, custom);
+				for (const collapsed of [true, false]) {
+					await page.evaluate(async (collapsed) => {
+						window.mobileFixture.finder.setCollapse(collapsed);
+						await window.productionApi.nextTick();
+					}, collapsed);
+					const geometry = await page.locator(".nya-toggle").evaluate((toggle) => {
+						const panel = toggle.closest(".nya-finder"),
+							box = panel.getBoundingClientRect(),
+							arrow = toggle.getBoundingClientRect(),
+							icon = toggle.querySelector("svg").getBoundingClientRect(),
+							css = getComputedStyle(panel);
+						return {
+							height: box.height,
+							arrowHeight: arrow.height,
+							topGap: arrow.top - box.top - parseFloat(css.borderTopWidth),
+							bottomGap:
+								box.bottom - arrow.bottom - parseFloat(css.borderBottomWidth),
+							iconHeight: icon.height,
+							custom: panel.classList.contains("nya-finder--custom-toolbar"),
+							x: arrow.left + arrow.width / 2,
+							y: arrow.top + 1,
+						};
+					});
+					assert.equal(geometry.custom, custom);
+					assert.equal(geometry.height, collapsed ? 40 : 78);
+					assert.equal(geometry.arrowHeight, collapsed ? 34 : 72);
+					assert.equal(geometry.topGap, 2);
+					assert.equal(geometry.bottomGap, 2);
+					assert.equal(geometry.iconHeight, 18);
+					// Hit the newly stretched area, not just the SVG in the middle.
+					await page.mouse.click(geometry.x, geometry.y);
+					assert.equal(
+						await page.evaluate(
+							() => window.mobileFixture.finder.getSearchCache().collapse,
+						),
+						!collapsed,
+					);
+					await page.locator(".nya-toggle").focus();
+					await page.keyboard.press("Enter");
+					assert.equal(
+						await page.evaluate(
+							() => window.mobileFixture.finder.getSearchCache().collapse,
+						),
+						collapsed,
+					);
+				}
+			}
+		}
+		await page.evaluate(() => {
+			window.mobileFixture.destroy();
+			delete window.mobileFixture;
+		});
+		report.production.mobileReplaceArrow = true;
+		report.checks.push(
+			"production mobile replace arrow stretches with both row states, preserves panel/icon sizes and supports edge clicks/Enter in default/custom toolbars at 360px/600px",
+		);
 		assert.deepEqual(errors, []);
 		report.passed = true;
 		await page.close();

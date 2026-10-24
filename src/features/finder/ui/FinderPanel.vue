@@ -695,6 +695,13 @@ defineExpose(vm.commands);
 				right: auto;
 			}
 		}
+		.nya-toggle {
+			// The mobile panel has a natural height, so percentage heights cannot fill it.
+			height: auto;
+			align-self: stretch;
+			margin-top: 2px;
+			margin-bottom: 2px;
+		}
 		.main-part {
 			height: auto;
 			padding: 0;
