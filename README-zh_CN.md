@@ -23,14 +23,21 @@
 
 需要 Obsidian **1.6.0 或更新版本**。
 
-### 社区插件
+### 安装方式 1：通过 Obsidian 插件市场安装
 
 在 **设置 → 社区插件** 中搜索 **Text Finder**，安装并启用。
 
-### 其他方式
+### 安装方式 2：使用 Better Manager 插件安装
 
-- **BRAT**：安装 [BRAT](https://obsidian.md/plugins?id=obsidian42-brat)，执行其 **Add a beta plugin for testing** 命令，输入 `https://github.com/nyable/obsidian-text-finder`，然后启用 Text Finder。
-- **手动安装**：从[最新发布版本](https://github.com/nyable/obsidian-text-finder/releases/latest)下载 `main.js`、`styles.css` 和 `manifest.json`，放入 `<仓库>/.obsidian/plugins/text-finder/` 后启用插件。若使用自定义配置目录，请以该目录替代 `.obsidian`。
+安装并启用 [Better Manager](https://community.obsidian.md/plugins/better-plugins-manager)，打开插件管理器，找到从 GitHub 安装插件的入口，输入 `https://github.com/nyable/obsidian-text-finder`，完成安装后启用 **Text Finder**。
+
+### 安装方式 3：使用 BRAT 插件安装
+
+安装并启用 [BRAT](https://community.obsidian.md/plugins/obsidian42-brat)，执行其 **Add a beta plugin for testing** 命令，输入 `https://github.com/nyable/obsidian-text-finder`，完成安装后启用 **Text Finder**。
+
+### 安装方式 4：手动安装
+
+从[最新发布版本](https://github.com/nyable/obsidian-text-finder/releases/latest)下载 `main.js`、`styles.css` 和 `manifest.json`，放入 `<仓库>/.obsidian/plugins/text-finder/` 后启用插件。若使用自定义配置目录，请以该目录替代 `.obsidian`。
 
 ## 快速上手
 

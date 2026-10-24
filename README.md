@@ -23,14 +23,21 @@ A VS Code-like finder for the current note in [Obsidian](https://obsidian.md): f
 
 Requires Obsidian **1.6.0 or later**.
 
-### Community plugins
+### Method 1: Install from Obsidian's community plugins directory
 
 In **Settings → Community plugins**, search for **Text Finder**, install it, and enable it.
 
-### Other methods
+### Method 2: Install using the Better Manager plugin
 
-- **BRAT:** install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat), run its **Add a beta plugin for testing** command, and enter `https://github.com/nyable/obsidian-text-finder`. Then enable Text Finder.
-- **Manual:** download `main.js`, `styles.css` and `manifest.json` from the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest). Copy them into `<vault>/.obsidian/plugins/text-finder/` and enable the plugin. If your vault uses a custom configuration folder, use that instead of `.obsidian`.
+Install and enable [Better Manager](https://community.obsidian.md/plugins/better-plugins-manager), open its plugin manager, and use the GitHub installation option. Enter `https://github.com/nyable/obsidian-text-finder`, complete the installation, and enable **Text Finder**.
+
+### Method 3: Install using the BRAT plugin
+
+Install and enable [BRAT](https://community.obsidian.md/plugins/obsidian42-brat), run its **Add a beta plugin for testing** command, and enter `https://github.com/nyable/obsidian-text-finder`. Complete the installation and enable **Text Finder**.
+
+### Method 4: Install manually
+
+Download `main.js`, `styles.css` and `manifest.json` from the [latest release](https://github.com/nyable/obsidian-text-finder/releases/latest). Copy them into `<vault>/.obsidian/plugins/text-finder/` and enable the plugin. If your vault uses a custom configuration folder, use that instead of `.obsidian`.
 
 ## Quick start
 
