@@ -40,7 +40,7 @@
 - Node 和 pnpm 版本以 `.node-version`、`package.json` 为准；依赖安装／更新使用 pnpm，不混用 npm 或 Yarn。
 - CodeMirror 由宿主提供；保留 Vite 的宿主 external 和 `pnpm-workspace.yaml` 的单版本约束。
 - 按变更范围运行测试、类型检查及构建；构建会写入 `dist/`，只读任务不要运行产物写入命令。
-- `pnpm verify` 是完整质量入口（包括浏览器 smoke）；Linux 严格视觉另用 `pnpm test:visual`。日常用 Vitest 目标套件，格式用 `pnpm format:check`，依赖用 `pnpm check:architecture`；不要自动接受截图差异。
+- `pnpm verify` 是完整质量入口（包括浏览器 smoke）；Linux 严格视觉不在 CI 门禁内，另用 `pnpm test:visual`。日常用 Vitest 目标套件，格式用 `pnpm format:check`，依赖用 `pnpm check:architecture`；不要自动接受截图差异。
 - 真实 Vue 组件测试与 TypeScript 控制器测试不同；jsdom 不能证明实机滚动、主题、高亮绘制或移动端兼容。宿主／CodeMirror 对象不得深度响应式代理；DOM 创建使用所属 Document，不借用默认 Vue renderer 的初始化 Document。
 - 报告实际执行的验证及阻塞原因；不能把未执行或加载失败写成通过。不要为消除阻塞擅自修改依赖或宿主环境。
 

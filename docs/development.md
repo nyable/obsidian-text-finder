@@ -40,7 +40,7 @@ pnpm verify
 
 将生成的 `dist/main.js`、`dist/styles.css` 和 `dist/manifest.json` 复制到测试库的 `.obsidian/plugins/text-finder/`，然后启用或重载插件。不要为了测试覆盖日常库中的设置和历史数据。
 
-`pnpm verify` 统一运行 lint（含生产 Promise 类型规则）、格式、依赖边界、Vitest、独立产物契约、类型检查／正式构建、产物校验及 Playwright smoke。浏览器缺失会失败而不是跳过；首次运行先 `pnpm exec playwright install chromium`。严格 Linux 视觉比较另运行 `pnpm test:visual`，不以不同 OS 字体结果更新 Linux 基线。日常小改可先按表运行目标套件，交付前运行完整入口。
+`pnpm verify` 统一运行 lint（含生产 Promise 类型规则）、格式、依赖边界、Vitest、独立产物契约、类型检查／正式构建、产物校验及 Playwright smoke。浏览器缺失会失败而不是跳过；首次运行先 `pnpm exec playwright install chromium`。严格 Linux 视觉比较不在 CI 门禁内，需要时在同一环境另运行 `pnpm test:visual`，不以不同 OS 字体结果更新 Linux 基线。日常小改可先按表运行目标套件，交付前运行完整入口。
 
 `pnpm test:watch` 为 Vitest 开发循环；`pnpm format` 写格式、`pnpm format:check` 只读检查。构建会写 dist，产物契约的内存构建不写安装目录。WSL 和 Windows 原生依赖需分别安装，不跨 OS 复用 node_modules；Windows 构建由使用者手动执行，不改变全局供应链策略。WSL 下频繁运行验证时优先将仓库和 Linux 依赖一起放在 Linux 原生文件系统（如 `~/projects/`），避免 `/mnt/c`、`/mnt/e` 等 Windows 挂载盘的大量小文件访问开销；只移动源码、继续链接挂载盘上的 node_modules 不能隔离依赖 I/O。
 
@@ -51,7 +51,7 @@ pnpm verify
 - 本仓库使用 pnpm，不使用 npm 或 Yarn 安装依赖。
 - 修改依赖时，使用 pnpm 更新并提交 `pnpm-lock.yaml`。
 - [`pnpm-workspace.yaml`](../pnpm-workspace.yaml) 固定 CodeMirror 版本并配置构建依赖许可，避免多个不兼容的实例。
-- CI 配置 Linux／Windows／macOS 锁定安装、测试、类型、lint／格式／依赖和构建；Linux job 另做严格视觉比较，配置见 [`.github/workflows/`](../.github/workflows/)。配置不代表各平台已经运行成功。`pnpm test` 最多使用两个 worker，保留逐文件隔离；低内存环境可用 `pnpm test --maxWorkers=1` 降为串行。`pnpm test:browser` 单独运行，需要已有 Playwright Chromium，不自动安装系统环境。
+- CI 在 `master`、`rc/**` 分支 push、PR 及手动触发时运行；普通功能分支 push 不重复触发。配置 Linux／Windows／macOS 锁定安装、测试、类型、lint／格式／依赖和构建；严格视觉比较不在 CI 运行，配置见 [`.github/workflows/`](../.github/workflows/)。配置不代表各平台已经运行成功。`pnpm test` 最多使用两个 worker，保留逐文件隔离；低内存环境可用 `pnpm test --maxWorkers=1` 降为串行。`pnpm test:browser` 单独运行，需要已有 Playwright Chromium，不自动安装系统环境。
 - 回归测试含版本、翻译键、产品命令／设置表、CSS 默认值一致性检查；构建后 CI 比较 manifest 源文件和产物。
 
 ## 变更同步

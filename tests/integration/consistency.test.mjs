@@ -109,7 +109,9 @@ test("Style Settings example and documented CSS defaults agree with the styleshe
 	// select sizing tokens are implementation details, not user-facing settings.
 	const defaults = read("src/styles/index.scss").match(/^body\s*\{([^}]+)\}/m)[1];
 	for (const [, name, value] of defaults.matchAll(/--(nya-[\w-]+):\s*([^;]+);/g)) {
-		const item = example.match(new RegExp(`id: ${name}\\n([\\s\\S]*?)(?=\\n    -|\\*\\/)`));
+		const item = example.match(
+			new RegExp(`id: ${name}\\r?\\n([\\s\\S]*?)(?=\\r?\\n    -|\\*\\/)`),
+		);
 		assert.ok(item, `missing example variable ${name}`);
 		assert.ok(
 			item[1].includes(`default: '${value}'`) || item[1].includes(`default: ${value}`),

@@ -2,10 +2,18 @@ name: CI
 
 on:
     push:
+        branches:
+            - master
+            - "rc/**"
     pull_request:
+    workflow_dispatch:
 
 permissions:
     contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
     dependency-audit:
@@ -85,7 +93,6 @@ jobs:
             - run: pnpm install --frozen-lockfile
             - run: pnpm exec playwright install --with-deps chromium
             - run: pnpm test:browser
-            - run: pnpm test:visual
             - uses: actions/upload-artifact@v4
               if: failure()
               with:

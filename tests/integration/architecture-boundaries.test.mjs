@@ -9,12 +9,7 @@ it(
 	"rejects host imports, feature internals, UI mounting and type-only cycles",
 	{ timeout: 30000 },
 	async () => {
-		const directory = await mkdtemp(
-			resolve(
-				process.platform === "linux" ? "/tmp/opencode" : tmpdir(),
-				"text-finder-boundaries-",
-			),
-		);
+		const directory = await mkdtemp(resolve(tmpdir(), "text-finder-boundaries-"));
 		const files = {
 			"src/features/finder/application/session.ts":
 				'import { Menu } from "obsidian"; import { start } from "../../../app/start"; export { Menu, start };',

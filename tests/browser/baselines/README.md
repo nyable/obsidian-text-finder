@@ -2,7 +2,7 @@
 
 `chromium-linux/` 包含 40 张已审查截图：24 张保留工程重构前的查找器／设置预览原图，8 张历史／详情更新图，8 张新增预设列表／编辑器图。2026-10-19 用户确认“按你推荐的来”，授权仅更新／新增后 16 张，不改变其余 24 张。更新不代表新增样式变更授权。
 
-`archive/6823057/chromium-linux/` 完整保留原 32 张截图及原 `provenance.json`；`reviews/library-2026-10-19.json` 保留本次候选的采集报告。当前 `chromium-linux/provenance.json` 按图关联原始／新报告，并记录报告文件与每张图片的 SHA-256。报告中的 `passed` 是采集时 smoke 结果，不是严格像素比较证据；默认模式的 `pnpm test:visual` 才验证当前产物与这 40 张 expected 一致。
+`archive/6823057/chromium-linux/` 完整保留原 32 张截图及原 `provenance.json`；`reviews/library-2026-10-19.json` 保留本次候选的采集报告。当前 `chromium-linux/provenance.json` 按图关联原始／新报告，并记录报告文件与每张图片的 SHA-256。报告中的 `passed` 是采集时 smoke 结果，不是严格像素比较证据；默认模式的 `pnpm test:visual` 才验证当前产物与这 40 张 expected 一致，该命令不在 CI 运行。
 
 - 使用锁定的 Playwright Chromium，在 Linux、en-US、UTC、DPR 1 和固定模拟主题下比较。
 - `pnpm test:visual` 零像素容差；失败保留 expected／actual／diff，不自动更新。
