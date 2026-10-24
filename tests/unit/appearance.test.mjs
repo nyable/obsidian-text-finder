@@ -317,7 +317,7 @@ test("settings and library tabs share compact geometry, underline and interactio
 		assert.match(
 			output,
 			new RegExp(
-				`${escaped}\\s*\\{[^}]*gap: 4px[^}]*overflow-x: auto[^}]*padding: 2px 0 4px`,
+				`${escaped}\\s*\\{[^}]*gap: 4px[^}]*overflow-x: auto[^}]*overflow-y: hidden[^}]*padding: 2px 0 4px`,
 				"s",
 			),
 		);
@@ -331,7 +331,7 @@ test("settings and library tabs share compact geometry, underline and interactio
 		assert.match(
 			output,
 			new RegExp(
-				`${escaped} button\\[aria-selected=(?:"true"|true)\\]::after\\s*\\{[^}]*bottom: -5px[^}]*left: 12px[^}]*right: 12px`,
+				`${escaped} button\\[aria-selected=(?:"true"|true)\\]::after\\s*\\{[^}]*bottom: -4px[^}]*left: 12px[^}]*right: 12px`,
 				"s",
 			),
 		);

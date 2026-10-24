@@ -3,6 +3,7 @@ import { build } from "vite";
 import { resolve } from "node:path";
 import { ownerVue } from "../../tools/vue-plugin.mjs";
 import { root, embeddedSources } from "../../tools/vite-build.mjs";
+import { assertCompactTabOverflow } from "./compact-tabs.mjs";
 
 test("production Finder five-tab settings stay consistent across host versions and clean up in a browser", async ({
 	page,
@@ -55,6 +56,7 @@ test("production Finder five-tab settings stay consistent across host versions a
 			"Appearance",
 		]);
 		await expect(page.getByRole("tab", { selected: true })).toHaveText("General");
+		await assertCompactTabOverflow(page.locator(".nya-settings-tabs"));
 		await page
 			.locator(".setting-item")
 			.filter({ hasText: "Collapse when dragged" })
@@ -64,6 +66,7 @@ test("production Finder five-tab settings stay consistent across host versions a
 			(await page.evaluate(() => window.settingsFixture.state())).settings.finderAutoDock,
 		).toBe(true);
 		await page.getByRole("tab", { name: "Appearance", exact: true }).click();
+		await assertCompactTabOverflow(page.locator(".nya-settings-tabs"));
 		await expect(
 			page.locator('.nya-settings-section-toggle[aria-expanded="false"]'),
 		).toHaveCount(4);

@@ -4,6 +4,7 @@
 	gap: 4px;
 	flex-shrink: 0;
 	overflow-x: auto;
+	overflow-y: hidden;
 	padding: 2px 0 4px;
 	border-bottom: 1px solid var(--background-modifier-border);
 	button {
@@ -30,7 +31,7 @@
 			&::after {
 				content: "";
 				position: absolute;
-				bottom: -5px;
+				bottom: -4px;
 				left: 12px;
 				right: 12px;
 				height: 2px;

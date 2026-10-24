@@ -9,6 +9,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { root, embeddedSources } from "../../tools/vite-build.mjs";
 import { visualScenarios } from "./visual-contracts.mjs";
+import { assertCompactTabOverflow } from "./compact-tabs.mjs";
 
 export async function runBrowserChecks(browser, { capture } = {}) {
 	const artifacts = resolve(process.env.TEXT_FINDER_ARTIFACTS ?? "artifacts/browser");
@@ -232,6 +233,7 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 						);
 					}
 					if (["history", "presets"].includes(scenario)) {
+						await assertCompactTabOverflow(page.locator(".nya-library-tabs"));
 						await page.mouse.move(0, 0);
 						const remove = page.locator(".nya-library-delete-icon").first();
 						const normal = await remove.evaluate((element) => ({
