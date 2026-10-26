@@ -117,6 +117,11 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 	const reportEditorError = (error: unknown) =>
 		editorSearch.reportError("search.EditorFailed", error);
 	const queryLane = new QueryLane(reportEditorError);
+	let closeFocus: ReturnType<FinderHost["prepareCloseFocus"]> = null;
+	const cancelCloseFocus = () => {
+		closeFocus?.dispose();
+		closeFocus = null;
+	};
 	const cancelEditing = (preserveIdle = false) => {
 		const replacementBusy = !!uiState.replacementTask;
 		uiState.replacementTask = null;
@@ -188,6 +193,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			uiState.positionRequest++;
 			const cleanup = new Disposables();
 			cleanup.add(unsubscribe);
+			cleanup.add(cancelCloseFocus);
 			cleanup.add(clearScope);
 			cleanup.add(() => cancelEditing());
 			cleanup.add(() => runtime.presentation.hideMenu());
@@ -264,6 +270,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 	}
 	function showFloatingEntry() {
 		if (uiState.disposed || uiState.cache.visible) return;
+		cancelCloseFocus();
 		// Hidden sessions can retain old coordinates; an idle icon must not display
 		// those results for a newly opened file or resume an earlier computation.
 		cancelEditing();
@@ -361,6 +368,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		focusTarget: "search" | "replace" = "search",
 		preserveScope = false,
 	) {
+		cancelCloseFocus();
 		runtime.presentation.hideMenu();
 		const wasDocked = uiState.docked;
 		uiState.positionRequest++;
@@ -457,6 +465,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		else toggleCollapse();
 	}
 	function resetAll() {
+		cancelCloseFocus();
 		recipeIncludesReplacement = false;
 		cancelEditing();
 		clearScope();
@@ -512,14 +521,20 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 	const replaceOnce = () => replaceMatches(uiState.cache.replace, false, true);
 	const closeFinder = () => {
 		if (!uiState.cache.visible) return;
+		cancelCloseFocus();
+		let focus: ReturnType<FinderHost["prepareCloseFocus"]> = null;
+		let restoration: void | Promise<void> = undefined;
+		try {
+			focus = editorSearch.prepareCloseFocus();
+		} catch (error) {
+			reportEditorError(error);
+		}
 		try {
 			const activeEditor = getEditorContext();
 			if (activeEditor) {
 				const { sourceModeWhenSearch } = editorSearch.preferences();
 				if (sourceModeWhenSearch) {
-					void Promise.resolve(runtime.editor.restoreMode(activeEditor)).catch((error) =>
-						editorSearch.reportError("search.EditorFailed", error),
-					);
+					restoration = runtime.editor.restoreMode(activeEditor);
 				}
 			}
 		} catch (error) {
@@ -527,6 +542,29 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		} finally {
 			setVisible(false);
 		}
+		closeFocus = focus;
+		const intent = uiState.panelIntent;
+		const restoreFocus = () => {
+			if (closeFocus !== focus) return;
+			closeFocus = null;
+			try {
+				if (!uiState.disposed && !uiState.cache.visible && uiState.panelIntent === intent)
+					focus?.restore();
+			} catch (error) {
+				reportEditorError(error);
+			} finally {
+				focus?.dispose();
+			}
+		};
+		if (restoration && typeof restoration.then === "function") {
+			void Promise.resolve(restoration).then(restoreFocus, (error) => {
+				try {
+					reportEditorError(error);
+				} finally {
+					restoreFocus();
+				}
+			});
+		} else restoreFocus();
 	};
 	const toggleRegexMode = (focusQuery = true) => {
 		uiState.cache.options.regexMode = !uiState.cache.options.regexMode;

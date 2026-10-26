@@ -241,6 +241,7 @@ it.each(["partial", "rewritten"])(
 			},
 			openHistory() {},
 			openNativeSearch() {},
+			prepareCloseFocus: () => null,
 		};
 		const editor = {
 			...h.port,

@@ -88,6 +88,7 @@ function mount(_t, matcher, settings = {}, open = true) {
 	});
 	const view = {
 		file: { path: "a.md" },
+		getMode: () => "source",
 		getState: () => ({ mode: "source", source: true }),
 		setState: () => {},
 	};
@@ -117,6 +118,7 @@ function mount(_t, matcher, settings = {}, open = true) {
 	view.editor = editor;
 	view.containerEl = target;
 	const plugin = {
+		app: { workspace: { getActiveViewOfType: () => view } },
 		settings: {
 			enableInputHotkeys: true,
 			enableHistory: true,
@@ -134,6 +136,7 @@ function mount(_t, matcher, settings = {}, open = true) {
 	attachHistory(plugin);
 	const editorSearch = {
 		plugin,
+		isViewOpen: () => target.isConnected,
 		getMatchEngine: () => matcher ?? synchronousMatcher(),
 		getReadingSelection: () => null,
 		clearReadingSearch() {},
@@ -3427,6 +3430,7 @@ function mountReading(t, matcher, settings = {}) {
 		previewMode: { renderer, containerEl: preview },
 	};
 	const plugin = {
+		app: { workspace: { getActiveViewOfType: () => view } },
 		settings: {
 			enableInputHotkeys: true,
 			enableHistory: true,
@@ -3450,6 +3454,7 @@ function mountReading(t, matcher, settings = {}) {
 		view,
 		{
 			plugin,
+			isViewOpen: () => target.isConnected,
 			getEditorContext: () => null,
 			canSearchReading: () => true,
 			getReadingSearch: () => search,
@@ -4794,7 +4799,7 @@ for (const [name, vault, expected] of [
 		await tick();
 		const states = [];
 		h.plugin.settings.sourceModeWhenSearch = true;
-		h.plugin.app = { vault };
+		h.plugin.app = { ...h.plugin.app, vault };
 		// Keep the real component action and owner context; only observe mode writes.
 		h.view.setState = (state) => states.push({ ...state });
 		h.component.closeFinder();
@@ -4836,6 +4841,11 @@ test("all user close entry points restore mode once; hidden close is inert", asy
 	const h = mount(t);
 	await tick();
 	const states = [];
+	const content = document.createElement("div");
+	content.tabIndex = -1;
+	h.target.prepend(content);
+	h.view.editor.cm.contentDOM = content;
+	h.view.editor.cm.focus = () => content.focus({ preventScroll: true });
 	h.plugin.settings.sourceModeWhenSearch = true;
 	h.plugin.app = {
 		vault: { getConfig: () => true },
@@ -4868,11 +4878,53 @@ test("all user close entry points restore mode once; hidden close is inert", asy
 		close();
 		assert.equal(h.component.isVisible(), false);
 		assert.deepEqual(states, [false]);
+		assert.equal(document.activeElement, content);
 		h.component.closeFinder();
 		assert.deepEqual(states, [false]);
 	}
 	delete search.owners.get(h.view).finder;
 	search.dispose();
+});
+
+test("reading user close returns focus to its body without navigation or editor access", async (t) => {
+	const h = mountReading(t);
+	await tick();
+	const focus = vi.spyOn(h.preview, "focus");
+	h.component.closeFinder();
+	assert.equal(document.activeElement, h.preview);
+	assert.deepEqual(focus.mock.calls, [[{ preventScroll: true }]]);
+	assert.equal(h.view.getMode(), "preview");
+	assert.equal(h.scrolls.length, 0);
+	assert.equal(h.component.isVisible(), false);
+});
+
+test("async close focuses the rebuilt editor, but never overrides a newer user focus", async (t) => {
+	const h = mount(t);
+	await tick();
+	h.plugin.settings.sourceModeWhenSearch = true;
+	h.plugin.app.vault = { getConfig: () => true };
+	const content = document.createElement("div"),
+		external = document.createElement("button");
+	content.tabIndex = -1;
+	h.target.prepend(content);
+	document.body.append(external);
+	onTestFinished(() => external.remove());
+	for (const interrupt of [false, true]) {
+		h.component.setVisible(true, "cat");
+		const pending = deferred();
+		h.view.setState = () => pending.promise;
+		h.component.closeFinder();
+		assert.equal(h.component.isVisible(), false);
+		const focus = vi.fn(() => content.focus({ preventScroll: true }));
+		h.view.editor.cm = { ...h.view.editor.cm, contentDOM: content, focus };
+		if (interrupt) {
+			external.focus();
+			external.blur();
+		}
+		pending.resolve();
+		await settlePosition();
+		assert.equal(focus.mock.calls.length, interrupt ? 0 : 1);
+	}
 });
 
 test("mode failures still hide Finder and rejected promises are reported", async (t) => {
@@ -4881,7 +4933,7 @@ test("mode failures still hide Finder and rejected promises are reported", async
 	const errors = [];
 	h.plugin.reportError = (key) => errors.push(key);
 	h.plugin.settings.sourceModeWhenSearch = true;
-	h.plugin.app = { vault: { getConfig: () => true } };
+	h.plugin.app = { ...h.plugin.app, vault: { getConfig: () => true } };
 	for (const action of [
 		() => {
 			throw new Error("sync");

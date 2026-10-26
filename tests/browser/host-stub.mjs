@@ -17,3 +17,5 @@ moment.locale = () => "en";
 export function setTooltip() {}
 export function setIcon() {}
 export class Notice {}
+export class MarkdownView {}
+export class Modal {}

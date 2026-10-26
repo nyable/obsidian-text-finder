@@ -1395,6 +1395,18 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 			if (replaced.navigationCompletion) await replaced.navigationCompletion;
 			if (!replaced.changed || h.view.editor.getValue() !== "dog dog dog2")
 				throw Error("real Worker replacement failed");
+			const readingTarget = doc.createElement("div");
+			doc.body.append(readingTarget);
+			const reading = mountFixture(readingTarget, { reading: true });
+			try {
+				reading.finder.setVisible(true, "");
+				reading.finder.closeFinder();
+				if (doc.activeElement !== reading.preview)
+					throw Error("reading close did not restore focus in the owner Document");
+			} finally {
+				reading.destroy();
+				readingTarget.remove();
+			}
 			const filteredTarget = doc.createElement("div");
 			doc.body.append(filteredTarget);
 			const filtered = mountFixture(filteredTarget, { rejectChanges: true });
@@ -1477,6 +1489,48 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 		report.production = ownerChecks;
 		report.checks.push(
 			"production Finder in second realm: real Worker match/replacement, IME, live owner adoption and unmount",
+		);
+		for (const reading of [false, true]) {
+			await page.goto(`${base}/production`);
+			await page.evaluate((reading) => {
+				window.focusFixture = window.productionApi.mountFixture(
+					document.querySelector("#owner"),
+					{ focusable: !reading, reading },
+				);
+				window.focusFixture.finder.setVisible(true, "");
+			}, reading);
+			await page.keyboard.press("Escape");
+			assert.equal(await page.evaluate(() => window.focusFixture.finder.isVisible()), false);
+			if (reading) {
+				assert.equal(
+					await page.evaluate(
+						() => document.activeElement === window.focusFixture.preview,
+					),
+					true,
+				);
+				assert.equal(await page.evaluate(() => window.focusFixture.preview.scrollTop), 0);
+				await page.keyboard.press("PageDown");
+				await page.waitForFunction(() => window.focusFixture.preview.scrollTop > 0);
+			} else {
+				assert.equal(
+					await page.evaluate(
+						() =>
+							document.activeElement ===
+							window.focusFixture.view.editor.cm.contentDOM,
+					),
+					true,
+				);
+				await page.keyboard.type("typed ");
+				assert.equal(
+					await page.evaluate(() => window.focusFixture.view.editor.getValue()),
+					"typed cat CAT cat2",
+				);
+			}
+			await page.evaluate(() => window.focusFixture.destroy());
+		}
+		report.production.closeFocusEditingAndReading = true;
+		report.checks.push(
+			"production Escape closes Finder and restores real editor typing or reading PageDown without a mouse",
 		);
 		await page.goto(`${base}/production?mobile=true`);
 		await page.evaluate(() => {

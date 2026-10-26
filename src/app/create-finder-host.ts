@@ -1,11 +1,12 @@
-import type { MarkdownView } from "obsidian";
+import { MarkdownView } from "obsidian";
 import type { FinderHost } from "../features/finder/contracts";
 import type { ReadingSelection, ReadingSearch } from "../features/reading";
 import type { MatchExecutor } from "../core/search/match-protocol";
 import type { PluginRuntimeHost } from "./plugin-host";
+import { prepareNoteFocus } from "../platform/obsidian/note-focus";
 
 interface FinderOwnerRuntime {
-	plugin: Pick<PluginRuntimeHost, "settings" | "history" | "reportError">;
+	plugin: Pick<PluginRuntimeHost, "settings" | "history" | "reportError" | "app">;
 	getReadingSearch(owner: MarkdownView): ReadingSearch;
 	getReadingSelection(owner: MarkdownView): readonly ReadingSelection[] | null;
 	canSearchReading(owner: MarkdownView): boolean;
@@ -14,6 +15,7 @@ interface FinderOwnerRuntime {
 	activateFloatingFinder(owner: MarkdownView): boolean;
 	openHistory(): void;
 	openNativeSearch(owner: MarkdownView): void;
+	isViewOpen(owner: MarkdownView): boolean;
 }
 
 export function createFinderHost(runtime: FinderOwnerRuntime, owner: MarkdownView): FinderHost {
@@ -57,5 +59,12 @@ export function createFinderHost(runtime: FinderOwnerRuntime, owner: MarkdownVie
 		activate: () => runtime.activateFloatingFinder(owner),
 		openHistory: () => runtime.openHistory(),
 		openNativeSearch: () => runtime.openNativeSearch(owner),
+		prepareCloseFocus: () =>
+			prepareNoteFocus(
+				owner,
+				() =>
+					runtime.isViewOpen(owner) &&
+					runtime.plugin.app.workspace.getActiveViewOfType(MarkdownView) === owner,
+			),
 	};
 }

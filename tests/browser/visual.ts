@@ -144,6 +144,7 @@ if (scenario === "preview") {
 	};
 	const editorSearch = {
 		plugin,
+		isViewOpen: () => false,
 		getMatchEngine: synchronousMatcher,
 		activateFloatingFinder: () => true,
 		getReadingSelection: () => null,

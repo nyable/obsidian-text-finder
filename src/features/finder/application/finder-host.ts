@@ -64,6 +64,7 @@ export interface FinderHost {
 	activate(): boolean;
 	openHistory(): void;
 	openNativeSearch(): void;
+	prepareCloseFocus(): { restore(): void; dispose(): void } | null;
 }
 
 export type ScopeSelection = readonly SearchRange[] | CapturedSelection;

@@ -67,6 +67,7 @@ function environment() {
 		},
 		openHistory: vi.fn(),
 		openNativeSearch: vi.fn(),
+		prepareCloseFocus: vi.fn(() => null),
 	};
 	let cleanup: (() => void) | void;
 	const session = createFinderSession(host, {
@@ -97,6 +98,95 @@ function environment() {
 }
 
 describe("Finder application with explicit owner ports", () => {
+	it.each(["source", "preview"] as const)(
+		"returns focus after a user close in %s, not internal hiding",
+		(mode) => {
+			const h = environment();
+			h.host.mode = () => mode;
+			const focus = { restore: vi.fn(), dispose: vi.fn() };
+			h.host.prepareCloseFocus = vi.fn(() => focus);
+			// Avoid requiring a reading implementation for a visibility-only close.
+			h.session.state.cache.visible = true;
+			h.session.closeFinder();
+			expect(h.session.isVisible()).toBe(false);
+			expect(focus.restore).toHaveBeenCalledOnce();
+			expect(focus.dispose).toHaveBeenCalledOnce();
+			h.session.closeFinder();
+			expect(h.host.prepareCloseFocus).toHaveBeenCalledOnce();
+			h.session.setVisible(false);
+			expect(focus.restore).toHaveBeenCalledOnce();
+			h.dispose();
+		},
+	);
+
+	it.each(["success", "sync failure", "async failure"])(
+		"closes immediately and returns focus after mode restoration: %s",
+		async (kind) => {
+			const h = environment();
+			h.preferences.sourceModeWhenSearch = true;
+			const focus = { restore: vi.fn(), dispose: vi.fn() };
+			h.host.prepareCloseFocus = () => focus;
+			let finish!: () => void;
+			h.editor.restoreMode = () => {
+				if (kind === "sync failure") throw new Error("mode");
+				return new Promise<void>((resolve, reject) => {
+					finish = () =>
+						kind === "async failure" ? reject(new Error("mode")) : resolve();
+				});
+			};
+			h.session.setVisible(true, "cat");
+			h.session.closeFinder();
+			expect(h.session.isVisible()).toBe(false);
+			if (kind !== "sync failure") {
+				expect(focus.restore).not.toHaveBeenCalled();
+				finish();
+				await Promise.resolve();
+			}
+			expect(focus.restore).toHaveBeenCalledOnce();
+			expect(h.host.reportError).toHaveBeenCalledTimes(kind === "success" ? 0 : 1);
+			h.dispose();
+		},
+	);
+
+	it.each(["reopen", "floating", "hide", "reset", "dispose"])(
+		"cancels pending close focus on %s",
+		async (action) => {
+			const h = environment();
+			h.preferences.sourceModeWhenSearch = true;
+			const focus = { restore: vi.fn(), dispose: vi.fn() };
+			h.host.prepareCloseFocus = () => focus;
+			let finish!: () => void;
+			h.editor.restoreMode = () =>
+				new Promise<void>((resolve) => {
+					finish = resolve;
+				});
+			h.session.setVisible(true, "cat");
+			h.session.closeFinder();
+			if (action === "reopen") h.session.setVisible(true, "cat");
+			if (action === "floating") h.session.showFloatingEntry();
+			if (action === "hide") h.session.setVisible(false);
+			if (action === "reset") h.session.resetAll();
+			if (action === "dispose") h.dispose();
+			expect(focus.dispose).toHaveBeenCalledOnce();
+			finish();
+			await Promise.resolve();
+			expect(focus.restore).not.toHaveBeenCalled();
+			h.dispose();
+		},
+	);
+
+	it("a failed focus preparation does not skip mode restoration or hiding", () => {
+		const h = environment();
+		h.preferences.sourceModeWhenSearch = true;
+		h.host.prepareCloseFocus = () => {
+			throw new Error("focus");
+		};
+		h.session.setVisible(true, "cat");
+		h.session.closeFinder();
+		expect(h.editor.restoreMode).toHaveBeenCalledOnce();
+		expect(h.session.isVisible()).toBe(false);
+		h.dispose();
+	});
 	it("restores a folded replacement, captures hidden text, and never executes it on application", () => {
 		const h = environment();
 		const recipe = {

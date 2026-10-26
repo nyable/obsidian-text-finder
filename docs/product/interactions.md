@@ -32,8 +32,12 @@
     - 模式恢复失败仍隐藏面板；Promise 拒绝被处理并提示。面板已经隐藏时关闭无副作用；Escape 仅在可见、未被消费、无修饰键且非组合输入时生效。组合输入同时检查 `isComposing`、旧式 229 及事件目标的 composition 状态；目标失焦清除状态，owner 销毁释放监听。
 2. 开启 `clearAfterHidden` 后，关闭应同时清空查询和替换输入；关闭仍不等于重置所有查询选项。
     - 默认保留查找和替换文本及匹配选项；开启清空后也保留选项，不把关闭当作重置会话偏好。
+3. 用户主动关闭后，将键盘焦点交还该 Finder 所属笔记正文：源码／实时预览聚焦当前有效编辑器，阅读聚焦所属渲染正文。不额外导航、改写选区或恢复打开前的位置；阅读不切换编辑模式，也不恢复已清除的查找高亮。
+    - 面板立即隐藏；需要异步恢复编辑偏好时，完成后重新取得编辑器再回焦。模式恢复失败仍尝试向有效正文归还焦点，缺失聚焦能力不借其他视图代替。
+    - 仅当前活动且仍打开的 owner 可回焦；初始焦点已在其他界面时不抢回。等待期间的 focusin、pointerdown、keydown、窗口失焦／pagehide 取消请求，即使焦点随后回到 body 也不重试。重开、内部隐藏、重置及销毁释放待定请求；文件、模式、Document、窗口或 owner 失效后不回焦。
+    - 收起图标菜单的关闭复用上述语义；收起、More 的局部 Escape、原生查找降级、销毁和卸载不触发关闭回焦。移动端软键盘与真实宿主键盘操作仍需实机验收。
 
-依据：`src/features/finder/application/finder-session.ts` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/app/workspace-runtime.ts:registerFinderEvent()` 和 `workspace-commands.ts` 的 HideFind／ToggleFind 命令；`src/platform/obsidian/live-preview.ts:getLivePreviewPreference()`。上述约束经维护者明确确认，不来自源码推断。
+依据：`src/features/finder/application/finder-session.ts` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/app/workspace-runtime.ts:registerFinderEvent()` 和 `workspace-commands.ts` 的 HideFind／ToggleFind 命令；`src/platform/obsidian/live-preview.ts:getLivePreviewPreference()`、`note-focus.ts:prepareNoteFocus()`。回归：`finder-session.test.ts` 的 close focus／mode restoration、`note-focus.test.ts`、`finder-panel.test.mjs` 的 user close／async close、浏览器 harness 的真实 Escape 后编辑输入／阅读 PageDown。上述约束经维护者明确确认，不来自源码推断；模拟回归不等于宿主验收。
 
 范围不自动扩大到原生查找降级、视图销毁或插件卸载；这些路径当前承担隐藏／资源释放职责，是否执行同一模式恢复语义没有额外产品决定。
 
@@ -126,7 +130,7 @@
 - `enableInputHotkeys` 开启时，普通 Enter／NumpadEnter 在查找框导航下一项，在替换框替换一次；排除 Alt／Ctrl／Shift／Meta，避免截获系统或用户快捷键。
 - IME 使用 `isComposing`、`keyCode === 229` 和 composition 事件状态防护；组合期间 Enter、历史上下键和视图内 Escape 不触发导航、替换或关闭。输入事件本身仍会更新查询。
 - 查询 textarea 支持多行；不自动纠错／大写、不检查拼写、不允许用户 resize。
-- 隐藏面板同步设 `visibility: hidden` 和 `aria-hidden`，移除 Tab 入口，blur 内部焦点并拒绝迟到聚焦；不承诺统一把焦点送回编辑器。
+- 隐藏面板同步设 `visibility: hidden` 和 `aria-hidden`，移除 Tab 入口，blur 内部焦点并拒绝迟到聚焦；主动关闭再按上述关闭契约归还正文焦点，内部隐藏本身不回焦。
 - More 是工具栏延伸的紧凑图标按钮面板，不是文字列表／勾选菜单；同外部按钮几何、激活／禁用／提示样式，横排并在宽度不足时换行，宽高受 owner／可见视口限制。容器用 `role="group"`／`aria-labelledby`，模式用 `aria-pressed`，不用 menu／menuitemcheckbox。
 - More 触发器支持 Enter／Space，打开后聚焦首个可用按钮；方向键循环、Home／End 定位，跳过禁用项。切换模式保留面板和按钮焦点，普通操作执行后收起。Escape 关闭面板并回焦触发器，不关闭 Finder；Tab 原生浏览，焦点离开面板后收起且不抢回焦点。外部 pointerdown 或再次点击 More 收起。
 - More 仅汇总实际放在面板内的开启模式，收起且存在开启模式时右上角显示 5px 主题强调色圆点，不使用模式激活蓝底／边框；常驻／隐藏模式和普通动作不参与。展开时隐藏圆点，收起按当前内部状态恢复；圆点绝对定位、不改几何、无动画、无独立点击区域且 `aria-hidden`。展开用独立内边框反馈／`aria-expanded`，不是新模式开关；读屏说明列出内部开启模式且在展开时保留，容器不添加 tooltip 标签。设置纯展示预览显示相同收起圆点。不增加底部状态栏。

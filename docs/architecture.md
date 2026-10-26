@@ -68,6 +68,8 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 `showFloatingEntry()` 只显示被动收起入口，不聚焦、不匹配旧查询。布局提交后的修正再次校验 panel intent、文件和 Document；手动位置不重置。展开命令与点击使用不同的原有焦点策略，关闭契约见 interactions，不从内部方法名推导产品行为。
 
+`FinderHost.prepareCloseFocus()` 提供一次性 restore／dispose 能力，应用层不持有 DOM 或宿主对象。`closeFinder()` 准备请求、及时隐藏，再在编辑偏好恢复完成后执行；`setVisible()`、`resetAll()` 和卸载取消待定请求。装配层通过具体 owner 的打开／活动身份保护 `platform/obsidian/note-focus.ts`，后者捕获文件／模式／Document，临时监听新交互与窗口失焦并释放；编辑器在执行时重新解析，阅读只聚焦 owner renderer 的正文。内部隐藏不创建回焦请求，不写正文或选区。
+
 `createFinderPosition()` 将几何采样 `measureGeometry()` 与布局约束／绘制 `measure()` 分开；拖动按下只读当前几何，未达阈值的松开／取消不写位置或宽度，真实布局事件仍更新约束且不覆盖手动位置意图。桌面／移动均仅过渡 opacity，避免将动画中基础坐标计入独立 translate；鼠标按下不主动聚焦，键盘焦点仍由原控件和 presentation 管理。回归：`tests/unit/finder-position.test.mjs`、`tests/browser/drag.spec.mjs`。
 
 `createSearchScope()` 独立记录 source／preview 模式；`syncMode()` 在 owner 刷新、范围同步及激活时检测双向切换，取消旧任务／定位、推进范围代次并清除限制。模式变更不把旧范围转成另一套坐标，也不重新捕获当前选区；同模式身份失效仍使用 `clear(true)` 保持 [] 保护。`matchAgain()` 在后台任务保留判断前同步模式，避免旧候选经快速往返复活。回归：`tests/unit/search-scope.test.ts`、真实 Finder 的 mode switches／pending scoped replacement 测试。
