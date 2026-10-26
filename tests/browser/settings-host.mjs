@@ -1,5 +1,8 @@
 // Public settings shell/control stand-in, not Obsidian internals or theme evidence.
 export * from "./host-stub.mjs";
+import { createCustomIcons } from "../support/custom-icons.mjs";
+const customIcons = createCustomIcons();
+export const { addIcon, removeIcon, setIcon } = customIcons;
 export class PluginSettingTab {
 	constructor(_app, plugin) {
 		this.containerEl = plugin.containerEl;

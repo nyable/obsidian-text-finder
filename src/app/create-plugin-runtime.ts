@@ -1,4 +1,4 @@
-import { Notice, Plugin, normalizePath, moment } from "obsidian";
+import { addIcon, removeIcon, Notice, Plugin, normalizePath, moment } from "obsidian";
 import { i18n, initializeLanguage } from "../i18n";
 import { editorExtensionProvider, EditorSearch } from "./workspace-runtime";
 import { HistoryController } from "../features/history";
@@ -7,6 +7,7 @@ import { SettingsStorage } from "../platform/obsidian/settings-storage";
 import { SettingTab } from "./settings-tab";
 import { AppearanceStyles } from "../features/settings/ui";
 import { Disposables } from "../shared/lifecycle/disposables";
+import { REGEX_ICON_ID, REGEX_ICON_SVG } from "../shared/ui/icons/regex-icon";
 import type { TranslationKey } from "../i18n/keys";
 import { PresetController } from "../features/presets";
 import { generateUniqueId } from "../shared/lifecycle/unique-id";
@@ -28,6 +29,7 @@ export default class TextFinderPlugin extends Plugin {
 	);
 	private storage?: SettingsStorage;
 	private unloaded = false;
+	private regexIconRegistered = false;
 	private storageReadable = false;
 	private lastErrorNotice = -Infinity;
 	private settingTab?: SettingTab;
@@ -40,6 +42,9 @@ export default class TextFinderPlugin extends Plugin {
 		return this.unloaded;
 	}
 	async onload() {
+		if (this.unloaded) return;
+		addIcon(REGEX_ICON_ID, REGEX_ICON_SVG);
+		this.regexIconRegistered = true;
 		initializeLanguage(moment.locale());
 		await this.loadSettings();
 		if (this.unloaded) return;
@@ -72,6 +77,12 @@ export default class TextFinderPlugin extends Plugin {
 		if (this.unloaded) return;
 		this.unloaded = true;
 		const scope = new Disposables();
+		// Added first so it runs after UI teardown, even if another cleanup throws.
+		scope.add(() => {
+			if (!this.regexIconRegistered) return;
+			this.regexIconRegistered = false;
+			removeIcon(REGEX_ICON_ID);
+		});
 		scope.add(() => this.editorSearch?.dispose());
 		scope.add(() => this.storage?.close());
 		scope.add(() => this.appearance.destroy());

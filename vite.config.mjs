@@ -1,7 +1,13 @@
 import { defineConfig, normalizePath } from "vite";
 import { ownerVue } from "./tools/vue-plugin.mjs";
 import { resolve } from "node:path";
-import { root, hostExternal, embeddedSources, releaseAssets } from "./tools/vite-build.mjs";
+import {
+	root,
+	hostExternal,
+	embeddedSources,
+	releaseAssets,
+	thirdPartyBanner,
+} from "./tools/vite-build.mjs";
 
 export default defineConfig(({ mode }) => ({
 	publicDir: false,
@@ -43,7 +49,7 @@ export default defineConfig(({ mode }) => ({
 		},
 		rolldownOptions: {
 			external: hostExternal,
-			output: { exports: "default", codeSplitting: false },
+			output: { exports: "default", codeSplitting: false, postBanner: thirdPartyBanner },
 		},
 	},
 }));

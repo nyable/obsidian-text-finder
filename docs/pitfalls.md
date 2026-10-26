@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | 虚拟入口仅在配置时规范化，resolveId／load 直接比较字符串；Vite 的 path.resolve 在 Windows 还原反斜杠，导致 UNRESOLVED_ENTRY | 虚拟入口及两个 hook 的 ID 使用同一规范化规则，不创建磁盘占位文件 | `tools/vite-build.mjs:embeddedEntry()`；`tests/vite-build.test.mjs` 的 Windows separators／POSIX paths 测试，覆盖盘符、中文／空格及 UNC；Windows 原生构建可复现修复前失败、修复后通过 |
 | 只检查 ownerDocument 就断言跨窗口节点正确；默认 Vue DOM renderer 缓存初始化 Document | 创建节点显式绑定 owner Document，并单独检查所属 Window 构造器身份；根挂载不增加影响几何的 wrapper | `src/shared/ui/mount-view.ts`；`tests/integration/owner-renderer.test.ts` 的 realm／无 wrapper／多 app 隔离；`tests/browser/harness.mjs` 的 iframe 与 adopt 检查，非宿主弹窗验收 |
+| 将完整 24×24 SVG 直接传入 addIcon；宿主再套 100×100 SVG，后代 svg 尺寸规则使内层二次缩小；只断言注册 ID 的替身看不出问题 | 宿主注册使用按 100／24 缩放的几何片段，无嵌套 SVG；Vue 仍用原几何，浏览器对照两条路径的 screen CTM；卸载 removeIcon | `src/shared/ui/icons/regex-icon.ts`；`tests/browser/settings.spec.mjs` 的设置行／预览缩放对照；宿主包装对照 Obsidian 1.14.5，非 GUI 验收 |
 | 先小写化全文再求偏移；Unicode 转换可改变长度 | 在原文上匹配，保留 UTF-16 坐标 | `43f4de2`；`src/core/search/text-matching.ts:findTextMatches()`；`tests/unit/text-matching.test.mjs` 的 Unicode 偏移 |
 | 隐藏面板继续使用旧替换坐标；隐藏时不追踪正文 | 每次写入重新取得 owner 上下文并按当前原文重算 | `43f4de2`；`src/features/finder/application/finder-session.ts:replaceMatches()`、`replacement-operation.ts:runReplacement()`；`tests/integration/replacement.test.mjs` 的 hidden finder／删除／切文档 |
 | 在匹配切片上重新执行正则；锚点／前后顾失去全文上下文 | 根据完整原文和原始 match 展开模板，全部变化来自一次快照，不递归展开结果 | `aa70692`；`src/core/search/text-matching.ts:expandReplacement()`；`tests/unit/regex-replacement.test.mjs` |

@@ -15,11 +15,12 @@ import { appearanceColors, colorKeys, type AppearanceColorKey } from "../model/a
 import { resolvedAppearanceColor } from "./appearance-styles";
 import { openColorPicker } from "./color-picker";
 import { createSettingsSelect, type SettingsSelect } from "./settings-select";
+import { REGEX_ICON_ID } from "../../../shared/ui/icons/regex-icon";
 
 type SettingsPage = "general" | "find" | "replace" | "history" | "toolbar";
 const pages: SettingsPage[] = ["general", "find", "replace", "history", "toolbar"];
 const actionIcons: Record<ToolbarAction, string> = {
-	regex: "regex",
+	regex: REGEX_ICON_ID,
 	case: "case-sensitive",
 	wholeWord: "whole-word",
 	selection: "text-select",

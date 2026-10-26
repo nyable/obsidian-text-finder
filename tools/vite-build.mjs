@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 import { readFile } from "node:fs/promises";
 
 export const root = fileURLToPath(new URL("../", import.meta.url));
+
+/** Keep the upstream notice in main.js, which every installation downloads. */
+export async function thirdPartyBanner() {
+	const notice = await readFile(resolve(root, "THIRD_PARTY_NOTICES.md"), "utf8");
+	return `/*!\n${notice.trimEnd()}\n*/`;
+}
 export const hostExternal = (id) =>
 	id === "obsidian" ||
 	id === "electron" ||
@@ -87,6 +93,7 @@ export function releaseAssets() {
 		name: "text-finder-release-assets",
 		buildStart() {
 			this.addWatchFile(resolve(root, "manifest.json"));
+			this.addWatchFile(resolve(root, "THIRD_PARTY_NOTICES.md"));
 		},
 		async generateBundle(_options, bundle) {
 			this.emitFile({

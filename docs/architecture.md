@@ -36,7 +36,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 - `src/features/settings/`：持久化 DTO、规范化、更新策略及控件／草稿／预览。设置 DTO 引用历史和工具栏公共模型，反向功能不导入设置服务。
 - `src/platform/`：Obsidian 私有能力检测／存储／日期、CodeMirror 文档与事务／高亮、浏览器 Worker 传输。
 - `src/app/`：连接具体宿主和功能，唯一允许同时知道插件、owner、适配器和视图工厂的装配层。
-- `src/shared/`：资源释放、跨功能纯几何、owner renderer／DOM action／TextRun；不依赖具体业务。
+- `src/shared/`：资源释放、跨功能纯几何、owner renderer／DOM action／TextRun；不依赖具体业务。`shared/ui/icons/regex-icon.ts` 持有 Vue 与宿主共用的正则图标几何／100×100 注册片段，不导入 Obsidian；注册和卸载移除由 `app/create-plugin-runtime.ts` 负责。
 - `src/i18n/`：资源、键类型及语言初始化；宿主 locale 由装配层读取。
 - `src/styles/`：公开变量、高亮与共享视觉 primitives；组件局部样式随 SFC 编译。
 

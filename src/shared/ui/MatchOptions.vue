@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useId } from "vue";
-import { Regex, CaseSensitive, WholeWord } from "lucide-vue-next";
+import { CaseSensitive, WholeWord } from "lucide-vue-next";
+import { RegexIcon } from "./icons/regex-icon";
 import type { SearchOptions } from "../../core/search/types";
 import { i18n } from "../../i18n";
 
@@ -8,7 +9,7 @@ const props = defineProps<{ options: Readonly<SearchOptions>; interactive?: bool
 const emit = defineEmits<{ change: [options: SearchOptions] }>();
 const id = useId();
 const modes = [
-	{ key: "regexMode", icon: Regex, label: "search.tip.UseRegularExpression" },
+	{ key: "regexMode", icon: RegexIcon, label: "search.tip.UseRegularExpression" },
 	{ key: "caseSensitive", icon: CaseSensitive, label: "search.tip.MatchCase" },
 	{ key: "wholeWord", icon: WholeWord, label: "search.tip.MatchWholeWord" },
 ] as const;

@@ -98,6 +98,15 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 	assert.match(css, /\.nya-finder/);
 	assert.match(css, /data-v-/);
 	assert.doesNotMatch(chunk.code, /svelte\/internal/);
+	const notice = (await readFile(resolve(root, "THIRD_PARTY_NOTICES.md"), "utf8")).trimEnd();
+	const upstream = (
+		await readFile(resolve(root, "node_modules/lucide-vue-next/LICENSE"), "utf8")
+	).trim();
+	assert.ok(notice.includes(upstream), "retain the complete installed Lucide license");
+	assert.ok(
+		chunk.code.startsWith(`/*!\n${notice}\n*/`),
+		"ship notices in the installable main.js",
+	);
 	const dom = new JSDOM("<!doctype html><html><body></body></html>", { pretendToBeVisual: true });
 	const previous = { window: globalThis.window, document: globalThis.document };
 	Object.assign(globalThis, { window: dom.window, document: dom.window.document });
@@ -109,7 +118,8 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 		settings = [],
 		extensions = [],
 		layout = [],
-		notices = [];
+		notices = [],
+		icons = new Map();
 	class Plugin {
 		registerEvent() {}
 		addCommand(command) {
@@ -147,6 +157,12 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 		Menu: class {},
 		Platform: { isMobile: false },
 		normalizePath: (path) => path,
+		addIcon: (id, svg) => {
+			icons.set(id, svg);
+		},
+		removeIcon: (id) => {
+			icons.delete(id);
+		},
 		moment,
 	};
 	const modules = {
@@ -186,6 +202,7 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 		},
 	};
 	await plugin.onload();
+	assert.match(icons.get("text-finder-regex"), /<circle cx="6" cy="18" r="1"\/>/);
 	assert.equal(settings.length, 1);
 	layout.forEach((callback) => callback());
 	assert.ok(commands.some((command) => command.id === "text-finder-show-find"));
@@ -235,6 +252,7 @@ test("Vite release emits only installable files and loads the actual CommonJS pl
 	await Promise.resolve();
 	assert.equal(finder.isVisible(), false);
 	plugin.onunload();
+	assert.equal(icons.has("text-finder-regex"), false);
 	assert.equal(plugin.isUnloaded(), true);
 	assert.equal(ownerEl.querySelector(".nya-finder"), null);
 });
@@ -254,6 +272,7 @@ test("embedded build watch inputs include the original Worker/helper and color l
 	assert.ok([...watched].some((path) => path.includes("vanilla-colorful")));
 	releaseAssets().buildStart.call(context);
 	assert.ok([...watched].some((path) => path.endsWith("/manifest.json")));
+	assert.ok([...watched].some((path) => path.endsWith("/THIRD_PARTY_NOTICES.md")));
 	for (const id of [
 		"obsidian",
 		"electron",

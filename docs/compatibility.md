@@ -11,6 +11,7 @@
 - 最低宿主版本为 1.6.0，与生产使用的公开 `Menu.forEvent()`（SDK 标注 since 1.6.0）对齐；`setTooltip()` 为 1.4.4，菜单分组／图标等更早。开发 SDK 版本不是最低运行版本，不因 API 类型覆盖而升级所有依赖。阅读私有渲染器接口注释记录曾对照 Obsidian 1.14.4 的形状；这与最低版本、开发 SDK 是不同证据，不能推定 1.6.0 的阅读私有形状或全部运行时能力已实测。
 - Vite／Rolldown 输出 CommonJS，宿主 Obsidian／CodeMirror／Electron／Node 内建模块为 external；pnpm overrides 保持 state/view 单版本，不能把另一套 CodeMirror 打包替换宿主实例。主构建与内嵌 Worker／调色器均显式 target ES2018，不代表所有宿主运行时 API 可用。
 - 依赖升级以最新稳定且满足 peer／宿主契约的组合为准：CodeMirror state/view 对齐开发 SDK 的精确 peer，TypeScript 遵守 typescript-eslint 支持范围，Node 类型跟随开发 Node 主版本。Lucide 新包 `@lucide/vue` 改变现有图标轮廓，未经独立视觉批准仍保留旧包；不能通过更新截图或放宽比较完成依赖升级。
+- Lucide `regex` 使用本地实心点派生图标（上游保留方框，见 lucide#3804／#4611）。`src/shared/ui/icons/regex-icon.ts` 的 24×24 几何由 Vue 直接渲染；供 `addIcon("text-finder-regex")` 的片段按 100／24 缩放，适配宿主 100×100 外层，不嵌套 SVG。公开 `removeIcon()` 在卸载时释放注册，包含设置读取未完成的情况；不覆盖宿主 `regex`。100×100 包装已对照本机 Obsidian 1.14.5 源码，浏览器替身测量设置行与 Vue 预览的实际缩放一致；最低宿主及移动实机仍待验证。Lucide 完整 ISC 声明保存在 `THIRD_PARTY_NOTICES.md`，构建在压缩后写入 `main.js` 顶部，随原有三个安装文件分发。
 
 依据：`src/platform/obsidian/preview-renderer.ts:rendererFor()` 的私有形状说明、`manifest.json`、`package.json`、`vite.config.mjs`、`tools/vite-build.mjs`、`pnpm-workspace.yaml`。
 

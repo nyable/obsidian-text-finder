@@ -86,6 +86,28 @@ test("production Finder five-tab settings stay consistent across host versions a
 				.border,
 		).toBe(true);
 		await page.locator('[data-section="search"] .nya-settings-section-toggle').click();
+		const regexGeometry = await page.evaluate(() => {
+			const row = document.querySelector('[data-action="regex"] .nya-toolbar-item-icon');
+			const hostSvg = row.querySelector("svg");
+			const hostDot = row.querySelector("circle");
+			const previewDot = document.querySelector('[data-preview-action="regex"] circle');
+			const scale = (dot) => {
+				const matrix = dot.getScreenCTM();
+				return Math.hypot(matrix.a, matrix.b);
+			};
+			return {
+				viewBox: hostSvg.getAttribute("viewBox"),
+				svgCount: row.querySelectorAll("svg").length,
+				width: hostSvg.getBoundingClientRect().width,
+				hostScale: scale(hostDot),
+				previewScale: scale(previewDot),
+			};
+		});
+		expect(regexGeometry.viewBox).toBe("0 0 100 100");
+		expect(regexGeometry.svgCount).toBe(1);
+		expect(regexGeometry.width).toBe(18);
+		expect(regexGeometry.hostScale).toBeCloseTo(0.75, 5);
+		expect(regexGeometry.hostScale).toBeCloseTo(regexGeometry.previewScale, 5);
 		const previewTop = await page
 			.locator(".nya-appearance-preview")
 			.evaluate((el) => el.getBoundingClientRect().top);

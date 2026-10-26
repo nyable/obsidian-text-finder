@@ -14,13 +14,13 @@ import {
 	ArrowUp,
 	ReplaceAll,
 	Replace,
-	Regex,
 	CaseSensitive,
 	WholeWord,
 	TextSelect,
 	History,
 	Ellipsis,
 } from "lucide-vue-next";
+import { RegexIcon } from "../../../shared/ui/icons/regex-icon";
 import { i18n } from "../../../i18n";
 import { toolbarLabels, type ToolbarItem, type ToolbarAction } from "../model/toolbar";
 import { mobileToolbar } from "../interaction/mobile-toolbar";
@@ -61,7 +61,7 @@ const props = withDefaults(
 	},
 );
 const icons = {
-	regex: Regex,
+	regex: RegexIcon,
 	case: CaseSensitive,
 	wholeWord: WholeWord,
 	selection: TextSelect,

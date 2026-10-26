@@ -44,7 +44,7 @@ pnpm verify
 
 `pnpm test:watch` 为 Vitest 开发循环；`pnpm format` 写格式、`pnpm format:check` 只读检查。构建会写 dist，产物契约的内存构建不写安装目录。WSL 和 Windows 原生依赖需分别安装，不跨 OS 复用 node_modules；Windows 构建由使用者手动执行，不改变全局供应链策略。WSL 下频繁运行验证时优先将仓库和 Linux 依赖一起放在 Linux 原生文件系统（如 `~/projects/`），避免 `/mnt/c`、`/mnt/e` 等 Windows 挂载盘的大量小文件访问开销；只移动源码、继续链接挂载盘上的 node_modules 不能隔离依赖 I/O。
 
-`pnpm dev` 使用 `vite build --watch --mode development` 监听构建，不启动网页服务器或承诺 Obsidian 内 HMR。正式产物保持 CommonJS `main.js`、`styles.css`、原样 `manifest.json`；匹配 Worker 和颜色选择器内嵌，不新增运行时下载。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
+`pnpm dev` 使用 `vite build --watch --mode development` 监听构建，不启动网页服务器或承诺 Obsidian 内 HMR。正式产物保持 CommonJS `main.js`、`styles.css`、原样 `manifest.json`；匹配 Worker 和颜色选择器内嵌，不新增运行时下载。`THIRD_PARTY_NOTICES.md` 的 Lucide 声明由 `tools/vite-build.mjs:thirdPartyBanner()` 在压缩后嵌入 `main.js`，不增加安装文件；产物测试核对完整上游许可文本及最终输出。自动测试与实际应用验收的区别见 [测试文档](testing.md)。
 
 ## 发布
 

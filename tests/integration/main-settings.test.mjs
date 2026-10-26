@@ -6,6 +6,7 @@ import * as settingsSource from "../../src/features/settings";
 import * as toolbarSource from "../../src/features/finder";
 import { nextTick as tick } from "vue";
 import { componentStyles } from "../support/component-styles.mjs";
+import { createCustomIcons } from "../support/custom-icons.mjs";
 vi.mock("../../src/i18n", () => ({
 	i18n: { t: (key, values) => key + (values?.name ? ": " + values.name : "") },
 	initializeLanguage() {},
@@ -17,6 +18,9 @@ const dom = { window };
 const notices = [];
 const tabs = [];
 const fields = new Map();
+const customIcons = createCustomIcons();
+const addedIcons = customIcons.icons;
+const removedIcons = [];
 class Plugin {
 	async loadData() {
 		return this.data;
@@ -147,6 +151,12 @@ const obsidian = {
 	},
 	setIcon: (element, name) => {
 		element.dataset.icon = name;
+		customIcons.setIcon(element, name);
+	},
+	addIcon: customIcons.addIcon,
+	removeIcon: (id) => {
+		removedIcons.push(id);
+		customIcons.removeIcon(id);
 	},
 	normalizePath: (path) => path,
 	Notice: class {
@@ -1117,6 +1127,81 @@ test("preview stays expanded, reorders live and has no controls, menu actions or
 	assert.equal(listeners.size, 0);
 });
 
+test("registers and uses the local solid-dot regex icon", async () => {
+	addedIcons.clear();
+	const p = plugin(null);
+	await p.onload();
+	const svg = addedIcons.get("text-finder-regex");
+	assert.ok(svg, "regex icon should be registered");
+	assert.match(svg, /<circle cx="6" cy="18" r="1"\/>/);
+	assert.doesNotMatch(svg, /M9 17a2 2/);
+	const tab = tabs.at(-1);
+	tab.display();
+	tab.containerEl.querySelector('[data-settings-page="toolbar"]').click();
+	assert.equal(
+		tab.containerEl.querySelector('[data-action="regex"] .nya-toolbar-item-icon').dataset.icon,
+		"text-finder-regex",
+	);
+	const rendered = tab.containerEl.querySelector(
+		'[data-action="regex"] .nya-toolbar-item-icon svg',
+	);
+	assert.equal(rendered.getAttribute("viewBox"), "0 0 100 100");
+	assert.equal(rendered.querySelector("svg"), null, "no nested SVG viewport");
+	assert.equal(rendered.querySelector("g").getAttribute("transform"), `scale(${100 / 24})`);
+	p.onunload();
+	assert.equal(addedIcons.has("text-finder-regex"), false);
+});
+
+test("regex icon is released once on unload and can be registered by a new instance", async () => {
+	const removedBefore = removedIcons.length;
+	const p = plugin(null);
+	await p.onload();
+	assert.ok(addedIcons.has("text-finder-regex"));
+	p.onunload();
+	p.onunload();
+	assert.deepEqual(removedIcons.slice(removedBefore), ["text-finder-regex"]);
+	assert.equal(addedIcons.has("text-finder-regex"), false);
+	await p.onload();
+	assert.equal(
+		addedIcons.has("text-finder-regex"),
+		false,
+		"an unloaded instance cannot register again",
+	);
+	const next = plugin(null);
+	await next.onload();
+	assert.ok(addedIcons.has("text-finder-regex"));
+	next.onunload();
+});
+
+test("unload while loading settings releases the regex icon without late registration or mounting", async () => {
+	const p = plugin(null);
+	let resolveLoad;
+	p.loadSettings = () =>
+		new Promise((resolve) => {
+			resolveLoad = resolve;
+		});
+	const tabsBefore = tabs.length;
+	const loading = p.onload();
+	assert.ok(addedIcons.has("text-finder-regex"));
+	p.onunload();
+	assert.equal(addedIcons.has("text-finder-regex"), false);
+	resolveLoad();
+	await loading;
+	assert.equal(addedIcons.has("text-finder-regex"), false);
+	assert.equal(tabs.length, tabsBefore);
+});
+
+test("another teardown failure does not retain the regex registration", async () => {
+	const p = plugin(null);
+	await p.onload();
+	p.editorSearch = {
+		dispose() {
+			throw new Error("teardown failed");
+		},
+	};
+	assert.throws(() => p.onunload(), AggregateError);
+	assert.equal(addedIcons.has("text-finder-regex"), false);
+});
 test("toolbar blocks separate identity/reorder from configuration and omit explanation paragraphs", async () => {
 	const p = plugin(null);
 	await p.onload();

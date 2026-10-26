@@ -2,8 +2,11 @@ import { SettingTab } from "../../src/app/settings-tab";
 import type { PluginRuntimeHost } from "../../src/app/plugin-host";
 import { defaultSettings } from "../../src/features/settings";
 import "../../src/styles/index.scss";
+import { addIcon, removeIcon } from "obsidian";
+import { REGEX_ICON_ID, REGEX_ICON_SVG } from "../../src/shared/ui/icons/regex-icon";
 
 export function mountSettings(root: HTMLElement, modern = true) {
+	addIcon(REGEX_ICON_ID, REGEX_ICON_SVG);
 	const settings = defaultSettings();
 	let saves = 0,
 		refreshes = 0;
@@ -40,6 +43,7 @@ export function mountSettings(root: HTMLElement, modern = true) {
 		state: () => ({ settings, saves, refreshes }),
 		destroy() {
 			tab.hide();
+			removeIcon(REGEX_ICON_ID);
 			root.replaceChildren();
 		},
 	};
