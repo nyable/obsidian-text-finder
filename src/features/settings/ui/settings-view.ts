@@ -179,6 +179,10 @@ export class SettingsView {
 		select(this.page);
 	}
 
+	refresh() {
+		if (this.active) this.display();
+	}
+
 	hide() {
 		this.active = false;
 		this.ownerWindow?.removeEventListener("pagehide", this.onPageHide);

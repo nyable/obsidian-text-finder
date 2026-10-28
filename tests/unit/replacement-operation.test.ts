@@ -154,3 +154,74 @@ it.each([undefined, "readOnly"] as const)(
 		expect(match).not.toHaveBeenCalled();
 	},
 );
+
+it("does not report a cancelled intent as host rejection or disturb the newer query", () => {
+	const snapshot = {
+		view: {},
+		editor: {},
+		editorView: {},
+		file: null,
+		doc: { length: 3, toString: () => "cat" },
+	};
+	const task: ReplacementTask = {
+		context: snapshot,
+		key: "query",
+		window: null,
+		path: undefined,
+		replace: "dog",
+		escape: false,
+		phase: "prepare",
+		scopeEpoch: 0,
+		searchKey: "cat",
+	};
+	const result: ReplaceResult = {
+		changed: false,
+		changeCount: 0,
+		search: "cat",
+		replace: "dog",
+		beforeCount: 0,
+		afterCount: 0,
+		status: "cancelled",
+	};
+	let current = true;
+	const failed = vi.fn(),
+		commitFailed = vi.fn(),
+		clear = vi.fn();
+	runReplacement(
+		task,
+		"cat",
+		{ regexMode: false, caseSensitive: false, wholeWord: false },
+		"dog",
+		0,
+		false,
+		true,
+		result,
+		{
+			current: () => current,
+			ranges: () => undefined,
+			prepared() {},
+			commit() {
+				current = false;
+				throw new Error("intent changed in filter");
+			},
+			commitResult: () => ({ changed: false, complete: false, changeCount: 0 }),
+			committed: () => snapshot,
+			pending() {},
+			finish: () => true,
+			failed,
+			clear,
+			noChanges() {},
+			commitFailed,
+			replace() {
+				throw new Error("not used");
+			},
+			match() {
+				throw new Error("not used");
+			},
+		},
+	);
+	expect(result.status).toBe("cancelled");
+	expect(clear).toHaveBeenCalledOnce();
+	expect(failed).not.toHaveBeenCalled();
+	expect(commitFailed).not.toHaveBeenCalled();
+});

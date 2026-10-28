@@ -61,5 +61,6 @@ Drag the left accent strip on desktop or the top-center grip on mobile to move t
 - Searches the **current note**, not the whole vault. Reading mode is find-only; it does not modify files or switch to editing mode.
 - Editing searches Markdown source; reading searches rendered body text, so results may differ. Embedded notes, formulas, diagrams and some plugin-generated content are excluded.
 - Unsupported reading environments fall back to Obsidian's native find. Selection-restricted search never silently falls back to a full-note search.
+- Settings sync conflicts pause saving to protect disk data. Preserve unsaved local presets or settings before reloading the plugin.
 
 For detailed matching and replacement rules, see [features and limitations](docs/product/features.md). Source builds and maintenance information are in the [developer documentation](docs/README.md).

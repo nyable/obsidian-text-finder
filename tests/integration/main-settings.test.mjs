@@ -188,16 +188,189 @@ function plugin(data) {
 			configDir: ".obsidian",
 			adapter: {
 				stat: async () => ({ type: "file" }),
-				read: async () => JSON.stringify((await p.loadData()) ?? null),
-				write: async (_path, text) => p.saveData(JSON.parse(text)),
+				read: async () => JSON.stringify((await p.loadData()) ?? null, null, 2),
+				write: async (_path, text) => {
+					const snapshot = JSON.parse(text);
+					await p.saveData(snapshot);
+					p.data = snapshot;
+				},
 			},
 		},
 	};
 	return p;
 }
 const settle = async () => {
-	for (let i = 0; i < 8; i++) await Promise.resolve();
+	for (let i = 0; i < 24; i++) await Promise.resolve();
 };
+
+test("external settings reload preserves remote presets and propagates existing owner preferences", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	let toolbars = 0,
+		escapes = 0,
+		floating = 0;
+	p.editorSearch = {
+		refreshToolbars: () => toolbars++,
+		replacementPreferencesChanged: () => escapes++,
+		syncFloatingEntries: () => floating++,
+		dispose() {},
+	};
+	const remote = settingsSource.defaultSettings();
+	remote.useEscapeCharInReplace = false;
+	remote.showFloatingFinderOnOpen = true;
+	remote.searchPresets = [
+		{
+			id: "remote",
+			name: "Remote",
+			search: "cat",
+			options: { regexMode: false, caseSensitive: false, wholeWord: false },
+			replacement: null,
+			collapse: true,
+			order: 0,
+			createdAt: 1,
+			updatedAt: 1,
+		},
+	];
+	p.data = remote;
+	await p.onExternalSettingsChange();
+	assert.equal(p.settings.searchPresets[0].id, "remote");
+	assert.deepEqual([toolbars, escapes, floating], [1, 1, 1]);
+	p.history.record("cat");
+	await p.flushSettings();
+	assert.equal(p.data.searchPresets[0].id, "remote");
+	await p.onExternalSettingsChange();
+	assert.equal(toolbars, 1, "self-generated notifications do not reload settings");
+	p.onunload();
+});
+
+test("external disk changes block stale history writes and preserve unsaved local settings", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const count = notices.length;
+	const remote = { ...settingsSource.defaultSettings(), moveCursorToMatch: false };
+	p.data = remote;
+	p.history.record("local");
+	await assert.rejects(p.flushSettings(), /changed externally/);
+	assert.equal(p.data, remote);
+	assert.equal(p.settings.searchHistory[0].text, "local");
+	await p.onExternalSettingsChange();
+	await assert.rejects(p.saveSettings(), /changed externally/);
+	assert.ok(notices.slice(count).includes("history.SettingsConflict"));
+	p.onunload();
+});
+
+test("external read failures retain in-memory settings and block later writes", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const previous = p.settings;
+	p.app.vault.adapter.read = async () => "{broken";
+	await p.onExternalSettingsChange();
+	assert.equal(p.settings, previous);
+	await assert.rejects(p.saveSettings(), /not read successfully/);
+	p.onunload();
+});
+
+test("external reload refreshes a visible settings tab but never reopens a hidden tab", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const tab = tabs.at(-1);
+	tab.display();
+	const original = tab.containerEl.querySelector(".nya-settings-layout");
+	p.data = { ...settingsSource.defaultSettings(), finderAutoDock: true };
+	await p.onExternalSettingsChange();
+	assert.equal(original.isConnected, false);
+	const refreshed = tab.containerEl.querySelector(".nya-settings-layout");
+	assert.notEqual(refreshed, original);
+	assert.equal(p.settings.finderAutoDock, true);
+	tab.hide();
+	const hidden = tab.containerEl.innerHTML;
+	p.data = { ...settingsSource.defaultSettings(), finderAutoDock: false };
+	await p.onExternalSettingsChange();
+	assert.equal(tab.containerEl.innerHTML, hidden);
+	assert.equal(p.settings.finderAutoDock, false);
+	tab.display();
+	window.dispatchEvent(new Event("pagehide"));
+	const pageHidden = tab.containerEl.innerHTML;
+	p.data = { ...settingsSource.defaultSettings(), finderAutoDock: true };
+	await p.onExternalSettingsChange();
+	assert.equal(tab.containerEl.innerHTML, pageHidden, "pagehide cleanup must not be revived");
+	p.onunload();
+});
+
+test("local edits during an external read preserve both memory and remote disk", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const previous = p.settings;
+	const remote = { ...settingsSource.defaultSettings(), moveCursorToMatch: false };
+	p.data = remote;
+	let release;
+	const read = p.app.vault.adapter.read;
+	p.app.vault.adapter.read = async () => {
+		const text = await read();
+		await new Promise((resolve) => {
+			release = resolve;
+		});
+		return text;
+	};
+	const refreshing = p.onExternalSettingsChange();
+	await settle();
+	assert.equal(typeof release, "function");
+	p.history.record("local");
+	release();
+	p.app.vault.adapter.read = read;
+	await refreshing;
+	await assert.rejects(p.flushSettings(), /changed externally/);
+	assert.equal(p.settings, previous);
+	assert.equal(p.settings.searchHistory[0].text, "local");
+	assert.equal(p.data, remote);
+	p.onunload();
+});
+
+test("external notifications received during a refresh trigger a fresh read", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	p.data = { ...settingsSource.defaultSettings(), moveCursorToMatch: false };
+	let release;
+	let reads = 0;
+	const read = p.app.vault.adapter.read;
+	p.app.vault.adapter.read = async () => {
+		const text = await read();
+		if (++reads === 1)
+			await new Promise((resolve) => {
+				release = resolve;
+			});
+		return text;
+	};
+	const refreshing = p.onExternalSettingsChange();
+	await settle();
+	p.data = { ...settingsSource.defaultSettings(), defaultCaseSensitive: true };
+	assert.equal(p.onExternalSettingsChange(), refreshing);
+	release();
+	await refreshing;
+	assert.equal(reads, 2);
+	assert.equal(p.settings.defaultCaseSensitive, true);
+	assert.equal(p.settings.moveCursorToMatch, true);
+	p.onunload();
+});
+
+test("unload during an external refresh does not replace settings or notify views", async () => {
+	const p = plugin(settingsSource.defaultSettings());
+	await p.onload();
+	const previous = p.settings;
+	let release;
+	p.app.vault.adapter.read = async () => {
+		await new Promise((resolve) => {
+			release = resolve;
+		});
+		return JSON.stringify({ ...settingsSource.defaultSettings(), defaultCaseSensitive: true });
+	};
+	const refreshing = p.onExternalSettingsChange();
+	await settle();
+	p.onunload();
+	release();
+	await refreshing;
+	assert.equal(p.settings, previous);
+});
 
 test("finder automatic edge setting defaults off and refreshes views without a global reset button", async () => {
 	const p = plugin(null);
@@ -506,7 +679,7 @@ for (const manifestDir of [undefined, ".custom/plugins/renamed-folder"]) {
 		await p.flushSettings();
 		assert.deepEqual(
 			paths,
-			Array(2).fill(`${manifestDir ?? ".custom/plugins/text-finder"}/data.json`),
+			Array(3).fill(`${manifestDir ?? ".custom/plugins/text-finder"}/data.json`),
 		);
 	});
 }

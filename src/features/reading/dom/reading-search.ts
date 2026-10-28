@@ -62,6 +62,42 @@ const documents = new WeakMap<
 >();
 const highlightWindow = (doc: Document) => doc.defaultView as unknown as HighlightWindow | null;
 
+interface RenderWait {
+	resume: (() => void) | null;
+	waiting: Set<RenderWait>;
+}
+// Host onRendered has no unsubscribe capability. Keep at most one inert shell
+// per renderer; clearing resume releases the request/session even if rendering stalls.
+const renderWaits = new WeakMap<PreviewRenderer, Set<RenderWait>>();
+function waitForRenderer(renderer: PreviewRenderer, resume: () => void): RenderWait {
+	const existing = renderWaits.get(renderer);
+	const waiting = existing ?? new Set<RenderWait>();
+	const wait: RenderWait = { resume, waiting };
+	waiting.add(wait);
+	if (!existing) {
+		renderWaits.set(renderer, waiting);
+		try {
+			renderer.onRendered(() => {
+				if (renderWaits.get(renderer) !== waiting) return;
+				renderWaits.delete(renderer);
+				const pending = [...waiting];
+				waiting.clear();
+				for (const entry of pending) {
+					const run = entry.resume;
+					entry.resume = null;
+					run?.();
+				}
+			});
+		} catch (error) {
+			renderWaits.delete(renderer);
+			wait.resume = null;
+			waiting.clear();
+			throw error;
+		}
+	}
+	return wait;
+}
+
 export interface ReadingResult {
 	matches: MatchOffset[];
 	index: number;
@@ -85,6 +121,7 @@ export class ReadingSearch {
 	private watchedSections: PreviewSection[] | null = null;
 	private timer: number | null = null;
 	private waitTimer: number | null = null;
+	private renderWait: RenderWait | null = null;
 	private doc: Document | null = null;
 	private results: ReadingMatch[] = [];
 	private matchOffsets: MatchOffset[] = [];
@@ -418,7 +455,7 @@ export class ReadingSearch {
 				if (!request.registered) {
 					request.registered = true;
 					// The renderer clears its pending flag after invoking callbacks.
-					r.onRendered(() => {
+					this.renderWait = waitForRenderer(r, () => {
 						void Promise.resolve().then(() => this.run(request));
 					});
 				}
@@ -838,6 +875,11 @@ export class ReadingSearch {
 		}
 	}
 	private cancelWait() {
+		if (this.renderWait) {
+			this.renderWait.resume = null;
+			this.renderWait.waiting.delete(this.renderWait);
+		}
+		this.renderWait = null;
 		if (this.waitTimer !== null) this.doc?.defaultView?.clearTimeout(this.waitTimer);
 		this.waitTimer = null;
 	}

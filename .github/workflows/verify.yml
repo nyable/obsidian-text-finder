@@ -1,0 +1,98 @@
+name: Verify
+
+on:
+    workflow_call:
+
+permissions:
+    contents: read
+
+jobs:
+    dependency-audit:
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: mkdir -p artifacts
+            # Informational: distinguish SDK/dev hits from reachable runtime inputs.
+            # Keep the scanner failure visible and upload its full report, not an allowlist.
+            - name: Dependency advisories (requires reachability review)
+              continue-on-error: true
+              run: pnpm audit --json > artifacts/dependency-audit.json
+            - uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: dependency-audit
+                  path: artifacts/dependency-audit.json
+
+    verify:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 25
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+                  cache: pnpm
+            - name: Install locked dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Regression tests
+              run: pnpm test
+            - name: Production artifact contracts
+              run: pnpm test:artifacts
+            - name: TypeScript and Vue check
+              run: pnpm typecheck
+            - name: Module boundaries
+              run: pnpm check:architecture
+            - name: Static checks
+              run: pnpm lint
+            - name: Formatting
+              run: pnpm format:check
+            - name: Build plugin
+              run: pnpm build
+            - name: Verify build outputs
+              run: node tools/build/verify-artifacts.mjs
+            - name: Upload plugin build
+              if: runner.os == 'Linux'
+              uses: actions/upload-artifact@v4
+              with:
+                  name: plugin-dist
+                  path: dist/
+                  if-no-files-found: error
+            - name: Install browser for Windows smoke
+              if: runner.os == 'Windows'
+              run: pnpm exec playwright install chromium
+            - name: Windows browser smoke
+              if: runner.os == 'Windows'
+              run: pnpm test:browser
+            - name: Verify install did not change dependency definitions
+              run: git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml
+
+    browser:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@v4
+            - uses: pnpm/action-setup@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+                  cache: pnpm
+            - run: pnpm install --frozen-lockfile
+            - run: pnpm exec playwright install --with-deps chromium
+            - run: pnpm test:browser
+            - uses: actions/upload-artifact@v4
+              if: failure()
+              with:
+                  name: browser-failure
+                  path: artifacts/

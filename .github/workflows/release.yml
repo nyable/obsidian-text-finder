@@ -13,18 +13,14 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
-    release:
+    validate:
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        permissions:
-            contents: write
         steps:
             - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v4
             - uses: actions/setup-node@v4
               with:
                   node-version-file: .node-version
-                  cache: pnpm
             - name: Validate tag and version files
               env:
                   TAG: ${{ github.ref_name }}
@@ -47,12 +43,26 @@ jobs:
                       if (versions[manifest.version] !== manifest.minAppVersion)
                           throw new Error("versions.json is missing the current version/minAppVersion");
                   '
-            - name: Install locked dependencies
-              run: pnpm install --frozen-lockfile
-            - name: Regression tests
-              run: pnpm test
-            - name: Build plugin
-              run: pnpm build
+    checks:
+        needs: validate
+        uses: ./.github/workflows/verify.yml
+
+    release:
+        needs: checks
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version-file: .node-version
+            - name: Download the verified build from this workflow run
+              uses: actions/download-artifact@v4
+              with:
+                  name: plugin-dist
+                  path: dist/
             - name: Verify build outputs
               run: node tools/build/verify-artifacts.mjs
             - name: Create or update draft release

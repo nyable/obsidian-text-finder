@@ -51,6 +51,46 @@ test("bilingual interpolation variables stay synchronized", () => {
 	for (const [key, text] of en) assert.deepEqual(variables(text), variables(zh.get(key)), key);
 });
 
+test("reading recovery text points to the native action, not the retired settings toggle", () => {
+	assert.doesNotMatch(json("src/i18n/locale/en.json").search.ReadingFailed, /settings/i);
+	assert.doesNotMatch(json("src/i18n/locale/zh_cn.json").search.ReadingFailed, /设置/);
+});
+
+test("CI and release share every verification gate and release only the same-run verified artifact", () => {
+	const ci = read(".github/workflows/ci.yml");
+	const release = read(".github/workflows/release.yml");
+	const verify = read(".github/workflows/verify.yml");
+	for (const caller of [ci, release])
+		assert.match(caller, /uses: \.\/\.github\/workflows\/verify\.yml/);
+	assert.match(verify, /workflow_call:/);
+	assert.match(verify, /os: \[ubuntu-latest, windows-latest, macos-latest\]/);
+	for (const command of [
+		"test",
+		"test:artifacts",
+		"typecheck",
+		"check:architecture",
+		"lint",
+		"format:check",
+		"build",
+		"test:browser",
+	])
+		assert.ok(verify.includes(`run: pnpm ${command}\n`), `missing gate: ${command}`);
+	assert.match(verify, /run: node tools\/build\/verify-artifacts\.mjs/);
+	assert.match(
+		verify,
+		/if: runner\.os == 'Linux'\s+uses: actions\/upload-artifact@v4\s+with:\s+name: plugin-dist\s+path: dist\//,
+	);
+	assert.match(release, /checks:\s+needs: validate\s+uses:/);
+	assert.match(release, /release:\s+needs: checks/);
+	assert.match(
+		release,
+		/uses: actions\/download-artifact@v4\s+with:\s+name: plugin-dist\s+path: dist\//,
+	);
+	assert.doesNotMatch(release, /pnpm (?:build|install)|run-id:|workflow_run:/);
+	for (const file of ["main.js", "manifest.json", "styles.css"])
+		assert.ok(release.includes(`dist/${file}`), `missing release asset: ${file}`);
+});
+
 test("documented boolean and numeric defaults agree with settings", () => {
 	const doc = read("docs/product/features.md");
 	for (const [key, value] of Object.entries(settingsSource.defaultSettings())) {

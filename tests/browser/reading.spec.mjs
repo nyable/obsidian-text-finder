@@ -3,9 +3,7 @@ import { build } from "vite";
 import { resolve } from "node:path";
 import { root } from "../../tools/vite-build.mjs";
 
-test("production Finder reading contours bound offscreen geometry in a large mounted block", async ({
-	page,
-}) => {
+async function readingBundle() {
 	const result = await build({
 		configFile: false,
 		root,
@@ -21,10 +19,90 @@ test("production Finder reading contours bound offscreen geometry in a large mou
 		},
 	});
 	const output = (Array.isArray(result) ? result[0] : result).output;
+	return output.find((entry) => entry.type === "chunk").code;
+}
+
+test("production Finder reading table tabs navigate cell boundaries without rewriting or newline glyphs", async ({
+	page,
+}) => {
+	await page.setContent(
+		'<style>#root{height:180px;width:500px;overflow:auto}td{min-width:80px;height:24px}table{margin-top:1000px}</style><div id="root"><table><tr><td>one</td><td></td><td>two</td></tr></table><div style="height:1000px"></div></div>',
+	);
+	await page.addScriptTag({ content: await readingBundle() });
+	const report = await page.evaluate(() => {
+		const root = document.querySelector("#root");
+		const table = root.querySelector("table");
+		const original = table.outerHTML;
+		const section = { el: table, rendered: true };
+		const renderer = {
+			sections: [section],
+			text: "table",
+			lastText: "table",
+			parsing: false,
+			rendered: null,
+			previewEl: root,
+			showSection() {},
+			applyScrollSection: () => true,
+			updateVirtualDisplay() {},
+			onRendered() {},
+		};
+		const view = {
+			file: { path: "table.md" },
+			getMode: () => "preview",
+			previewMode: { renderer },
+		};
+		const search = new window.ReadingFixture.ReadingSearch(
+			view,
+			() => true,
+			() => {},
+		);
+		const results = [];
+		for (const [query, index, regexMode] of [
+			["\t", 0, false],
+			["\t", 1, false],
+			["\\t+", 0, true],
+			["one\t\ttwo", 0, false],
+		]) {
+			root.scrollTop = 0;
+			let result;
+			search.search(query, { regexMode, caseSensitive: false }, index, true, (value) => {
+				result = value;
+			});
+			results.push({
+				count: result.matches.length,
+				index: result.index,
+				error: result.error ?? null,
+				scrolled: root.scrollTop > 0,
+			});
+		}
+		const unchanged = table.outerHTML === original;
+		const glyphs = root.querySelectorAll(".nya-newline-match").length;
+		search.destroy();
+		return {
+			results,
+			unchanged,
+			glyphs,
+			released: !root.querySelector(".nya-reading-overlay"),
+		};
+	});
+	expect(report.results).toEqual([
+		{ count: 2, index: 0, error: null, scrolled: true },
+		{ count: 2, index: 1, error: null, scrolled: true },
+		{ count: 1, index: 0, error: null, scrolled: true },
+		{ count: 1, index: 0, error: null, scrolled: true },
+	]);
+	expect(report.unchanged).toBe(true);
+	expect(report.glyphs).toBe(0);
+	expect(report.released).toBe(true);
+});
+
+test("production Finder reading contours bound offscreen geometry in a large mounted block", async ({
+	page,
+}) => {
 	await page.setContent(
 		'<style>body{margin:0}#root{height:400px;width:500px;overflow:auto;--nya-scope-border-width:1px}pre{margin:0;font:16px/20px monospace}.nya-reading-overlay{position:fixed}.nya-scope-outline{position:absolute;overflow:visible;width:1px;height:1px}</style><div id="root"><pre></pre></div>',
 	);
-	await page.addScriptTag({ content: output.find((entry) => entry.type === "chunk").code });
+	await page.addScriptTag({ content: await readingBundle() });
 	const report = await page.evaluate(() => {
 		const root = document.querySelector("#root"),
 			pre = root.querySelector("pre");

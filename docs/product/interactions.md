@@ -35,7 +35,9 @@
 3. 用户主动关闭后，将键盘焦点交还该 Finder 所属笔记正文：源码／实时预览聚焦当前有效编辑器，阅读聚焦所属渲染正文。不额外导航、改写选区或恢复打开前的位置；阅读不切换编辑模式，也不恢复已清除的查找高亮。
     - 面板立即隐藏；需要异步恢复编辑偏好时，完成后重新取得编辑器再回焦。模式恢复失败仍尝试向有效正文归还焦点，缺失聚焦能力不借其他视图代替。
     - 仅当前活动且仍打开的 owner 可回焦；初始焦点已在其他界面时不抢回。等待期间的 focusin、pointerdown、keydown、窗口失焦／pagehide 取消请求，即使焦点随后回到 body 也不重试。重开、内部隐藏、重置及销毁释放待定请求；文件、模式、Document、窗口或 owner 失效后不回焦。
-    - 收起图标菜单的关闭复用上述语义；收起、More 的局部 Escape、原生查找降级、销毁和卸载不触发关闭回焦。移动端软键盘与真实宿主键盘操作仍需实机验收。
+    - 收起图标菜单的关闭复用上述语义；收起、More 的局部 Escape、原生查找降级、销毁和卸载不触发关闭回焦。
+
+关闭回焦修复已收到维护者“通过”的验收反馈。该确认仅记录本次修复验收，不补写未提供的系统／宿主版本、主题、移动软键盘、分屏或弹窗场景的通过结论；证据范围见 [compatibility](../compatibility.md#验证能力)。
 
 依据：`src/features/finder/application/finder-session.ts` 的 `closeFinder()`／`setVisible()`／`resetMatches()`；`src/app/workspace-runtime.ts:registerFinderEvent()` 和 `workspace-commands.ts` 的 HideFind／ToggleFind 命令；`src/platform/obsidian/live-preview.ts:getLivePreviewPreference()`、`note-focus.ts:prepareNoteFocus()`。回归：`finder-session.test.ts` 的 close focus／mode restoration、`note-focus.test.ts`、`finder-panel.test.mjs` 的 user close／async close、浏览器 harness 的真实 Escape 后编辑输入／阅读 PageDown。上述约束经维护者明确确认，不来自源码推断；模拟回归不等于宿主验收。
 
@@ -219,6 +221,7 @@
 - 阅读导航先挂载分块、展开必要列表／Callout／details 祖先，然后定位首个文本端点；不恢复折叠状态。跨块匹配只绘制挂载部分。
 - 打开时统一使用插件，不再提供使用原生查找的设置；旧 `useObsidianSearchInRead` 无论 true／false 均清理且不参与路由。不支持时提示并回退，运行失败可主动降级，降级关闭插件面板以避免两套入口同时可见。归一化迁移沿用已有保存保护，不因移除偏好绕过读取失败禁止覆盖的约束。
 - 存储／复制／复用错误由插件 Notice 提示，按全局 5 秒间隔节流；读取失败禁止写入，保存失败保留内存修改。
+- 外部设置变化在本地修改已保存时重新加载并刷新现有界面；与本地未保存修改冲突时暂停保存，保留本地内存及磁盘数据并提示先保留本地内容再重载。不自动合并预设或覆盖外部数据，外部读取失败不把当前内存重置成默认值。
 - 历史／预设订阅回调异常逐项隔离并提示，其他视图继续通知，本次保存仍发出；初次订阅失败移除该订阅并传播错误，避免挂载失败后泄漏。
 
 依据：`src/features/finder/ui/SearchStatus.vue`、`src/features/reading/dom/reading-search.ts` 的 `search()`／`run()`／`scroll()`／`clear()`、`src/app/workspace-runtime.ts` 的 `showFinder()`／`openNativeSearch()`、`src/app/create-plugin-runtime.ts:reportError()`。
@@ -231,6 +234,7 @@
 - 编辑／阅读匹配等待均显示 `…`，400ms 后状态面板提供“取消并关闭”，该按钮只隐藏／清理，不额外恢复宿主模式。既有用户关闭入口仍遵守统一关闭契约。
 - 替换前取消未完成查找；提交前后台刷新同一有效快照不取代任务。替换输入变化、导航及生命周期失效取消候选；连续替换取代旧候选，不排队写旧文档。提交中自身 editor-change 事件不重入替换或取消后续重算。
 - 全局替换转义设置实际变化同步通知已有 owner，立即取消未提交候选及候选重试；改回原值不恢复旧任务。同值设置不取消，已经提交的编辑及其重算不因该设置被重放或撤销。
+- 宿主事务过滤完成后、最终 dispatch 前仍检查替换意图；过滤回调改变替换文本、查询或转义偏好时拒绝旧候选，不将自身同查询刷新误作取消。回归：`finder-editor.test.ts` 的 stale replacement intent 系列。
 - 等待文案区分“尚未写入”与“已完成、正在更新匹配”。提交后取消只停止后续计算／定位，不撤销正文。候选失败的重试继续替换操作，必须重新核验身份；提交后失败只允许重新查找，不重复写入。
 
 依据补充：`src/features/finder/application/finder-session.ts:replaceMatches()`／`replacementCurrent()`、`src/platform/browser/match-engine.ts:replace()`、`tests/component/finder-panel.test.mjs` 的 candidate invalidation／post-commit／same-file split 回归。

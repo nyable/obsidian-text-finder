@@ -208,6 +208,74 @@ it("runs host filters once and refuses owner changes made during filtering", () 
 	});
 });
 
+it.each(["replacement", "escapes", "query", "close"])(
+	"refuses stale replacement intent changed during host filtering: %s",
+	async (action) => {
+		let armed = false;
+		const filter = vi.fn((tr: import("@codemirror/state").Transaction) => {
+			if (armed && tr.docChanged) {
+				armed = false;
+				if (action === "replacement") session.setReplacementText("NEW");
+				if (action === "escapes") {
+					preferences.useEscapeCharInReplace = false;
+					session.replacementPreferencesChanged();
+				}
+				if (action === "query") session.setFindText("dog");
+				if (action === "close") session.closeFinder();
+			}
+			return tr;
+		});
+		const h = environment(EditorState.transactionFilter.of(filter));
+		const preferences = defaultSettings();
+		preferences.sourceModeWhenSearch = false;
+		preferences.moveCursorToMatch = false;
+		const host: FinderHost = {
+			preferences: () => preferences,
+			history: new HistoryController(
+				() => preferences,
+				async () => {},
+			),
+			reportError: vi.fn(),
+			mode: () => "source",
+			environment: () => null,
+			environmentClosed: () => false,
+			canRead: () => false,
+			matcher: synchronousMatcher,
+			clearReading() {},
+			activate: () => true,
+			selection: () => null,
+			reading() {
+				throw new Error("Not reading");
+			},
+			openHistory() {},
+			openNativeSearch() {},
+			prepareCloseFocus: () => null,
+		};
+		const editor = { ...h.port, reveal: vi.fn() };
+		const session = createFinderSession(host, {
+			editor,
+			presentation: silentPresentation,
+			reactive: (value) => value,
+			tick: async () => {},
+			onMount() {},
+		});
+		session.showReplace("cat");
+		session.toggleRegexMode(false);
+		session.setReplacementText("\\n");
+		h.dispatch.mockClear();
+		filter.mockClear();
+		armed = true;
+		const result = await session.replaceOnce();
+		expect(result).toMatchObject({ changed: false, changeCount: 0 });
+		expect(h.initial.editorView.state.doc.toString()).toBe("cat cat");
+		expect(h.dispatch.mock.calls.filter(([spec]) => spec && "changes" in spec)).toHaveLength(0);
+		expect(session.state.replacementRetry).toBeNull();
+		expect(session.state.replacementRejection).toBeUndefined();
+		expect(result.status).toBe("cancelled");
+		if (action === "query") expect(session.state.cache.search).toBe("dog");
+	},
+);
+
 it.each(["partial", "rewritten"])(
 	"reports %s host changes without claiming full completion or replaying",
 	(kind) => {

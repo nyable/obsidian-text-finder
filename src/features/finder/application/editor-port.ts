@@ -39,7 +39,11 @@ export interface EditorPort {
 		highlight: { visible: boolean; index: number; matches: readonly MatchOffset[] } | undefined,
 		selection?: { anchor: number; head: number },
 	): void;
-	commit(snapshot: EditingSnapshot, changes: readonly ReplacementChange[]): void;
+	commit(
+		snapshot: EditingSnapshot,
+		changes: readonly ReplacementChange[],
+		current?: () => boolean,
+	): void;
 	commitResult(snapshot: EditingSnapshot): ReplacementCommitResult;
 	reveal(
 		snapshot: EditingSnapshot,

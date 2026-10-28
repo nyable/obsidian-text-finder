@@ -6,6 +6,107 @@ import * as helper from "../../src/core/search/text-matching";
 import { ReadingSearch } from "../../src/features/reading/dom/reading-search";
 const options = { regexMode: false, caseSensitive: false };
 
+test("render waiting keeps one callback shell and releases the cancelled request", async () => {
+	const h = environment();
+	try {
+		h.renderer.rendered = [];
+		for (let index = 0; index < 20; index++) h.run(`query-${index}`);
+		assert.equal(h.callbacks.length, 1);
+		const shell = h.search.renderWait;
+		assert.equal(typeof shell.resume, "function");
+		assert.equal(shell.waiting.size, 1);
+		h.search.clear();
+		assert.equal(shell.resume, null);
+		assert.equal(shell.waiting.size, 0);
+		let result;
+		h.search.search("cat", options, 0, false, (value) => {
+			result = value;
+		});
+		assert.equal(h.callbacks.length, 1);
+		h.renderer.rendered = null;
+		h.callbacks[0]();
+		await Promise.resolve();
+		assert.equal(result.pending, false);
+		assert.equal(result.matches.length, 3);
+		h.search.clear();
+		h.callbacks[0]();
+		assert.equal(shell.resume, null);
+	} finally {
+		h.search.destroy();
+		h.dom.window.close();
+	}
+});
+
+test("shared renderer callback cancellation only releases its own waiter", async () => {
+	const h = environment();
+	const other = new ReadingSearch(
+		h.view,
+		() => true,
+		() => {},
+	);
+	try {
+		h.renderer.rendered = [];
+		h.run("cat");
+		let result;
+		other.search("world", options, 0, false, (value) => {
+			result = value;
+		});
+		assert.equal(h.callbacks.length, 1);
+		const wait = other.renderWait;
+		assert.equal(wait.waiting.size, 2);
+		h.search.clear();
+		assert.equal(wait.waiting.size, 1);
+		h.renderer.rendered = null;
+		h.callbacks[0]();
+		await Promise.resolve();
+		assert.equal(result.pending, false);
+		assert.equal(result.matches.length, 1);
+		assert.equal(wait.resume, null);
+	} finally {
+		other.destroy();
+		h.search.destroy();
+		h.dom.window.close();
+	}
+});
+
+test("synchronous render callbacks do not retain request closures", async () => {
+	const h = environment();
+	try {
+		h.renderer.rendered = [];
+		h.renderer.onRendered = (callback) => {
+			h.renderer.rendered = null;
+			callback();
+		};
+		h.run("cat");
+		const wait = h.search.renderWait;
+		assert.equal(wait.resume, null);
+		assert.equal(wait.waiting.size, 0);
+		await Promise.resolve();
+		assert.equal(h.search.renderWait, null);
+	} finally {
+		h.search.destroy();
+		h.dom.window.close();
+	}
+});
+
+test("table cell separators are counted and navigable without newline glyphs", () => {
+	const h = environment(["<table><tr><td>one</td><td></td><td>two</td></tr></table>"]);
+	try {
+		const before = h.root.innerHTML;
+		assert.equal(h.run("\t").matches.length, 2);
+		const result = h.run("\\t+", { ...options, regexMode: true }, 0, true);
+		assert.equal(result.matches.length, 1);
+		assert.equal(result.error, undefined);
+		assert.ok(h.calls.some(([name]) => name === "show"));
+		assert.equal(h.doc.querySelectorAll(".nya-newline-match").length, 0);
+		assert.equal(h.root.innerHTML, before);
+		assert.equal(h.run("one\t\ttwo").matches.length, 1);
+	} finally {
+		h.search.destroy();
+		h.dom.window.close();
+	}
+});
+
 test("whole word uses full reading text across inline nodes, blocks and detached sections", () => {
 	const h = environment([
 		"<p>ca<strong>t</strong> xca<em>t</em> cat<span>2</span> cat_name</p>",
@@ -871,11 +972,14 @@ test("render waiting has a bounded timeout and can be retried after recovery", a
 	h.renderer.rendered = [];
 	const results = [];
 	search.search("cat", options, 0, false, (result) => results.push(result));
+	const wait = search.renderWait;
 	await new Promise((resolve) => h.dom.window.setTimeout(resolve, 65));
 	assert.equal(results.at(-1).error, "timeout");
 	assert.equal(results.at(-1).pending, false);
 	assert.equal(search.waitTimer, null);
 	assert.equal(search.observer, null);
+	assert.equal(wait.resume, null);
+	assert.equal(wait.waiting.size, 0);
 	h.renderer.rendered = null;
 	search.search("cat", options, 0, false, (result) => results.push(result));
 	assert.equal(results.at(-1).matches.length, 3);

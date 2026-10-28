@@ -29,7 +29,7 @@
 		"ReplacementReadOnly": "This editor is read-only. No replacement was applied. Make the note editable before replacing again.",
 		"ReplacementRejected": "The editor refused the replacement. No edit was applied. Check the note and editor state before replacing again.",
 		"Retry": "Retry",
-		"ReadingFailed": "Reading search or navigation failed. Retry, or enable native find in settings.",
+		"ReadingFailed": "Reading search or navigation failed. Retry, or use native find.",
 		"ReadingTimeout": "Reading render timed out. Retry, or use native find.",
 		"UseNativeFind": "Use native find",
 		"ReadingUnsupported": "This reading renderer or system does not support plugin search. Use native find or switch to editing mode.",
@@ -269,6 +269,7 @@
 		"Discard": "Discard changes"
 	},
 	"history": {
+		"SettingsConflict": "External settings conflict with local changes. Saving is paused to protect disk data. Preserve unsaved local presets or settings before reloading the plugin.",
 		"UsageCount": "Uses: {{count}}",
 		"Length": "Length",
 		"Characters": "{{count}} chars",

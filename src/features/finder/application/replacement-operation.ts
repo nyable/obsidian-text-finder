@@ -93,6 +93,10 @@ export function runReplacement(
 			const commit = effects.commitResult();
 			result.changed = commit.changed;
 			result.changeCount = commit.changeCount;
+			if (!commit.changed && !effects.current()) {
+				effects.clear();
+				return result;
+			}
 			if (commit.changed && !commit.complete) effects.failed(error, true, true);
 			else effects.failed(error, commit.changed);
 			effects.commitFailed(commit);

@@ -66,10 +66,12 @@ export class ReadingOverlay {
 		current: number,
 	) {
 		const breaks = matches.flatMap((match, i) =>
-			readingBreaks(index, match.from, match.to).map((br) => ({
-				br,
-				current: i === current,
-			})),
+			readingBreaks(index, match.from, match.to)
+				.filter((br) => br.kind !== "cell")
+				.map((br) => ({
+					br,
+					current: i === current,
+				})),
 		);
 		if (!scopes.length && !breaks.length) {
 			this.destroy();
@@ -195,6 +197,10 @@ export class ReadingOverlay {
 				let previous: ScopeRect | null = null;
 				let previousOffset = -2;
 				for (const br of readingBreaks(index, scope.from, scope.to)) {
+					if (br.kind === "cell") {
+						previous = null;
+						continue;
+					}
 					if (!visibleBreak(br)) {
 						previous = null;
 						continue;

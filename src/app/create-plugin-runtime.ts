@@ -3,7 +3,7 @@ import { i18n, initializeLanguage } from "../i18n";
 import { editorExtensionProvider, EditorSearch } from "./workspace-runtime";
 import { HistoryController } from "../features/history";
 import { defaultSettings, normalizeSettings, type PluginSettings } from "../features/settings";
-import { SettingsStorage } from "../platform/obsidian/settings-storage";
+import { SettingsStorage, SettingsConflictError } from "../platform/obsidian/settings-storage";
 import { SettingTab } from "./settings-tab";
 import { AppearanceStyles } from "../features/settings/ui";
 import { Disposables } from "../shared/lifecycle/disposables";
@@ -31,6 +31,11 @@ export default class TextFinderPlugin extends Plugin {
 	private unloaded = false;
 	private regexIconRegistered = false;
 	private storageReadable = false;
+	private storageConflict = false;
+	private saveRevision = 0;
+	private savedRevision = 0;
+	private externalRefresh: Promise<void> | undefined;
+	private externalRefreshRequested = false;
 	private lastErrorNotice = -Infinity;
 	private settingTab?: SettingTab;
 	private appearance = new AppearanceStyles(
@@ -116,23 +121,103 @@ export default class TextFinderPlugin extends Plugin {
 		}
 		const { settings, changed } = normalizeSettings(raw);
 		this.settings = settings;
+		this.storageConflict = false;
+		this.savedRevision = this.saveRevision;
 		this.appearance.refresh();
 		this.history.notify();
 		this.presets.notify();
 		if (changed) await this.saveSettings().catch(() => {});
 	}
+	onExternalSettingsChange(): Promise<void> {
+		this.externalRefreshRequested = true;
+		if (this.externalRefresh) return this.externalRefresh;
+		const refresh = (async () => {
+			try {
+				while (this.externalRefreshRequested) {
+					this.externalRefreshRequested = false;
+					await this.refreshExternalSettings();
+				}
+			} finally {
+				this.externalRefresh = undefined;
+			}
+		})();
+		this.externalRefresh = refresh;
+		return refresh;
+	}
+	private async refreshExternalSettings() {
+		if (this.unloaded || !this.storageReadable || this.storageConflict) return;
+		const revision = this.saveRevision;
+		try {
+			let previous: PluginSettings | undefined;
+			let normalized: ReturnType<typeof normalizeSettings> | undefined;
+			await this.getStorage().readExternal((value) => {
+				if (
+					this.unloaded ||
+					revision !== this.saveRevision ||
+					revision !== this.savedRevision
+				)
+					return false;
+				normalized = normalizeSettings(value);
+				previous = this.settings;
+				this.settings = normalized.settings;
+				return true;
+			});
+			if (!normalized || !previous || this.unloaded) return;
+			const { settings, changed } = normalized;
+			const previousSettings = previous;
+			// Reuse existing effect boundaries, isolating a broken view from the rest.
+			for (const notify of [
+				() => this.history.notify(),
+				() => this.presets.notify(),
+				() => this.appearance.refresh(),
+				() => this.editorSearch?.refreshToolbars(),
+				() => {
+					if (previousSettings.useEscapeCharInReplace !== settings.useEscapeCharInReplace)
+						this.editorSearch?.replacementPreferencesChanged();
+				},
+				() => {
+					if (settings.showFloatingFinderOnOpen) this.editorSearch?.syncFloatingEntries();
+				},
+				() => this.settingTab?.refresh(),
+			]) {
+				try {
+					notify();
+				} catch (error) {
+					this.reportError("history.SubscriberFailed", error);
+				}
+			}
+			if (changed) await this.saveSettings().catch(() => {});
+		} catch (error) {
+			if (this.unloaded) return;
+			if (error instanceof SettingsConflictError) {
+				this.storageConflict = true;
+				this.reportError("history.SettingsConflict", error);
+			} else {
+				this.storageReadable = false;
+				this.reportError("history.LoadFailed", error);
+			}
+		}
+	}
 
 	async saveSettings() {
+		const revision = ++this.saveRevision;
 		try {
 			if (this.unloaded) throw new Error("Plugin is unloaded; refusing a new settings write");
+			if (this.storageConflict) throw new SettingsConflictError();
 			if (!this.storageReadable)
 				throw new Error(
 					"Settings were not read successfully; refusing to overwrite stored data",
 				);
 			await this.getStorage().write(this.settings);
+			this.savedRevision = Math.max(this.savedRevision, revision);
 		} catch (error) {
+			if (error instanceof SettingsConflictError) this.storageConflict = true;
 			this.reportError(
-				this.storageReadable ? "history.SaveFailed" : "history.LoadFailed",
+				this.storageConflict
+					? "history.SettingsConflict"
+					: this.storageReadable
+						? "history.SaveFailed"
+						: "history.LoadFailed",
 				error,
 			);
 			throw error;

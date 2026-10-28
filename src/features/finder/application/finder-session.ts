@@ -61,6 +61,7 @@ export interface FinderState {
 export function createFinderSession(editorSearch: FinderHost, runtime: FinderRuntime) {
 	const preferences = editorSearch.preferences();
 	let recipeIncludesReplacement = false;
+	let replacementIntent = 0;
 	// Presets only fill the finder; replacement parsing always follows global preferences.
 	const interpretEscapes = () => editorSearch.preferences().useEscapeCharInReplace;
 	const cache: SearchCache = runtime.reactive({
@@ -665,7 +666,11 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 	) => {
 		// Host editor-change/layout events can fire synchronously during our commit.
 		// They must not cancel post-commit matching, or replay the edit.
-		if (uiState.replacementTask?.phase === "committing") return;
+		if (uiState.replacementTask?.phase === "committing") {
+			if (text === uiState.currentSearch && searchKey() === uiState.replacementTask.searchKey)
+				return;
+			replacementIntent++;
+		}
 		uiState.passiveEntry = false;
 		if (
 			uiState.replacementTask &&
@@ -1038,6 +1043,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			scopeEpoch: uiState.scopeEpoch,
 			searchKey: searchKey(),
 		};
+		const intent = replacementIntent;
 		uiState.replacementTask = task;
 		uiState.readingError = undefined;
 		uiState.workerError = false;
@@ -1144,13 +1150,20 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 			synchronous || !replace,
 			result,
 			{
-				current: () => replacementCurrent(task),
+				current: () =>
+					(task.phase === "committed" || intent === replacementIntent) &&
+					replacementCurrent(task),
 				ranges: scopeRanges,
 				prepared(prepared) {
 					uiState.cache.matches = prepared.matches;
 					rememberMatches(context);
 				},
-				commit: (changes) => runtime.editor.commit(context, changes),
+				commit: (changes) =>
+					runtime.editor.commit(
+						context,
+						changes,
+						() => intent === replacementIntent && replacementCurrent(task),
+					),
 				commitResult: () => runtime.editor.commitResult(context),
 				committed() {
 					const current = getEditorContext();
@@ -1250,6 +1263,7 @@ export function createFinderSession(editorSearch: FinderHost, runtime: FinderRun
 		setFindText(uiState.cache.search, true, getEditorContext(), 0, true);
 	};
 	const onReplaceChanged = () => {
+		replacementIntent++;
 		if (uiState.replacementTask?.phase === "prepare") {
 			cancelEditing();
 			uiState.readingPending = false;

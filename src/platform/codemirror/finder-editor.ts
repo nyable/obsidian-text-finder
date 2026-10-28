@@ -103,7 +103,7 @@ export function createFinderEditor(
 				...(selection ? { selection } : {}),
 			});
 		},
-		commit(snapshot, changes) {
+		commit(snapshot, changes, intentCurrent = () => true) {
 			const captured = raw(snapshot),
 				current = context();
 			if (
@@ -128,6 +128,7 @@ export function createFinderEditor(
 			const transaction = state.update({ changes });
 			const filtered = context();
 			if (
+				!intentCurrent() ||
 				captured.editorView.state !== state ||
 				!filtered ||
 				filtered.view !== captured.view ||

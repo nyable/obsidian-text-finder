@@ -20,7 +20,7 @@ export interface ReadingPoint {
 }
 export interface ReadingBreak {
 	from: number;
-	kind: "hard" | "text" | "block" | "barrier";
+	kind: "hard" | "text" | "block" | "barrier" | "cell";
 	before: ReadingPoint;
 	after?: ReadingPoint;
 	element?: HTMLElement;
@@ -229,6 +229,14 @@ export function indexReadingText(roots: HTMLElement[]): ReadingTextIndex {
 			pendingSpace = null;
 			// Exactly one tab per cell boundary, including consecutive empty cells.
 			if (el.previousElementSibling?.matches("td, th")) {
+				const point = { node: el, offset: 0 };
+				breaks.push({
+					from: length,
+					kind: "cell",
+					before: point,
+					after: point,
+					element: el,
+				});
 				pieces.push("\t");
 				length++;
 				last = "\t";

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { SettingsStorage } from "../../src/platform/obsidian/settings-storage";
+import { SettingsConflictError } from "../../src/platform/obsidian/settings-storage";
 const deferred = () => {
 	let resolve;
 	const promise = new Promise((done) => {
@@ -8,6 +9,107 @@ const deferred = () => {
 	});
 	return { promise, resolve };
 };
+
+test("external changes cannot be overwritten by a stale snapshot or stale reader", async () => {
+	let disk = '{"presets":[]}';
+	let writes = 0;
+	const app = {
+		vault: {
+			adapter: {
+				stat: async () => ({ type: "file" }),
+				read: async () => disk,
+				write: async (_path, text) => {
+					writes++;
+					disk = text;
+				},
+			},
+		},
+	};
+	const first = new SettingsStorage(app, "external");
+	await first.read();
+	disk = '{"presets":["remote"]}';
+	await assert.rejects(first.write({ presets: [], history: ["cat"] }), SettingsConflictError);
+	assert.equal(writes, 0);
+	await assert.rejects(
+		first.readExternal(() => false),
+		SettingsConflictError,
+	);
+	const fresh = new SettingsStorage(app, "external");
+	assert.deepEqual(await fresh.read(), { presets: ["remote"] });
+	await assert.rejects(first.write({ presets: [] }), SettingsConflictError);
+	await fresh.write({ presets: ["remote"], history: ["cat"] });
+	assert.equal(writes, 1);
+	assert.deepEqual(JSON.parse(disk).presets, ["remote"]);
+});
+
+test("external refresh skips own writes and checks local edits after slow disk reads", async () => {
+	let disk = "{}";
+	let localCurrent = true;
+	const gate = deferred();
+	let slow = false;
+	const storage = new SettingsStorage(
+		{
+			vault: {
+				adapter: {
+					stat: async () => ({ type: "file" }),
+					read: async () => {
+						if (slow) await gate.promise;
+						return disk;
+					},
+					write: async (_path, text) => {
+						disk = text;
+					},
+				},
+			},
+		},
+		"refresh",
+	);
+	await storage.read();
+	await storage.write({ local: true });
+	assert.deepEqual(await storage.readExternal(() => false), { changed: false });
+	disk = '{"remote":true}';
+	slow = true;
+	const reading = assert.rejects(
+		storage.readExternal(() => localCurrent),
+		SettingsConflictError,
+	);
+	localCurrent = false;
+	gate.resolve();
+	await reading;
+	assert.deepEqual(JSON.parse(disk), { remote: true });
+});
+
+test("external acceptance applies memory before exposing the new baseline to queued saves", async () => {
+	let disk = '{"presets":[]}';
+	let memory;
+	const writes = [];
+	const storage = new SettingsStorage(
+		{
+			vault: {
+				adapter: {
+					stat: async () => ({ type: "file" }),
+					read: async () => disk,
+					write: async (_path, text) => {
+						writes.push(JSON.parse(text));
+						disk = text;
+					},
+				},
+			},
+		},
+		"acceptance",
+	);
+	memory = await storage.read();
+	disk = '{"presets":["remote"]}';
+	await storage.readExternal((value) => {
+		memory = value;
+		queueMicrotask(() => {
+			void storage.write({ ...memory, history: ["local"] });
+		});
+		return true;
+	});
+	await storage.flush();
+	assert.deepEqual(writes, [{ presets: ["remote"], history: ["local"] }]);
+});
 
 test("new module instances read behind every accepted old write, even with a serial host adapter", async () => {
 	let disk = '{"value":0}';
@@ -104,6 +206,8 @@ test("storage distinguishes absence, malformed JSON and I/O failures, and propag
 	failRead = true;
 	await assert.rejects(storage.read(), /read denied/);
 	failRead = false;
+	text = "{}";
+	await storage.read();
 	failWrite = true;
 	await assert.rejects(storage.write({ value: 1 }), /disk full/);
 	await assert.rejects(storage.flush(), /disk full/);

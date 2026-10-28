@@ -29,7 +29,7 @@
 		"ReplacementReadOnly": "当前编辑器为只读，未执行替换。请在笔记恢复可编辑后再执行替换。",
 		"ReplacementRejected": "编辑器拒绝了替换，正文未修改。请检查笔记和编辑器状态后再执行替换。",
 		"Retry": "重试",
-		"ReadingFailed": "阅读查找或定位失败。请重试，或在设置中启用原生查找。",
+		"ReadingFailed": "阅读查找或定位失败。请重试，或使用原生查找。",
 		"ReadingTimeout": "阅读渲染等待超时。请重试，或使用原生查找。",
 		"UseNativeFind": "使用原生查找",
 		"ReadingUnsupported": "当前阅读渲染器或系统不支持插件查找。请使用原生查找，或切换编辑模式。",
@@ -269,6 +269,7 @@
 		"Discard": "丢弃修改"
 	},
 	"history": {
+		"SettingsConflict": "检测到外部设置与本地修改冲突，已暂停保存以保护磁盘数据。请先保留本地未保存的预设或设置，再重新加载插件。",
 		"UsageCount": "使用 {{count}} 次",
 		"Length": "长度",
 		"Characters": "{{count}} 字符",

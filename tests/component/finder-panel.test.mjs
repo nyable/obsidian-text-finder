@@ -11,6 +11,7 @@ import * as toolbarSource from "../../src/features/finder/model/toolbar";
 import * as helper from "../../src/core/search/text-matching";
 import { ReadingSearch } from "../../src/features/reading/dom/reading-search";
 import { EditorSearch } from "../../src/app/workspace-runtime";
+import { registerWorkspaceCommands } from "../../src/app/workspace-commands";
 import { MatchEngine } from "../../src/platform/browser/match-engine";
 import { searchScopeField } from "../../src/platform/codemirror/search-scope";
 import { Platform, Menu } from "../support/obsidian-host.mjs";
@@ -4886,16 +4887,79 @@ test("all user close entry points restore mode once; hidden close is inert", asy
 	search.dispose();
 });
 
-test("reading user close returns focus to its body without navigation or editor access", async (t) => {
+for (const moveCursorToMatch of [true, false]) {
+	test(`Escape preserves the editor selection and hidden navigation keeps focus: moveCursorToMatch=${moveCursorToMatch}`, async (t) => {
+		const h = mount(t, undefined, { moveCursorToMatch });
+		await tick();
+		const content = document.createElement("div");
+		content.tabIndex = -1;
+		h.target.prepend(content);
+		const cm = h.view.editor.cm;
+		cm.contentDOM = content;
+		cm.focus = () => content.focus({ preventScroll: true });
+		if (!moveCursorToMatch) cm.dispatch({ selection: { anchor: 1, head: 2 } });
+		const before = cm.state.selection.toJSON();
+		const search = new EditorSearch({
+			...h.plugin,
+			addCommand() {},
+			registerEvent() {},
+			app: { workspace: { on() {} } },
+		});
+		search.registerFinderEvent(h.view, h.component);
+		onTestFinished(() => search.dispose());
+		h.target.querySelector("textarea").dispatchEvent(
+			new window.KeyboardEvent("keydown", {
+				key: "Escape",
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+		assert.equal(h.component.isVisible(), false);
+		assert.equal(document.activeElement, content);
+		assert.deepEqual(cm.state.selection.toJSON(), before);
+		for (const [navigate, from, to] of [
+			[() => h.component.toNextMatch(), 4, 7],
+			[() => h.component.toPreviousMatch(), 0, 3],
+		]) {
+			navigate();
+			await settlePosition();
+			assert.equal(document.activeElement, content);
+			assert.equal(h.component.isVisible(), false);
+			assert.deepEqual(
+				cm.state.selection.toJSON(),
+				moveCursorToMatch ? { ranges: [{ anchor: from, head: to }], main: 0 } : before,
+			);
+		}
+		assert.equal(h.view.editor.getValue(), "cat cat");
+	});
+}
+
+test("reading user close entry points return focus to the body without navigation or editor access", async (t) => {
 	const h = mountReading(t);
 	await tick();
 	const focus = vi.spyOn(h.preview, "focus");
-	h.component.closeFinder();
-	assert.equal(document.activeElement, h.preview);
-	assert.deepEqual(focus.mock.calls, [[{ preventScroll: true }]]);
-	assert.equal(h.view.getMode(), "preview");
-	assert.equal(h.scrolls.length, 0);
-	assert.equal(h.component.isVisible(), false);
+	const commands = new Map();
+	registerWorkspaceCommands({
+		addCommand: (command) => commands.set(command.id, command),
+		activeView: () => h.view,
+		isOpen: () => true,
+		existingFinder: () => h.component,
+	});
+	for (const close of [
+		() => h.target.querySelector('[aria-label="search.tip.Close"]').click(),
+		() => commands.get("text-finder-hide-find").checkCallback(false),
+		() => commands.get("text-finder-toggle-find").checkCallback(false),
+	]) {
+		h.component.setVisible(true, "cat");
+		h.scrolls.length = 0;
+		focus.mockClear();
+		close();
+		assert.equal(document.activeElement, h.preview);
+		assert.deepEqual(focus.mock.calls, [[{ preventScroll: true }]]);
+		assert.equal(h.view.getMode(), "preview");
+		assert.equal(h.scrolls.length, 0);
+		assert.equal(h.component.isVisible(), false);
+	}
 });
 
 test("async close focuses the rebuilt editor, but never overrides a newer user focus", async (t) => {

@@ -78,7 +78,7 @@ main.ts → app/create-plugin-runtime.ts    Obsidian 插件默认导出与装配
 
 同步兼容路径和 Worker 路径都从本次原文快照准备候选，不能复用隐藏面板的旧坐标。全文正则上下文及模板展开在 `core/search/text-matching.ts`，单次只展开目标模板，全部才展开全部；没有二次正则切片验证或递归替换模板。
 
-`runReplacement()` 是同步兼容与 Worker 共用的 prepare → 单次 commit → rematch 用例；会话提供 owner／查询有效性和导航效果，不维护另一条同步写入实现。提交前校验文件／Editor／EditorView／doc、模式、窗口、查询／替换输入及范围代次；`EditorPort.commit()` 在 CodeMirror 边界再次校验原始身份并一次 dispatch。自身提交期间的同步宿主通知不得重入取消或重放。
+`runReplacement()` 是同步兼容与 Worker 共用的 prepare → 单次 commit → rematch 用例；会话提供 owner／查询有效性和导航效果，不维护另一条同步写入实现。提交前校验文件／Editor／EditorView／doc、模式、窗口、查询／替换输入及范围代次；`EditorPort.commit()` 在 CodeMirror 边界再次校验原始身份，并在宿主过滤完成后、最终 dispatch 前校验替换意图。过滤期间替换文本、查询或转义偏好变化拒绝旧写入；自身提交期间同查询的同步宿主通知不得重入取消或重放。
 
 `ReplaceResult.changed` 表示实际提交，`navigationCompletion` 表示完整提交后重算及定位完成；定位失败提示“已替换但定位失败”，宿主部分过滤／改写则明确提示检查正文，均不能再提供重放写入的重试。额外前进只在成功、同数量、请求／身份仍有效时发生。取消提交前任务不写入；提交后取消不回滚正文。回归：`replacement-operation.test.ts`、`finder-editor.test.ts`、`finder-session.test.ts`、真实 `finder-panel.test.mjs`。
 
@@ -98,14 +98,14 @@ dispatch 正常返回不等于完整替换：适配器从原始 State 解析一�
 
 同模块的 `capturePreviewBody()` 为菜单捕获较窄的正文／render stamp，不要求全文搜索能力；`event-menu.ts` 检测公开事件菜单能力，`editor-context.ts` 隔离内部 CodeMirror 实例探测。缺失／异常能力及过期快照由 `host-bridges.test.ts` 和 `finder-menus.test.mjs` 覆盖。
 
-- `ReadingSearch.ready()` 要求当前源数据、text／lastText 一致，解析／渲染结束且所有块就绪。等待有界检查和 onRendered 回调，默认 5 秒是渲染保护，不是正则执行期限。
+- `ReadingSearch.ready()` 要求当前源数据、text／lastText 一致，解析／渲染结束且所有块就绪。等待有界检查和 onRendered 回调，默认 5 秒是渲染保护，不是正则执行期限。无注销能力的 renderer 最多保留一个待定回调壳；取消／超时／销毁移除本会话续执行引用，壳不累积查询闭包，多个等待者独立取消。回归：`reading-search.test.mjs` 的 render callback 系列。
 - `reading-text.ts` 建完整 DOM 逻辑字符串、span／元素边界和 breaks。偏移是 UTF-16 正文偏移，不是 Markdown 源码偏移。先排除明确子树再读取样式，仅 display:none 检查折叠正文例外；正文规则以 features 为准。
 - 不长期持有 DOM Range：保存节点和数字端点，仅挂载后创建 Range。虚拟同节点移出／挂回只重绘；节点替换、源／renderer／Document 变化令索引或范围失效。
 - 查询／选项可复用有效索引；MutationObserver 观察正文及离屏分块的相关文本／属性，导航前消费待处理 records；主题变化显式失效。
 - 同步重试是 `ReadingPort.search()` 的本次请求参数，等待渲染时仅同查询／选项／范围、文件、源版本、renderer 和 Document 的后台刷新可保留；清理／超时或替换请求不继承，执行前消费一次。回归见 `reading-search.test.mjs` 的 synchronous reading retry 系列。
 - 阅读选区 tracker 在 Finder 懒创建前捕获候选；确认范围需要就绪全文，映射折叠空白向内收紧，排除端点拒绝。同模式失效范围保持 [] 限制，不自动恢复全文；显式编辑／阅读切换由 Finder 会话结束旧范围限制。
 - 高亮注册表按 Document 合并视图所有权，范围／普通／当前项有独立优先级。关闭一个 owner 不清其他视图。`reading-overlay.ts` 在 owner body 创建非交互 portal，不污染正文索引；scroll／resize／字体／外观变更合并 owner rAF，销毁取消帧和监听。
-- 换行 breaks 区分 hard／text／block／barrier，保留既有正文字符串，保护边界／末尾合成字符不成为独立可导航换行。几何缺失不猜测坐标，段落／表格间未知空隙不强连。
+- breaks 区分 hard／text／block／barrier／cell，保留既有正文字符串，保护边界／末尾合成字符不成为独立可导航换行。cell 为合成制表符提供下一单元格起点，用于计数／导航，不画换行图标、不跨单元格补桥。几何缺失不猜测坐标，段落／表格间未知空隙不强连。
 - 阅读轮廓按 Text Range 包围盒递归排除离屏片段，再测量候选片段及邻接余量内的完整矩形／换行，不假定字符偏移的视觉顺序。CSS 裁切不代替几何筛选。`paddedScopeOutlines()` 按纵向邻近矩形扫描间距，不再让长文每行和全文两两比较；全文索引、匹配数量及数字范围不截断。初始 Range 包围盒仍可能读取整个挂载文本块，不能宣称所有主线程工作均与视口大小无关。`tests/browser/reading.spec.mjs` 覆盖大型挂载代码块的测量次数与路径工作量，`scope-outline.test.mjs` 对照原间距算法。
 
 回归：`tests/integration/reading-search.test.mjs`、`reading-scope.test.mjs`、`reading-commands.test.mjs` 和 `tests/unit/reading-index.test.mjs`。宿主实际滚动、虚拟化及绘制仍待实测。
@@ -136,6 +136,8 @@ dispatch 正常返回不等于完整替换：适配器从原始 State 解析一�
 
 读取失败用默认内存状态启动并封锁保存，不能覆写已有磁盘数据；修复后重载不合并临时修改。保存失败不回滚，下次请求保存最新快照，没有自动后台重试或强制退出落盘保证。回归：`settings-storage.test.mjs`、`main-settings.test.mjs`、`history-contracts.test.mjs`、`settings-controller.test.ts`。
 
+成功读取建立磁盘文本基线及跨实例代次，每批写入前通过 stat／read 检查外部变化；旧实例不能借新实例的基线覆盖外部数据。`onExternalSettingsChange()` 在无未保存本地修改时重载；接受值与更新内存在同一同步回调中完成，避免新基线搭配旧快照。随后通知历史／预设、外观、工具栏、替换偏好、悬浮入口与已显示设置页。重叠通知补读一次最新磁盘。本地修改与外部数据冲突时保留双方、暂停保存并提示先保留本地内容再重载，不自动合并预设。外部读取失败保留现有内存并封锁写入。检查与 write 之间不是跨进程原子操作，不承诺消除所有同步竞争。
+
 ## 生命周期与视觉边界
 
 - `PresetController.put()` 接收编辑器的可选原始快照；有基线的编辑按 ID、名称、规则及时间比较，不因排序变化拒绝，不以毫秒时间戳单独识别冲突。UI 始终提交建立草稿时的复制基线，冲突保留草稿并允许另存，不新增持久化字段。
@@ -143,7 +145,7 @@ dispatch 正常返回不等于完整替换：适配器从原始 State 解析一�
 - 编辑匹配结果发布时按结果集复制并冻结一次，隔离会话内部可变数组；导航复用发布快照身份。`search-highlight.ts` 对有效、排序、不重叠结果仅更新旧／新当前项装饰，其他持久化树节点保留。结果变化或文档修改仍完整重建／清空，公开 CSS 类与单层匹配 mark 不变。发布及装饰元数据用 WeakMap 随集合释放，不持有 owner。
 - 全局转义设置变动通过 SettingsController → workspace → FinderCommands 同步取消准备阶段，不引入全局事件总线；已经提交的替换仍只重算，不重放。
 
-`SettingTab` 只实现 `display()`／`hide()`，所有支持版本由同一 `SettingsView` 渲染五分类；不覆盖新版宿主的 `getSettingDefinitions()`，明确不提供全局设置搜索逐项索引。`settings-fields.ts` 集中基本项名称／描述／控件逻辑，写入仍经 SettingsController 保留副作用、整数提交与非阻塞保存。外观预览只归属当前设置视图，不维护声明式行或共享预览集合；重绘、切分类、hide 与 owner Window 的 pagehide 释放预览、草稿、菜单和监听。分组恢复直接刷新本组控件，不依赖宿主 update 或默认持久化；字段与数据格式不变。
+`SettingTab` 使用 `display()`／`hide()` 管理显示，内部 `refresh()` 仅在已显示时重绘外部更新，不重新打开隐藏页；所有支持版本由同一 `SettingsView` 渲染五分类。不覆盖新版宿主的 `getSettingDefinitions()`，明确不提供全局设置搜索逐项索引。`settings-fields.ts` 集中基本项名称／描述／控件逻辑，写入仍经 SettingsController 保留副作用、整数提交与非阻塞保存。外观预览只归属当前设置视图，不维护声明式行或共享预览集合；重绘、切分类、hide 与 owner Window 的 pagehide 释放预览、草稿、菜单和监听。分组恢复直接刷新本组控件，不依赖宿主 update 或默认持久化；字段与数据格式不变。
 
 `OwnerRegistry` 按具体 MarkdownView 懒创建资源，读取选区不预建完整 Finder／Worker；同路径分屏独立。释放时记录保留到清理结束，避免 Finder 清理失去 reading 资源。`Disposables` 逆序、幂等并聚合异常，某资源失败不跳过其他资源。workspace／插件公开 dispose 与宿主 onunload 适配；迟到 layout 回调不重建卸载对象。Modal 关闭销毁视图并取消订阅，workspace 卸载关闭全部已跟踪弹窗和菜单。
 

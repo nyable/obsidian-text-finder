@@ -50,7 +50,7 @@ pnpm verify
 
 1. 在目标提交上执行 `pnpm version X.Y.Z --tag-version-prefix ""`，提交 `package.json`、`manifest.json` 和 `versions.json`。tag 必须与 `manifest.json` 版本完全一致且不带 `v` 前缀。
 2. 确认 `.github/workflows/release.yml` 已在目标提交上，再推送分支和 tag：`git push origin master`、`git push origin X.Y.Z`。
-3. `.github/workflows/release.yml` 在 tag push 时运行测试、构建并创建或更新同名 **draft** release；资产仅为 `main.js`、`manifest.json`、`styles.css`。已发布同版本时工作流失败，不会覆盖线上 release。
+3. `.github/workflows/release.yml` 在 tag push 时校验版本，然后与 CI 共用 `verify.yml`，运行三平台检查及浏览器 smoke。全部门禁成功后下载本次运行已验证的 Linux `plugin-dist`，不重新构建，再创建或更新同名 **draft** release；资产仅为 `main.js`、`manifest.json`、`styles.css`。已发布同版本时工作流失败，不会覆盖线上 release。
 4. 在 GitHub Releases 检查 draft，确认资产后手动 Publish。draft 对用户不可见，也不会被 Obsidian 的更新检查读取。
 5. 仓库需在 **Settings → Actions → General → Workflow permissions** 允许 **Read and write permissions**，release job 才能创建 draft。
 

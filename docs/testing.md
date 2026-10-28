@@ -20,7 +20,7 @@ git diff --check
 
 `vitest.config.mjs` 将并发限制为两个 worker，并显式保留 `isolate: true`，避免 DOM 全局对象和模块 mock 跨文件泄漏；不为提速关闭隔离或跳过套件。低内存环境使用 `pnpm test --maxWorkers=1`；目标回归使用 `pnpm exec vitest run <测试路径>`，再运行 `pnpm typecheck` 尽早发现测试自身的类型错误。交付前仍运行完整 `pnpm verify`。比较耗时时保持 Node、依赖、测试集合及缓存条件一致，串行执行对照命令，不与构建或其他测试同时运行；Vitest 导入阶段统计和 `/usr/bin/time` 的单进程峰值内存不能分别当作完整墙钟拆分或全部 worker 的总内存。
 
-`tests/browser/reading.spec.mjs` 在 `pnpm test:browser` 中覆盖大型仍挂载的阅读代码块，检查轮廓路径及 Range 测量次数不随离屏行数全量展开；记录耗时但不以机器相关的毫秒阈值替代结构性回归。它不证明真实 Obsidian 虚拟化或移动设备性能。同步重试取消／超时／身份变化由 `reading-search.test.mjs` 覆盖，真实双语特殊字符输出由 `i18n-text.test.mjs` 覆盖。
+`tests/browser/reading.spec.mjs` 在 `pnpm test:browser` 中覆盖大型仍挂载的阅读代码块，检查轮廓路径及 Range 测量次数不随离屏行数全量展开；记录耗时但不以机器相关的毫秒阈值替代结构性回归。另覆盖含空单元格表格的纯制表符／跨单元格匹配、实际滚动、不改写正文及不画换行图标。它不证明真实 Obsidian 虚拟化、主题表格布局或移动设备性能。同步重试取消／超时／身份变化由 `reading-search.test.mjs` 覆盖，真实双语特殊字符输出由 `i18n-text.test.mjs` 覆盖。
 
 `pnpm test:browser` 使用 Playwright Test（`playwright.config.mjs`、`tests/browser/finder.spec.mjs` 和 `harness.mjs`）编译生产组件，在真实 Chromium 运行 Finder Blob Worker 查找／替换、IME、第二 Document 和 live owner adopt／卸载检查。截图和 REPORT 默认写 `artifacts/browser/`，可用 TEXT_FINDER_ARTIFACTS 指定；失败 trace／diff 写 `artifacts/playwright/`。需要已安装的锁定 Playwright Chromium；模拟主题、iframe 与移动布局不等于 Obsidian／Android／iOS 验收。
 
@@ -37,6 +37,8 @@ git diff --check
 构建路径回归使用 `path.win32.resolve()` 模拟 Vite 在 Windows 处理库入口后的反斜杠 ID，覆盖盘符、中文／空格、UNC、POSIX 及空源码。它检查虚拟入口 resolveId／load 的规范化，不等于 Windows 原生构建；改动构建入口时仍须在 Windows 原生 Node 下运行 `node --test tests/vite-build.test.mjs` 和 `pnpm build`，不能只凭 WSL 通过推定 Windows 通过。
 
 ## 主要覆盖
+
+- 外部设置与最终写入：`settings-storage.test.mjs`／`main-settings.test.mjs` 覆盖外部变化拒绝旧快照、旧实例代次、重载副作用、自己的写入通知、慢读取期间本地编辑／新通知／卸载及读取失败保护；`finder-editor.test.ts` 覆盖宿主过滤期间替换文本／转义／查询／关闭失效。`reading-search.test.mjs` 覆盖单一渲染回调壳及独立取消、纯表格制表符导航且不画换行图标。`consistency.test.mjs` 守护 CI／发布共用门禁及本次构建资产；这不能替代 GitHub Actions 实际执行或真实同步服务验收。
 
 - 提交与生命周期边界：`finder-editor.test.ts` 覆盖全拒绝、同值接受、部分过滤／改写后的失败结果、未知数量及禁止重放；`layout-migration.test.ts` 覆盖工具栏／行对齐／状态浮层 adopt 后的 Window、viewport 和 Observer 清理／重建；`search-library.test.ts` 覆盖预设初始订阅失败时立即释放历史订阅；`main-settings.test.mjs` 覆盖松手坐标与最后 move 不同及同 Document 双实例标签引用。这些模拟检查不替代 Obsidian popout、触屏拖动和悬浮提示实机验收。
 - 只读替换：`finder-editor.test.ts` 使用真实 EditorView 检查初始／捕获后启用 readOnly、拒绝时无事务过滤／写入、结构化拒绝类别、仍可发布高亮及 editable 不等于权限；`finder-panel.test.mjs` 覆盖单次／全部／按钮／Enter 入口、查找导航保留及候选等待期间变为只读后不写入或自动重放，并区分只读／宿主拒绝文案、不提供 Worker 重试。实际宿主或其他插件如何配置只读仍需实机验证。
@@ -75,7 +77,7 @@ git diff --check
 - 替换转义的真实 NUL、连续反斜杠、未知转义与设置开关边界。
 - 预设只填充 Finder，旧 `interpretEscapes` 不覆盖全局设置；全局开关后续变化仍影响替换并使待提交候选失效。入口：`finder-session.test.ts` 的 `ignores legacy preset escapes`、`finder-panel.test.mjs` 的 `global escape changes cancel pending replacements`。`search-library.test.ts` 与浏览器 harness 覆盖编辑页仅保留两项其他设置、常显短说明及有效 aria-describedby，不替代 Obsidian 实机悬浮提示验收。
 - 统一关闭入口、清空查找和替换文本、隐藏 Escape、模式异常与保留匹配选项偏好。
-- 关闭回焦：`note-focus.test.ts` 覆盖编辑器重建、阅读正文归属、新交互／窗口失焦取消、文件／模式／Document／owner 失效及监听释放；`finder-session.test.ts` 覆盖及时隐藏、同步／异步模式恢复失败及重开／重置／销毁取消，`finder-panel.test.mjs` 覆盖真实关闭入口的编辑／阅读焦点。浏览器 harness 使用生产 Escape 监听与真实 CodeMirror，检查关闭后可直接输入，阅读可直接 PageDown 滚动；仍须在 Obsidian 核对命令面板关闭顺序、下一／上一匹配选区可见、源码／实时预览、同文件双分屏、弹窗、窗口迁移及移动软键盘。不将 jsdom 或模拟阅读容器当作宿主验收。
+- 关闭回焦：`note-focus.test.ts` 覆盖编辑器重建、阅读正文归属、新交互／窗口失焦取消、文件／模式／Document／owner 失效及监听释放；`finder-session.test.ts` 覆盖及时隐藏、同步／异步模式恢复失败及重开／重置／销毁取消，`finder-panel.test.mjs` 覆盖真实关闭入口的编辑／阅读焦点，以及 Esc 后原选区保持、隐藏时前后导航和 `moveCursorToMatch` 关闭不改选区。浏览器 harness 使用生产 Escape 监听与真实 CodeMirror，核对 state 与浏览器原生 Selection、关闭后前后导航保留正文焦点和不写正文，并检查可直接输入、阅读可直接 PageDown 滚动。维护者已确认本次回焦修复通过；反馈未列明的平台、命令面板、分屏／弹窗／迁移及移动软键盘不能推定通过。不将 jsdom 或模拟阅读容器当作宿主验收，用户功能验收也不代替严格视觉基线审查。
 - 临时移动与贴边：`finder-position.test.mjs` 覆盖 3px 直接启动、Pointer Capture／取消释放、绘制帧合并与无逐事件布局读取、左右候选确认／撤回／替换阻止、满宽避让、标记二维停留／吸附和资源释放；`finder-panel.test.mjs` 覆盖装饰条无 tooltip 标签、箭头不承担拖动、30px／40px 标记单击／拖动区分、80% 反馈和原查询／高亮／焦点安全。`mobile-toolbar.test.mjs` 继续覆盖常驻溢出回流／More 原位。模拟不证明宿主实际跟手、触屏或安全区。
 - 移动行高／手柄：真实组件的 `real mobile branch uses equal row heights, centered top grip and original collapse arrow` 覆盖 40px 基础外高、Grid 中央手柄及无提示标签；`mobile inputs override host padding and line height without hiding multi-line content` 用模拟宿主 textarea 样式检查 border-box 30px／20px 行高／4px padding 可容纳单行及保留多行输入；`mobile center grip drags directly and cancels without making counters or close draggable` 检查直接拖动／取消／计数关闭隔离和顶部栏高度 footprint。jsdom 不测真实 scrollHeight／字体排版或系统边缘手势，不可宣称实机空输入滚动已消失。
 - 默认悬浮入口：`floating-entry.test.mjs` 覆盖默认懒创建、启用后已有笔记／同文件双分屏、新文件／视图、关闭后普通激活不重现、关闭设置不隐藏及销毁清理。真实 `finder-panel.test.mjs` 覆盖被动入口／后台刷新／位置恢复不匹配不抢焦点、点击展开不滚动、原生委托、替换 UI 命令展开／输入保留／聚焦和迟到焦点失效；`reading-commands.test.mjs` 覆盖小图标切换不是关闭、选区不覆盖及阅读降级。`main-settings.test.mjs`／`toolbar-contracts.test.mjs` 覆盖五分类、设置归属和布尔迁移。

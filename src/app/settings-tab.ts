@@ -27,6 +27,9 @@ export class SettingTab extends PluginSettingTab {
 	display(): void {
 		this.view.display();
 	}
+	refresh(): void {
+		this.view.refresh();
+	}
 	hide(): void {
 		this.view.hide();
 	}

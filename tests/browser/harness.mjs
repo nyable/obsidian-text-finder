@@ -1529,8 +1529,73 @@ export async function runBrowserChecks(browser, { capture } = {}) {
 			await page.evaluate(() => window.focusFixture.destroy());
 		}
 		report.production.closeFocusEditingAndReading = true;
+		for (const moveCursorToMatch of [true, false]) {
+			await page.goto(`${base}/production`);
+			await page.evaluate((moveCursorToMatch) => {
+				const h = (window.focusFixture = window.productionApi.mountFixture(
+					document.querySelector("#owner"),
+					{ focusable: true },
+				));
+				h.settings.moveCursorToMatch = moveCursorToMatch;
+				if (!moveCursorToMatch)
+					h.view.editor.cm.dispatch({ selection: { anchor: 1, head: 2 } });
+				h.finder.setVisible(true, "cat");
+			}, moveCursorToMatch);
+			await page.waitForFunction(
+				() => window.focusFixture.finder.getSearchCache().matches.length === 3,
+			);
+			await page.waitForFunction((moveCursorToMatch) => {
+				const range = window.focusFixture.view.editor.cm.state.selection.main;
+				return (
+					range.from === (moveCursorToMatch ? 0 : 1) &&
+					range.to === (moveCursorToMatch ? 3 : 2)
+				);
+			}, moveCursorToMatch);
+			await page.keyboard.press("Escape");
+			const assertSelection = async (from, to, text) => {
+				await page.waitForFunction(
+					({ from, to, text }) => {
+						const h = window.focusFixture,
+							cm = h.view.editor.cm,
+							range = cm.state.selection.main;
+						return (
+							!h.finder.isVisible() &&
+							document.activeElement === cm.contentDOM &&
+							range.from === from &&
+							range.to === to &&
+							document.getSelection()?.toString() === text
+						);
+					},
+					{ from, to, text },
+				);
+			};
+			await assertSelection(
+				moveCursorToMatch ? 0 : 1,
+				moveCursorToMatch ? 3 : 2,
+				moveCursorToMatch ? "cat" : "a",
+			);
+			await page.evaluate(() => window.focusFixture.finder.toNextMatch());
+			await assertSelection(
+				moveCursorToMatch ? 4 : 1,
+				moveCursorToMatch ? 7 : 2,
+				moveCursorToMatch ? "CAT" : "a",
+			);
+			await page.evaluate(() => window.focusFixture.finder.toPreviousMatch());
+			await assertSelection(
+				moveCursorToMatch ? 0 : 1,
+				moveCursorToMatch ? 3 : 2,
+				moveCursorToMatch ? "cat" : "a",
+			);
+			assert.equal(
+				await page.evaluate(() => window.focusFixture.view.editor.getValue()),
+				"cat CAT cat2",
+			);
+			await page.evaluate(() => window.focusFixture.destroy());
+		}
+		report.production.closeSelectionAndHiddenNavigation = true;
 		report.checks.push(
 			"production Escape closes Finder and restores real editor typing or reading PageDown without a mouse",
+			"production Escape preserves the native editor selection; hidden next/previous navigation retains focus and respects moveCursorToMatch",
 		);
 		await page.goto(`${base}/production?mobile=true`);
 		await page.evaluate(() => {
